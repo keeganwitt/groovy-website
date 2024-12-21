@@ -1,6 +1,7 @@
 = Searching with Lucene
 Paul King
 :revdate: 2024-11-25T15:30:00+00:00
+:updated: 2024-12-22T08:45:00+00:00
 :keywords: aggregation, search, lucene, groovy, emoji, regex
 :description: This post looks at using Lucene to find references to other projects in Groovy's blog posts.
 
@@ -966,3 +967,8 @@ image:img/LuceneWithStandardAnalyzer.png[]
 We have analyzed the Groovy blog posts looking for referenced projects
 using regular expressions and Apache Lucene. Hopefully this gives you a taste
 of the Lucene APIs and some of Groovy's features.
+
+.Update history
+****
+*22/Dec/2024*: Updated to Lucene 10.1.0
+****
