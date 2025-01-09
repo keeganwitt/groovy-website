@@ -145,15 +145,28 @@ public pets = ['cat', 'dog']
 
 The `groovy-servlet` module supports:
 
+* Writing servlets as Groovy scripts (_Groovlets_), e.g.:
++
+[source,groovy]
+----
+html.html {
+    head {
+         title 'My first Groovlet'
+    }
+    body { h1 'Welcome to Groovlets!' }
+}
+----
 * Writing servlets as Groovy classes (typically extending `AbstractHttpServlet`)
-* Writing servlets as Groovy scripts (_Groovlets_)
 * Writing Template-style, JSP-like _Groovy Server Pages_ which combine (typically) HTML with Groovy control-logic within special tags
 
 Groovy 5 defaults to Jakarta EE versions of the Servlet-related standards.
 This mostly involves using versions of the underlying classes with different
 package names.
-When writing Groovlets or GSPs, the change in package name might not be apparent
-but the underlying classes being used would change.
+
+When writing Groovlets or GSPs, the change in package name might not be apparent,
+since for simple examples, like the one shown above, the package names don't appear, but the underlying classes being used would change.
+If you are using Groovylets, your transition to Jakarta EE should be a little
+easier.
 
 You can still obtain the older Javax EE versions of the relevant classes using
 the "javax" classifier when specifying your dependency on `groovy-servlet`.
