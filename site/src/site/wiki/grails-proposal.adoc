@@ -184,15 +184,16 @@ Means of setting up regular builds for Grails on builds.apache.org
 == Initial Committers
 
 * Søren Berg Glasius (ASF: sbglasius)
-* James Fredley (jamesfredley@triumphinteractive.com)
+* James Fredley (GitHub: jamesfredley)
+* James Daugherty (GitHub: jdaugherty)
 * Mattias Reichel (GitHub: matrei)
 * Sergio del Amo Caballero (ASF: sdelamo)
-* James Daugherty (jdaugherty@jdresources.net)
 * Scott Murphy (GitHub: codeconsole)
-* David Estes (davydotcom@gmail.com)
-* Brian Koehmstedt (bko@koeh.net)
+* David Estes (GitHub: davydotcom)
+* Brian Koehmstedt (GitHub: bkoehm)
 * Graeme Rocher (ASF: grocher)
-* Puneet Behl (behl4485@gmail.com)
+* Puneet Behl (GitHub: puneetbehl)
+* Michael Yan (GitHub: rainboyan)
 * Paul King (ASF: paulk)
 
 == Champion
