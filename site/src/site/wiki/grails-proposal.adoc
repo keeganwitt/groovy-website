@@ -1,0 +1,209 @@
+= Grails Project Proposal
+
+== Abstract
+
+Grails is a powerful Groovy-based full-stack web application framework for the JVM built on top of Spring Boot.
+
+== Proposal
+
+Grails is a full-stack web application framework for the JVM. It is intended to be a high-productivity framework by following the "convention over configuration" paradigm, providing a stand-alone development environment and hiding much of the configuration detail from the developer. Grails has long been developed under an Apache License v2.0 under an open governance community management process.
+
+So far Grails has been a project mostly sponsored by a single company. It has become clear that the single vendor backed model previously used by Grails isn’t the best strategy to take it forward. We propose to bring the Grails community under the umbrella of the Apache Software Foundation with an initial goal that Grails core and its critical plugins are brought into the ASF (see more details in the “Initial Goals” section). We propose that the Groovy project act as the sponsoring organization during “incubation”. It will be responsible for mentoring community members and helping with releases until such time as Grails is ready to become a top-level project.
+
+== Background
+
+Grails is a mature open source project. Work began in July 2005, with the 0.1 release on March 29, 2006, and the 1.0 release announced on February 18, 2008. The latest release was 6.2.0 which was released April 6, 2024. After 19 years of development, Grails has grown into a powerful web application framework which leverages many of the latest technologies for building web applications on the JVM.
+
+Numerous vendors have consulting businesses based on building web applications using Grails. Other organizations use Grails for their internal web application development. While the Grails community is large, the project itself is also large. The existing model of expecting a single vendor to do the bulk of its maintenance is no longer viable. Moving to the ASF provides a vendor neutral home where all community members can feel safe contributing to Grails.
+
+== Rationale
+
+Many modern web frameworks in the Java space are more complicated than needed and don’t embrace the Don’t Repeat Yourself (DRY) principles.
+Dynamic frameworks like Rails and Django helped pave the way to a more modern way of thinking about web applications. Grails builds on these concepts and dramatically reduces the complexity of building web applications on the Java platform. What makes it different, however, is that it does so by building on already established Java technologies.
+
+== Initial Goals
+
+The initial goals of the Grails transition to the ASF are:
+
+* To establish a new home for an already fully functioning project in a setting which is welcoming for multiple vendors and individuals alike.
+* While many Grails contributors have a long-time open source history and experience, not all are familiar with ASF governance practices. So, another goal will be to mentor and educate those involved if/as needed.
+* As Grails has evolved, it has been split into small manageable pieces. This has made it easy to release parts individually but has made it harder to move the entire ecosystem across large changes (e.g. there have sometimes been circular dependencies). Also, because of Grails’ longevity, there is a rich ecosystem of plugins, but numerous plugins are out of date. So, a goal of this transition will be to bring across a fresh version of all of the critical Grails plugins. This has been dubbed a Minimum Viable Product (MVP) for the next version of Grails.
+* Since Spring Boot is now released every 6 months with only 12 months of OSS support per release, a Grails release will need to be released within 6 months of each Boot release to maintain Spring OSS support. Given the need for more frequent Grails releases due to Spring Boot, we will make an effort to reduce complexity and technical debt such that Grails releases take less effort with each release.
+
+== Current Status
+
+Currently, Grails provides a fully functional implementation licensed under ALv2. The project home is at https://grails.org/ and the majority of development is coordinated under various repos on GitHub at https://github.com/grails/. The project sports a very mature documentation and ecosystem of projects leveraging it.
+
+== Meritocracy
+
+Grails, up to now, has been run by a few core project members with a lot of contributions coming from a wide community of participants in the project.
+We want to expand our diverse developer and user community and run the Grails project in the Apache way clearly signaling not only the licensing, but also the governance choice.
+
+Users and new contributors will be treated with respect and welcomed; they will earn merit in the project by providing quality patches and support that move the project forward.
+Those with a proven support and quality patch track record will be encouraged to become committers.
+
+== Community
+
+There are just a few core team members with over a hundred contributors to the project. If Grails is accepted into the ASF, transitioning the community to embrace the Apache Way of governance would be a primary initial goal. We would solicit major existing contributors to become committers on the project from the get go.
+
+== Core Developers
+Core developers include folks who are extremely skilled in working in the openly governed communities on code bases licensed under the ALv2. The core developers are NOT currently affiliated with the ASF, although quite a few contributors are.
+
+== Alignment
+
+Grails is highly aligned with the Groovy project with many of the DSLs used within Grails being drivers for the requirements of DSL support within Groovy.
+The Groovy subproject Geb is often used for testing with Grails and Grails provides
+special Geb support. Grails also makes use of about a dozen ASF artifacts from other ASF projects (commons, logging, etc.)
+
+== Known Risks
+
+As noted above, development has been sponsored mostly by a single company and coordinated mostly by the core team so far.
+For Grails to fully transition to an "Apache Way" governance model it needs to start embracing the meritocracy-centric way of growing the community of contributors while balancing it with the needs for extreme stability and coherency of the core implementation.
+
+== Orphaned products
+
+The community proposing Grails for incubation is an active open source community. The primary vendor until now has been Object Computing (and for about a year, a related spin-off Unity Foundation). Currently Object Computing has paused significant new investment in the Grails project, but the size and diversity of the community should guarantee against the project being orphaned.
+
+== Inexperience with Open Source
+
+The majority of the proposers have day jobs that have them working near full-time on open source projects. Grails to date has always been developed as an open source project.
+
+== Homogeneous Developers
+
+Now that Object Computing is pausing significant new investment, the initial group of committers is expected to be heterogeneous when it comes to corporate affiliations. The Grails community is also extremely diverse in terms of geography and backgrounds of developers.
+
+== Reliance on Salaried Developers
+
+Most of the contributors are paid to work in the Java ecosystem. While we might wander from our current employers, we probably won’t go far from the Java family tree.
+
+== Relationships with Other Apache Products
+
+Grails relies fundamentally on Apache Groovy. It also depends on a number of other ASF projects including commons, ant, tomcat, and maven. Various Grails plugins (many are optional) also have ASF projects as dependencies.
+
+== An Excessive Fascination with the Apache Brand
+
+While we think that the Apache ‘branding’ will add strength to our project’s desire for ‘neutrality’, we have no plans for making excessive use of the Apache brand.
+
+== Documentation
+
+See https://docs.grails.org/6.2.0/guide/single.html for the current state of the Grails documentation.
+A mature project website is also available at https://grails.org/.
+
+== Initial Source
+
+Initial source is available on GitHub under the ALv2
+
+[cols="5,5"]
+|===
+| https://github.com/grails/grails-core | The Grails Web Application Framework
+| https://github.com/grails/grails-gradle-plugin | Gradle build plugin used by many projects and end Grails applications
+| https://github.com/grails/grails-static-website | Static version of the grails.org website
+| https://github.com/grails/grails-doc | Documentation Project For The Grails Web Application Framework
+| https://github.com/grails/grails-forge | This is Grails project creator. Grails projects may be created using the browser interface, Command Line, or via CURL.
+| https://github.com/grails/grails-forge-ui | React.js app for start.grails.org
+| https://github.com/grails/scaffolding | Scaffolding plugin for Grails® framework
+| https://github.com/gpc/fields | the fields plugin used by scaffolding and also independently.  A core plugin for grails web projects
+| https://github.com/grails/grails-angularjs-scaffolding | A plugin for generating client side assets based on domain
+| https://github.com/grails/grails-gsp | GSP (Grails Server Pages) - A server-side view rendering technology based on Groovy
+| https://github.com/grails/grails-views | Additional View Technologies for Grails
+| https://github.com/grails/grails-boot | Grails integrations with Spring Boot
+| https://github.com/grails/grails-async | Repository for Grails async plugins
+| https://github.com/grails/grails-data-mapping | GORM - Groovy Object Mapping
+| https://github.com/grails/gorm-hibernate5 | GORM for Hibernate 5
+| https://github.com/grails/gorm-hibernate6 | GORM for Hibernate 6
+| https://github.com/grails/gorm-mongodb | GORM for MongoDB
+| https://github.com/grails/gorm-neo4j | GORM for Neo4j
+| https://github.com/grails/gorm-graphql | An automatic GraphQL schema generator for GORM
+| https://github.com/grails/grails-database-migration | Grails® framework Database Migration Plugin
+| https://github.com/grails/gorm-docs | Documentation for GORM
+| https://github.com/grails/grails-rxgorm-docs | Documentation for RxGORM https://gorm.grails.org/latest/rx/manual/index.html
+| https://github.com/grails/grails-spring-security-core | Grails Spring Security Core Plugin
+| https://github.com/grails/grails-spring-security-rest | Grails plugin to implement token-based, RESTful authentication using Spring Security
+| https://github.com/grails/grails-spring-security-ui | The Spring Security UI plugin provides CRUD screens and other user management workflows.
+| https://github.com/grails/grails-spring-security-oauth2 | Spring security Oauth Grails 3 plugin
+| https://github.com/grails/grails-spring-security-acl
+| https://github.com/grails/grails-spring-security-cas
+| https://github.com/grails-plugins/grails-spring-security-ldap
+| https://github.com/grails/grails-testing-support | Trait-based testing library for Grails framework
+| https://github.com/grails/geb | Geb Functional Testing for Grails® framework
+| https://github.com/grails/grails-functional-tests | Functional Test Application for Grails 3
+| https://github.com/grails/grails-plugin-converters | Legacy converters plugin
+| https://github.com/grails/grails-plugins-metadata | grails-plugins.json used by https://grails.org/plugins.html
+| https://github.com/grails/grails-redis | Redis plugin for Grails
+| https://github.com/grails/grails-cache | Grails Cache Plugin
+| https://github.com/grails/elasticsearch-grails-plugin | The Elasticsearch Grails plugin
+| https://github.com/grails/grails-quartz | This project provides integration of the Quartz scheduling framework into the Grails Framework
+| https://github.com/grails/github-actions | custom github actions for workflows
+| https://github.com/grails/github-pages-deploy-action | GitHub action for building a project and deploying it to GitHub pages.
+| https://github.com/grails/grails-wrapper | Grails Wrapper
+| https://github.com/grails/grails-profiles
+| https://github.com/grails-profiles/base
+| https://github.com/grails-profiles/web
+| https://github.com/grails-profiles/profile
+| https://github.com/grails-profiles/plugin
+| https://github.com/grails-profiles/web-plugin
+| https://github.com/grails-profiles/rest-api
+| https://github.com/grails-profiles/rest-api-plugin
+| https://github.com/grails-profiles/vue
+| https://github.com/grails-profiles/react
+| https://github.com/grails-profiles/angular
+| https://github.com/grails-profiles-tests/web
+| https://github.com/grails-profiles-tests/plugin
+| https://github.com/grails-profiles-tests/web-plugin
+| https://github.com/grails-profiles-tests/rest-api
+| https://github.com/grails-profiles-tests/rest-api-plugin
+| https://github.com/grails-profiles-tests/vue
+| https://github.com/grails-profiles-tests/react
+| https://github.com/grails-profiles-tests/angular
+|===
+
+== Required Resources
+
+=== Mailing lists
+
+----
+users@grails.apache.org
+dev@grails.apache.org
+private@grails.apache.org
+notifications@grails.apache.org
+commits@grails.apache.org
+----
+
+=== Git Repository
+
+See Initial Source Above
+
+=== Issue Tracking
+
+GitHub Issues
+
+=== Other Resources
+
+Means of setting up regular builds for Grails on builds.apache.org
+
+== Initial Committers
+
+* Søren Berg Glasius (ASF: sbglasius)
+* James Fredley (jamesfredley@triumphinteractive.com)
+* Mattias Reichel (GitHub: matrei)
+* Sergio del Amo Caballero (ASF: sdelamo)
+* James Daugherty (jdaugherty@jdresources.net)
+* Scott Murphy (GitHub: codeconsole)
+* David Estes (davydotcom@gmail.com)
+* Brian Koehmstedt (bko@koeh.net)
+* Graeme Rocher (ASF: grocher)
+* Puneet Behl (behl4485@gmail.com)
+* Paul King (ASF: paulk)
+
+== Champion
+
+Paul King
+
+== Nominated Mentors
+
+Paul King
+Søren Berg Glasius
+
+== Sponsoring Entity
+
+We would like to propose the Groovy project to sponsor the incubation of Grails.
