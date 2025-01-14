@@ -121,9 +121,9 @@ Initial source is available on GitHub under the ALv2
 | https://github.com/grails/grails-spring-security-rest | Grails plugin to implement token-based, RESTful authentication using Spring Security
 | https://github.com/grails/grails-spring-security-ui | The Spring Security UI plugin provides CRUD screens and other user management workflows.
 | https://github.com/grails/grails-spring-security-oauth2 | Spring security Oauth Grails 3 plugin
-| https://github.com/grails/grails-spring-security-acl
-| https://github.com/grails/grails-spring-security-cas
-| https://github.com/grails-plugins/grails-spring-security-ldap
+| https://github.com/grails/grails-spring-security-acl |
+| https://github.com/grails/grails-spring-security-cas |
+| https://github.com/grails-plugins/grails-spring-security-ldap |
 | https://github.com/grails/grails-testing-support | Trait-based testing library for Grails framework
 | https://github.com/grails/geb | Geb Functional Testing for Grails® framework
 | https://github.com/grails/grails-functional-tests | Functional Test Application for Grails 3
@@ -136,25 +136,25 @@ Initial source is available on GitHub under the ALv2
 | https://github.com/grails/github-actions | custom github actions for workflows
 | https://github.com/grails/github-pages-deploy-action | GitHub action for building a project and deploying it to GitHub pages.
 | https://github.com/grails/grails-wrapper | Grails Wrapper
-| https://github.com/grails/grails-profiles
-| https://github.com/grails-profiles/base
-| https://github.com/grails-profiles/web
-| https://github.com/grails-profiles/profile
-| https://github.com/grails-profiles/plugin
-| https://github.com/grails-profiles/web-plugin
-| https://github.com/grails-profiles/rest-api
-| https://github.com/grails-profiles/rest-api-plugin
-| https://github.com/grails-profiles/vue
-| https://github.com/grails-profiles/react
-| https://github.com/grails-profiles/angular
-| https://github.com/grails-profiles-tests/web
-| https://github.com/grails-profiles-tests/plugin
-| https://github.com/grails-profiles-tests/web-plugin
-| https://github.com/grails-profiles-tests/rest-api
-| https://github.com/grails-profiles-tests/rest-api-plugin
-| https://github.com/grails-profiles-tests/vue
-| https://github.com/grails-profiles-tests/react
-| https://github.com/grails-profiles-tests/angular
+| https://github.com/grails/grails-profiles |
+| https://github.com/grails-profiles/base |
+| https://github.com/grails-profiles/web |
+| https://github.com/grails-profiles/profile |
+| https://github.com/grails-profiles/plugin |
+| https://github.com/grails-profiles/web-plugin |
+| https://github.com/grails-profiles/rest-api |
+| https://github.com/grails-profiles/rest-api-plugin |
+| https://github.com/grails-profiles/vue |
+| https://github.com/grails-profiles/react |
+| https://github.com/grails-profiles/angular |
+| https://github.com/grails-profiles-tests/web |
+| https://github.com/grails-profiles-tests/plugin |
+| https://github.com/grails-profiles-tests/web-plugin |
+| https://github.com/grails-profiles-tests/rest-api |
+| https://github.com/grails-profiles-tests/rest-api-plugin |
+| https://github.com/grails-profiles-tests/vue |
+| https://github.com/grails-profiles-tests/react |
+| https://github.com/grails-profiles-tests/angular |
 |===
 
 == Required Resources
