@@ -1,0 +1,37 @@
+= Groovy Text Similarity
+Paul King
+:revdate: 2025-01-25T19:22:00+00:00
+:draft: true
+:keywords: groovy, deep learning, apache commons
+:description: This blog looks at processing some algorithms for testing text similarity.
+
+== Introduction
+
+String similarity helps answer questions like:
+
+* Are two Jira/GitHub issues duplicates of the same issue?
+* Are two (or more) customer records actually for the same customer?
+* Is some social media topic trending because multiple posts are really about the same thing?
+* Can I understand some natural language customer request even when it contains spelling mistakes?
+* As a doctor, can I find a medical journal paper discussing a patient's medical diagnosis/symptoms/treatment?
+* As a programmer, can I find a solution to my coding problem?
+
+== Simple comparisons
+
+Examines three libraries for performing similarity matching:
+
+* info.debatty:java-string-similarity
+* org.apache.commons:commons-text Apache Commons Text
+* commons-codec:commons-codec Apache Commons Codec for Soundex
+
+== Further information
+
+Source code for this post:
+
+* https://github.com/paulk-asert/groovy-string-similarity
+
+Other referenced sites:
+
+* https://commons.apache.org/proper/commons-text/
+* https://commons.apache.org/proper/commons-codec/
+* https://github.com/tdebatty/java-string-similarity
