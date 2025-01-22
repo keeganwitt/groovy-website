@@ -45,12 +45,12 @@ ext.excludeFromChecks = [
 
 def commitedChanges = false
 def gitboxUrl = project.findProperty('gitPublishRemote') ?: 'https://gitbox.apache.org/repos/asf/groovy-dev-site.git'
-def stagingDevSite = "$project.buildDir/staging-dev-site/"
-def generatedDevSite = "$project.buildDir/site/"
+def stagingDevSite = project.layout.buildDirectory.dir('staging-dev-site').get().asFile
+def generatedDevSite = project.layout.buildDirectory.dir('site').get().asFile
 
-task copyAssets(type:Copy) {
+tasks.register('copyAssets', Copy) {
     from file('../site/src/site/assets')
-    into file("$buildDir/site")
+    into project.layout.buildDirectory.dir('site')
     filesMatching('**/*.css') { f->
         if (!f.name.contains('.min.')) {
             filter(CssFilter)
@@ -63,38 +63,39 @@ task copyAssets(type:Copy) {
     }
 }
 
-task copyWikiAssets(type:Copy) {
+tasks.register('copyWikiAssets', Copy) {
     from file('../site/src/site/wiki/img')
-    into file("$buildDir/site/wiki/img")
+    into project.layout.buildDirectory.dir('site/wiki/img')
 }
 
-task copyBlogAssets(type:Copy) {
+tasks.register('copyBlogAssets', Copy) {
     from file('../site/src/site/blog/img')
-    into file("$buildDir/site/blog/img")
+    into project.layout.buildDirectory.dir('site/blog/img')
 }
 
-task generateSite(type:JavaExec) {
+tasks.register('generateSite', JavaExec) {
 
     description = 'Generates the Groovy Dev Website'
     dependsOn copyAssets
     dependsOn copyWikiAssets
     dependsOn copyBlogAssets
     ext.sources = file('../site/src/site')
-    ext.outputDir = file("$buildDir/site")
+    ext.outputDir = project.layout.buildDirectory.dir('site')
 
     inputs.files fileTree(sources)
     outputs.files fileTree(outputDir)
 
     classpath = project(':generator').sourceSets.main.runtimeClasspath
     mainClass = 'generator.SiteGenerator'
-    args = [sources, outputDir, 'sitemap-dev.groovy', project.watchmode]
+    args = [sources, outputDir.get(), 'sitemap-dev.groovy', project.watchmode]
     systemProperties.docs_baseurl = System.getProperty('docs_baseurl')
 }
 
-task checkDeadLinks(dependsOn: generateSite) {
-    description = "Checks for dead links in the generated Groovy website"
+tasks.register('checkDeadLinks') {
+    dependsOn generateSite
+    description = 'Checks for dead links in the generated Groovy website'
 
-    ext.outputDir = file("$buildDir/reports")
+    ext.outputDir = project.layout.buildDirectory.dir('reports')
     ext.reportFile = file("$outputDir/deadlinks.html")
 
     inputs.files fileTree(generateSite.outputDir)
@@ -128,9 +129,10 @@ task checkDeadLinks(dependsOn: generateSite) {
     }
 }
 
-task webzip(type:Zip, dependsOn: checkDeadLinks) {
-    description = "Creates a zip with the generated website and the deadlink report"
-    destinationDirectory = file("$buildDir/distributions")
+tasks.register('webzip', Zip) {
+    dependsOn checkDeadLinks
+    description = 'Creates a zip with the generated website and the deadlink report'
+    destinationDirectory = project.layout.buildDirectory.dir('distributions')
 
     archiveBaseName = 'groovy'
     archiveAppendix = 'website'
@@ -143,7 +145,8 @@ task webzip(type:Zip, dependsOn: checkDeadLinks) {
 }
 
 // Creates a new commit on asf-site branch
-task commitWebsite(dependsOn: webzip) {
+tasks.register('commitWebsite') {
+    dependsOn webzip
     doLast {
         assert grgitClass : "git repository not found?"
         assert file("$generatedDevSite/index.html").exists()
@@ -163,7 +166,7 @@ task commitWebsite(dependsOn: webzip) {
 
         // Delete the previous content. These are asf-site branch paths.
         gitout.remove(patterns: ['.'])
-        fileTree(stagingDevSite).exclude('.git', '.asf.yaml').visit { delete it.file }
+        fileTree(stagingDevSite).exclude('.git', '.asf.yaml', 'geb').visit { delete it.file }
         assert !file("${stagingDevSite}/index.html").exists()
 
         // Copy the built content and add it.
@@ -202,7 +205,8 @@ task commitWebsite(dependsOn: webzip) {
  * because the remote is only added if it doesn't exist. The remote needs
  * to be added before every execution of the publishing.
  */
-task publishWebsite(dependsOn: commitWebsite) {
+tasks.register('publishWebsite') {
+    dependsOn commitWebsite
     doLast {
         assert grgit : "git repository not found?"
 
