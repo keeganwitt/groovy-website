@@ -37,7 +37,7 @@ ext.excludeFromChecks = [
 
 apply plugin: 'base'
 
-task copyAssets(type:Copy) {
+tasks.register('copyAssets', Copy) {
     from file('../site/src/site/assets')
     into layout.buildDirectory.dir('site')
     filesMatching('**/*.css') { f->
@@ -52,12 +52,12 @@ task copyAssets(type:Copy) {
     }
 }
 
-task copyReleaseNotesAssets(type:Copy) {
+tasks.register('copyReleaseNotesAssets', Copy) {
     from file('../site/src/site/releasenotes/img')
     into layout.buildDirectory.dir('site/releasenotes/img')
 }
 
-task generateSite(type:JavaExec) {
+tasks.register('generateSite', JavaExec) {
     description = 'Generates the Groovy User Website'
     dependsOn copyAssets
     dependsOn copyReleaseNotesAssets
@@ -73,7 +73,8 @@ task generateSite(type:JavaExec) {
     systemProperties.docs_baseurl = System.getProperty('docs_baseurl')
 }
 
-task checkDeadLinks(dependsOn: generateSite) {
+tasks.register('checkDeadLinks') {
+    dependsOn generateSite
     description = 'Checks for dead links in the generated Groovy website'
 
     ext.outputDir = layout.buildDirectory.dir('reports')
@@ -104,7 +105,8 @@ task checkDeadLinks(dependsOn: generateSite) {
     }
 }
 
-task webzip(type:Zip, dependsOn: checkDeadLinks) {
+tasks.register('webzip', Zip) {
+    dependsOn checkDeadLinks
     description = 'Creates a zip with the generated website and the deadlink report'
     destinationDirectory = layout.buildDirectory.dir('distributions')
 
