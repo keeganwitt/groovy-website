@@ -24,23 +24,24 @@ import util.CssFilter
 import util.JsFilter
 import util.CheckLinks
 
+import javax.inject.Inject
+
 plugins {
     id 'base'                  // common lifecycle tasks and artifact types
     id 'org.ajoberstar.grgit' version '5.3.0' // to publish website to asf-git branch
 }
 
-ext {
-    grgitClass = org.ajoberstar.grgit.Grgit
-}
-ext.watchmode = project.hasProperty('watchmode')?project.getProperty('watchmode'):'false'
+ext.watchmode = project.hasProperty('watchmode') ? project.getProperty('watchmode') : 'false'
+
+def grgitClass = org.ajoberstar.grgit.Grgit
 // a collection of links which have either been validated or are dummy links
-ext.excludeFromChecks = [
-        'http://issues.apache.org/jira',
-        'https://issues.apache.org/jira',
-        'target.html',
-        'foo.html',
-        'http://www.acme.com/cars',
-        'http://localhost:8080/groovy/hello.groovy'
+def excludeFromChecks = [
+    'http://issues.apache.org/jira',
+    'https://issues.apache.org/jira',
+    'target.html',
+    'foo.html',
+    'http://www.acme.com/cars',
+    'http://localhost:8080/groovy/hello.groovy'
 ]
 
 def commitedChanges = false
@@ -95,14 +96,14 @@ tasks.register('checkDeadLinks') {
     dependsOn generateSite
     description = 'Checks for dead links in the generated Groovy website'
 
-    ext.outputDir = project.layout.buildDirectory.dir('reports')
-    ext.reportFile = file("$outputDir/deadlinks.html")
+    ext.outputDir = project.layout.buildDirectory.dir('reports').get().asFile
+    def reportFile = file("$outputDir/deadlinks.html")
 
     inputs.files fileTree(generateSite.outputDir)
     outputs.file reportFile
 
     doLast {
-        def baseDir = generateSite.outputDir
+        def baseDir = generateSite.outputDir.get().asFile
         def checkLinks = new CheckLinks(baseDir: baseDir,
                 excludeFromChecks: excludeFromChecks,
                 logger: logger)
@@ -189,6 +190,11 @@ tasks.register('commitWebsite') {
     }
 }
 
+interface InjectedExecOps {
+    @Inject //@javax.inject.Inject
+    ExecOperations getExecOps()
+}
+
 /*
  * Pushes the asf-site branch commits.
  *
@@ -207,6 +213,7 @@ tasks.register('commitWebsite') {
  */
 tasks.register('publishWebsite') {
     dependsOn commitWebsite
+    def injected = project.objects.newInstance(InjectedExecOps)
     doLast {
         assert grgit : "git repository not found?"
 
@@ -219,14 +226,13 @@ tasks.register('publishWebsite') {
 
         // Because git.push() fails to authenticate, run git push directly.
         def cmd = 'git push origin asf-site'
-        exec {
+        def isWindows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+        injected.execOps.exec {
             workingDir stagingDevSite
-            if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
-                executable 'cmd.exe'
-                args '/c', cmd
+            if (isWindows) {
+                commandLine 'cmd.exe', '/c', cmd
             } else {
-                executable 'sh'
-                args '-c', cmd
+                commandLine 'sh', '-c', cmd
             }
         }
     }

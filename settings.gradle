@@ -18,15 +18,21 @@
  */
 
 plugins {
-    id "com.gradle.enterprise" version "3.5.2"
+    id "com.gradle.develocity" version "3.18.2"
 }
 
 rootProject.name = 'groovy-website'
-include 'generator','site-dev','site-user'
+include 'generator', 'site-dev', 'site-user'
 
-gradleEnterprise {
+develocity {
+    server = "https://develocity.apache.org"
+    projectId = "groovy-website"
+    allowUntrustedServer = false
+
     buildScan {
-        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
-        termsOfServiceAgree = 'yes'
+        publishing.onlyIf { it.authenticated }
+        obfuscation {
+            ipAddresses { addresses -> addresses.collect { address -> "0.0.0.0" } }
+        }
     }
 }
