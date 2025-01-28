@@ -42,6 +42,103 @@ First, we'll examine three libraries for performing similarity matching:
 * org.apache.commons:commons-text Apache Commons Text
 * commons-codec:commons-codec Apache Commons Codec for Soundex
 
+== Phonetic Algorithms
+
+https://en.wikipedia.org/wiki/Phonetic_algorithm[Phonetic algorithms] map words into representations of their pronunciation. They are often used for spell checkers, searching, data deduplication and speech to text systems.
+
+One of the earliest phonetic algorithms was https://en.wikipedia.org/wiki/Soundex[Soundex].
+The idea is that similar sounding words will have the same soundex encoding despite minor differences in spelling, e.g. Claire, Clair, and Clare, all have the same soundex encoding.
+A summary of soundex is that (all but leading) vowels are dropped and similar sounding consonants are
+grouped together. Commons codec has several soundex algorithms. The most commonly used
+ones for the English language are shown below:
+
+++++
+<pre>
+Pair                Soundex                RefinedSoundex         DaitchMokotoffSoundex
+cat|hat             C300|H300              C306|H06               430000|530000
+bear|bare           <span style="color:green">B600|B600</span>              B109|B1090             <span style="color:green">790000|790000</span>
+pair|pare           <span style="color:green">P600|P600</span>              P109|P1090             <span style="color:green">790000|790000</span>
+there|their         <span style="color:green">T600|T600</span>              T6090|T609             <span style="color:green">390000|390000</span>
+sort|sought         S630|S230              S3096|S30406           493000|453000
+cow|bull            C000|B400              C30|B107               470000|780000
+winning|grinning    W552|G655              W08084|G4908084        766500|596650
+knows|nose          K520|N200              K3803|N8030            567400|640000
+ground|aground      G653|A265              G49086|A049086         596300|059630
+peeler|repeal       P460|R140              P10709|R90107          789000|978000
+hippo|hippopotamus  H100|H113              H010|H0101060803       570000|577364
+
+</pre>
+++++
+
+Another common phonetic algorithm is https://en.wikipedia.org/wiki/Metaphone[Metaphone].
+This is similar in concept to Soundex but uses a more sophisticated algorithm for encoding.
+Various versions are available. Commons codec supports Metaphone and Double Metaphone.
+The https://github.com/OpenRefine/OpenRefine[openrefine] project includes an early version of Metaphone 3.
+
+++++
+<pre>
+Pair                Metaphone        Metaphone(8)     DblMetaphone(8)  Metaphone3
+cat|hat             KT|HT            KT|HT            KT|HT            KT|HT
+bear|bare           <span style="color:green">BR|BR            BR|BR            PR|PR            PR|PR</span>
+pair|pare           <span style="color:green">PR|PR            PR|PR            PR|PR            PR|PR</span>
+there|their         <span style="color:green">0R|0R            0R|0R            0R|0R            0R|0R</span>
+sort|sought         SRT|ST           SRT|ST           SRT|SKT          SRT|ST
+cow|bull            K|BL             K|BL             K|PL             K|PL
+winning|grinning    WNNK|KRNN        WNNK|KRNNK       ANNK|KRNNK       ANNK|KRNNK
+knows|nose          <span style="color:green">NS|NS            NS|NS            NS|NS            NS|NS</span>
+ground|aground      KRNT|AKRN        KRNT|AKRNT       KRNT|AKRNT       KRNT|AKRNT
+peeler|repeal       PLR|RPL          PLR|RPL          PLR|RPL          PLR|RPL
+hippo|hippopotamus  HP|HPPT          HP|HPPTMS        HP|HPPTMS        HP|HPPTMS
+
+</pre>
+++++
+
+Commons Codec includes some additional algorithms including https://en.wikipedia.org/wiki/New_York_State_Identification_and_Intelligence_System[Nysiis] and https://en.wikipedia.org/wiki/Caverphone[Caverphone]. They are shown below for completeness.
+
+++++
+<pre>
+Pair                Nysiis                 Caverphone2
+cat|hat             CAT|HAT                KT11111111|AT11111111
+bear|bare           <span style="color:green">BAR|BAR                PA11111111|PA11111111</span>
+pair|pare           <span style="color:green">PAR|PAR                PA11111111|PA11111111</span>
+there|their         <span style="color:green">TAR|TAR                TA11111111|TA11111111</span>
+sort|sought         SAD|SAGT               <span style="color:green">ST11111111|ST11111111</span>
+cow|bull            C|BAL                  KA11111111|PA11111111
+winning|grinning    WANANG|GRANAN          WNNK111111|KRNNK11111
+knows|nose          N|NAS                  KNS1111111|NS11111111
+ground|aground      GRAD|AGRAD             KRNT111111|AKRNT11111
+peeler|repeal       PALAR|RAPAL            PLA1111111|RPA1111111
+hippo|hippopotamus  HAP|HAPAPA             APA1111111|APPTMS1111
+
+</pre>
+++++
+
+The matching of `sort` with `sought` by Caverphone2 is useful but it didn't match
+`knows` with `nose`. In summary, these
+algorithms don't offer anything compelling compared with Metaphone.
+
+For our game, we don't want users to have to understand the encoding algorithms of
+the various phonetic algorithms. We want to instead give them a metric that lets them know
+how closely their guess sounds like the hidden word.
+
+++++
+<pre>
+Pair                SoundexDiff    Metaphone5LCS  Metaphone5Lev
+cat|hat             75%            50%            50%
+bear|bare           <span style="color:green">100%           100%           100%</span>
+pair|pare           <span style="color:green">100%           100%           100%</span>
+there|their         <span style="color:green">100%           100%           100%</span>
+sort|sought         75%            67%            67%
+cow|bull            50%            0%             0%
+winning|grinning    25%            60%            60%
+knows|nose          25%            <span style="color:green">100%           100%</span>
+ground|aground      0%             <span style="color:green">80%            80%</span>
+peeler|repeal       25%            67%            33%
+hippo|hippopotamus  50%            40%            40%
+
+</pre>
+++++
+
 == Further information
 
 Source code for this post:
