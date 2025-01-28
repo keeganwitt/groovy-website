@@ -34,13 +34,37 @@ Handling cases explicitly like this soon becomes tedious.
 We'll look at some libraries which can help us handle comparisons
 in more general ways.
 
-== Simple comparisons
-
 First, we'll examine three libraries for performing similarity matching:
 
 * info.debatty:java-string-similarity
 * org.apache.commons:commons-text Apache Commons Text
 * commons-codec:commons-codec Apache Commons Codec for Soundex
+
+Then we'll look at some deep learning options.
+
+== Simple String Metrics
+
+https://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein],
+https://en.wikipedia.org/wiki/Jaccard_index[Jaccard],
+https://en.wikipedia.org/wiki/Hamming_distance[Hamming],
+https://en.wikipedia.org/wiki/Longest_common_subsequence[LongestCommonSubsequence],
+https://en.wikipedia.org/wiki/Jaro_distance[JaroWinkler].
+
+++++
+<pre>
+      there VS their
+JaroWinklerSimilarity                     0.91 <span style="color:green">██████████████████▏</span>
+JaroWinkler                               0.91 <span style="color:green">██████████████████▏</span>
+Jaccard (debatty k=1)                     0.80 <span style="color:green">████████████████▏</span>
+RatcliffObershelp                         0.80 <span style="color:green">████████████████▏</span>
+JaccardSimilarity (commons text k=1)      0.80 <span style="color:green">████████████████▏</span>
+NormalizedLevenshtein                     0.60 <span style="color:red">████████████▏</span>
+Cosine                                    0.33 <span style="color:red">██████▏</span>
+Jaccard (debatty k=2)                     0.33 <span style="color:red">██████▏</span>
+SorensenDice                              0.33 <span style="color:red">██████▏</span>
+Jaccard (debatty k=3)                     0.20 <span style="color:red">████▏</span>
+</pre>
+++++
 
 == Phonetic Algorithms
 
@@ -139,6 +163,31 @@ hippo|hippopotamus  50%            40%            40%
 </pre>
 ++++
 
+== Deep Learning
+
+----
+    Cows eat grass
+Bovines convert grass to milk (0.80)
+Bulls consume hay (0.69)
+Bulls trample grass (0.68)
+Dogs play in the grass (0.65)
+The grass is green (0.62)
+
+    Poodles are cute
+Dachshunds are delightful (0.63)
+Dogs play in the grass (0.56)
+The grass is green (0.44)
+Bovines convert grass to milk (0.40)
+One two three (0.38)
+
+    The water is turquoise
+The sea is blue (0.72)
+The sky is blue (0.65)
+The grass is green (0.53)
+One two three (0.43)
+Dogs play in the grass (0.35)
+----
+
 == Further information
 
 Source code for this post:
@@ -150,3 +199,5 @@ Other referenced sites:
 * https://commons.apache.org/proper/commons-text/
 * https://commons.apache.org/proper/commons-codec/
 * https://github.com/tdebatty/java-string-similarity
+* https://github.com/OpenRefine/OpenRefine
+* https://djl.ai/
