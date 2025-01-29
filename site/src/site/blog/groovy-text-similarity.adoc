@@ -273,6 +273,9 @@ One two three (0.17)
 
 image:img/AnimalSemanticSimilarity.png[]
 
+image:img/AnimalSemanticMeaningPcaBubblePlot.png[]
+
+
 == Further information
 
 Source code for this post:
