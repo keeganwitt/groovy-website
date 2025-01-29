@@ -188,6 +188,8 @@ One two three (0.43)
 Dogs play in the grass (0.35)
 ----
 
+image:img/AnimalSemanticSimilarity.png[]
+
 == Further information
 
 Source code for this post:
