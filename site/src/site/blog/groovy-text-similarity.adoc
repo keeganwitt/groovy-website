@@ -50,6 +50,26 @@ https://en.wikipedia.org/wiki/Hamming_distance[Hamming],
 https://en.wikipedia.org/wiki/Longest_common_subsequence[LongestCommonSubsequence],
 https://en.wikipedia.org/wiki/Jaro_distance[JaroWinkler].
 
+[source,groovy]
+----
+'foo'.toUpper()
+----
+
+----
+No signature of method: java.lang.String.toUpper() is applicable for argument types: () values: []
+Possible solutions: toUpperCase(), toURI(), toURL(), toURI(), toURL(), toSet()
+----
+
+[source,groovy]
+----
+'foo'.touppercase()
+----
+
+----
+No signature of method: java.lang.String.touppercase() is applicable for argument types: () values: []
+Possible solutions: toUpperCase(), toUpperCase(java.util.Locale), toLowerCase(), toLowerCase(java.util.Locale)
+----
+
 ++++
 <pre>
       there VS their
@@ -163,7 +183,7 @@ hippo|hippopotamus  50%            40%            40%
 </pre>
 ++++
 
-== Deep Learning
+== Going Deeper
 
 Using DJL with PyTorch and the Angle model:
 
