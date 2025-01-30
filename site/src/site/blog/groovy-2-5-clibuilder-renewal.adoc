@@ -90,7 +90,7 @@ assert options.arguments() == [&#39;and&#39;, &#39;some&#39;, &#39;more&#39;]
 <h3 id="_supported_types">Supported Types</h3>
 <div class="paragraph">
 <p>The Commons CLI-based CliBuilder supports primitives, numeric types, files, enums and arrays thereof
-(using <a href="http://docs.groovy-lang.org/2.5.0-SNAPSHOT/html/gapi/index.html?org/codehaus/groovy/runtime/StringGroovyMethods.html#asType">StringGroovyMethods#asType(String, Class)</a>).
+(using <a href="https://docs.groovy-lang.org/docs/groovy-2.5.0/html/gapi/org/codehaus/groovy/runtime/StringGroovyMethods.html#asType(java.lang.String,%20Class%3CT%3E)">StringGroovyMethods#asType(String, Class&lt;T&gt;)</a>).
 The picocli-based CliBuilder supports those <a href="http://picocli.info/#_built_in_types">and more</a>.</p>
 </div>
 </div>

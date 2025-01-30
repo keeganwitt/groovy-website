@@ -18,7 +18,7 @@ comparing and contrasting various libraries and various classification algorithm
 |===
 | |Technologies/libraries covered
 
-|_Data manipulation_ |https://www.cs.waikato.ac.nz/ml/weka/[Weka] https://tablesaw.tech/[Tablesaw] https://github.com/jeffheaton/encog-java-core[Encog] https://github.com/EdwardRaff/JSAT[JSAT] https://github.com/deeplearning4j/DataVec[Datavec] https://tribuo.org/[Tribuo]
+|_Data manipulation_ |https://www.cs.waikato.ac.nz/ml/weka/[Weka] https://jtablesaw.github.io/tablesaw/[Tablesaw] https://github.com/jeffheaton/encog-java-core[Encog] https://github.com/EdwardRaff/JSAT[JSAT] https://github.com/deeplearning4j/deeplearning4j/tree/master/datavec[Datavec] https://tribuo.org/[Tribuo]
 
 |_Classification_ |https://www.cs.waikato.ac.nz/ml/weka/[Weka] http://haifengl.github.io/[Smile] https://github.com/jeffheaton/encog-java-core[Encog] https://tribuo.org/[Tribuo] https://github.com/EdwardRaff/JSAT[JSAT] https://deeplearning4j.org/[Deep Learning4J] https://www.deepnetts.com/blog/deep-netts-community-edition[Deep Netts]
 

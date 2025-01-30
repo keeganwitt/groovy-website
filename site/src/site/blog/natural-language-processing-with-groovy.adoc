@@ -1007,7 +1007,7 @@ of the relative merits of each model. Some models can be over-trained on small
 datasets and perform very well with data similar to their training datasets but
 perform much worse for other data.
 
-This example is inspired from the https://github.com/deepjavalibrary/djl/blob/master/examples/src/main/java/ai/djl/examples/inference/UniversalSentenceEncoder.java[UniversalSentenceEncoder] example in the
+This example is inspired from the https://github.com/deepjavalibrary/djl/blob/master/examples/src/main/java/ai/djl/examples/inference/nlp/UniversalSentenceEncoder.java[UniversalSentenceEncoder] example in the
 https://github.com/deepjavalibrary/djl/tree/master/examples[DJL examples module].
 It looks at using the universal sentence encoder model from
 https://github.com/paulk-asert/groovy-data-science/tree/master/subprojects[TensorFlow Hub]

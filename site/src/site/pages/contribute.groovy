@@ -139,8 +139,8 @@ layout 'layouts/main.groovy', true,
                                 }
                                 p {
                                     yield 'To contribute to the Groovy reference documentation, this '
-                                    a(href: 'http://blog.cacoethes.co.uk/groovyandgrails/contributing-to-the-groovy-documentation', 'blog post')
-                                    yield ' gives all the details on how you can work on that documentation.'
+                                    a(href: 'https://groovy.apache.org/blog/create-groovy-blog', 'blog post')
+                                    yield ' about writing your own post will give you numerous pointers.'
                                 }
                                 p {
                                     yield 'All the above is stored in our code '
@@ -166,7 +166,7 @@ layout 'layouts/main.groovy', true,
                                     yield '''
                                         of possible easy contributions that could get you started on your journey
                                         to become a Groovy committer. Just raise your hand on the Groovy developer '''
-                                    a(href: 'http://groovy-lang.org/mailing-lists.html', 'mailing-list')
+                                    a(href: 'https://groovy-lang.org/mailing-lists.html', 'mailing-list')
                                     yield ''' to tell us about your desire to work on that ticket.'''
                                 }
                                 p '''
@@ -178,7 +178,7 @@ layout 'layouts/main.groovy', true,
                                 h3 'Cloning the code base'
                                 p {
                                     yield 'To work on the Groovy code base, you should be proficient enough in '
-                                    a(href: 'http://git-scm.com/', 'git')
+                                    a(href: 'https://git-scm.com/', 'git')
                                     yield ' and you should have an account on '
                                     a(href: 'https://github.com/', 'Github')
                                     yield ' to be able to create '

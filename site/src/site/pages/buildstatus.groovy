@@ -16,8 +16,7 @@ layout 'layouts/main.groovy', true,
                                     $a(href: 'http://ci.groovy-lang.org?guest=1', 'continuous integration server')
                                 },
                                     sponsored by ${$a(href: 'http://www.jetbrains.com', 'JetBrains')},
-                                    builds Groovy against multiple JDK versions, as well as some projects from the community tested
-                                    against development versions of Groovy:
+                                    builds Groovy against multiple JDK versions:
                                 """
                                 hr(class: 'divider')
 
@@ -47,29 +46,17 @@ layout 'layouts/main.groovy', true,
                                     }
                                 }
                                 renderBuilds([
-                                        'Groovy master, JDK 11': ['MasterTestAllJdk11', ''],
-                                        'Groovy master, JDK 8': ['MasterTestAllJdk8', ''],
+                                        'Groovy master, JDK 11': ['MasterTestJdk11', ''],
+                                        'Groovy master, JDK 17': ['MasterTestJdk17', ''],
+                                        'Groovy master, JDK 21': ['MasterTestJdk21', ''],
+                                        'Groovy 4.0.X, JDK 8': ['MasterTestAllJdk8', ''],
+                                        'Groovy 4.0.X, JDK 17': ['MasterTestAllJdk17', ''],
+                                        'Groovy 4.0.X, JDK 21': ['MasterTestAllJdk21', ''],
                                         'Groovy 3.0.X, JDK 8': ['Groovy30xTestAllJdk8', ''],
                                         'Groovy 2.5.X, JDK 8': ['Groovy25xCheckJdk8', ''],
-                                        'Groovy 2.5.X, JDK 11': ['Groovy25xCheckJdk11', ''],
+                                        'Groovy 2.5.X, JDK 11': ['Groovy25xTestJdk11', ''],
                                         'Groovy 2.4.X, JDK 8': ['Groovy24xCheckJdk8', '']
                                 ])
-
-                                hr(class: 'divider')
-
-                                h2 'Community joint builds'
-                                renderBuilds([
-                                        'Grails 3.2.x, Groovy 2.4.X': ['JointBuilds_Grails_Grails32x_Groovy24x', ''],
-                                        'GORM 6.1.x, Groovy 2.4.X': ['JointBuilds_Grails_Gorm61xGroovy24x', ''],
-                                        'Nextflow master, Groovy 2.4.X': ['JointBuilds_Nextflow_Groovy24xJointBuild', ''],
-                                        'Ratpack master, Groovy 2.4.X': ['JointBuilds_Ratpac_RatpackGroovy24x', '']
-                                ])
-
-                                p """
-                                    The Groovy development team is keen to test Groovy development versions against important
-                                    ecosystem projects. If you want your project to be added to the list, please contact
-                                    us on the ${$a(href:'http://groovy-lang.org/mailing-lists.html','development mailing list')}.
-                                """
                             }
                         }
                     }

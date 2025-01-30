@@ -454,7 +454,8 @@ We can see here that it is now close to what linear programming would give us.
 * https://developers.google.com/optimization/lp[OR-Tools] linear optimization
 * A related but more elaborate example based on the https://developers.google.com/optimization/lp/stigler_diet[Stigler Diet] problem using Google OR-Tools
 * A Python https://www.kaggle.com/code/nbuhagiar/diet-optimization-with-or-tools[Diet example] also using Google OR-Tools
-* GitHub repos containing sample code: https://github.com/paulk-asert/groovy-constraint-programming/tree/master/subprojects/Diet[Diet] https://github.com/paulk-asert/groovy-constraint-programming/tree/master/subprojects/DietOptaPlanner[DietOptaPlanner] https://github.com/paulk-asert/groovy-constraint-programming/tree/master/subprojects/DietTimeflow[DietTimeflow]
+* GitHub repos containing sample code: +
+https://github.com/paulk-asert/groovy-constraint-programming/tree/master/subprojects/Diet[Diet] https://github.com/paulk-asert/groovy-constraint-programming/tree/master/subprojects/DietOptaPlanner[DietOptaPlanner] https://github.com/paulk-asert/groovy-constraint-programming/tree/master/subprojects/DietTimefold[DietTimeflow]
 
 == Conclusion
 

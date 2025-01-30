@@ -138,7 +138,7 @@ image:img/detected_objects.png[Detected objects,468]
 == Further Information
 
 The full source code can be found in the following repo: +
-https://github.com/paulk-asert/groovy-data-science/subprojects/DeepLearningMxnet
+https://github.com/paulk-asert/groovy-data-science/tree/master/subprojects/DeepLearningMxnet
 
 == Conclusion
 

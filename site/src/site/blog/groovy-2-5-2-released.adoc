@@ -23,7 +23,7 @@ Jars are also available within the major binary repositories.
 
 We welcome your help and feedback and in particular want to thank everyone who contributed to this release.
 
-For more information on how to report problems, and to get involved, visit the project website at https://groovy.apache.org/</a>
+For more information on how to report problems, and to get involved, visit the https://groovy.apache.org/[project website].
 
 Best regards,
 

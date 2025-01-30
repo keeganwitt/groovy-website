@@ -98,9 +98,9 @@ instead of the `@RecordType` annotation.
 
 == References and useful links
 
-* https://openjdk.java.net/jeps/395[JEP 395: Records]
-* https://openjdk.java.net/jeps/384[JEP 384: Records (Second Preview)]
-* https://openjdk.java.net/jeps/359[JEP 359: Records (Preview)]
+* https://openjdk.org/jeps/395[JEP 395: Records]
+* https://openjdk.org/jeps/384[JEP 384: Records (Second Preview)]
+* https://openjdk.org/jeps/359[JEP 359: Records (Preview)]
 * https://docs.oracle.com/en/java/javase/16/language/records.html[Record Classes] Java documentation
 * https://kotlinlang.org/docs/data-classes.html[Kotlin data classes]
 * https://docs.scala-lang.org/tour/case-classes.html[Scala case classes]

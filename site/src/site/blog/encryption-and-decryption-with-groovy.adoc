@@ -131,7 +131,7 @@ https://www.bouncycastle.org/java.html[Bouncy Castle library]. +
 
 _NOTE_
 ****
-Just as an aside, if you are wanting to encrypt or decrypt GPG/PGP files, don't use the above code. Libraries like Bouncy Castle have https://www.bouncycastle.org/docs/pgdocs1.8on/index.html[dedicated classes] for such scenarios.
+Just as an aside, if you are wanting to encrypt or decrypt GPG/PGP files, don't use the above code. Libraries like Bouncy Castle have https://downloads.bouncycastle.org/java/docs/bcpg-jdk18on-javadoc/index.html[dedicated classes] for such scenarios.
 ****
 
 We now encrypt and decrypt as before:
