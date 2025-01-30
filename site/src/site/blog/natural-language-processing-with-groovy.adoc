@@ -578,7 +578,7 @@ http://nlp.johnsnowlabs.com/[Spark NLP] which adds NLP functionality to
 https://spark.apache.org/[Apache Spark]. We'll use
 https://nlp.johnsnowlabs.com/2020/01/22/glove_100d.html[glove_100d]
 embeddings and the
-https://nlp.johnsnowlabs.com/2020/02/03/onto_100_en.html[onto_100] NER model.
+https://sparknlp.org/2020/02/03/onto_100_en.html[onto_100] NER model.
 
 [source,groovy]
 ----
