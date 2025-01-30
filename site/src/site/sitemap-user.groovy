@@ -49,7 +49,7 @@ menu {
         item 'Source code on GitHub',       'https://github.com/apache/groovy',                 'fa-github'
         item 'Report issues in Jira',       'reporting-issues.html',                            'fa-bug'
         item 'Stack Overflow questions',    'http://stackoverflow.com/questions/tagged/groovy', 'fa-stack-overflow'
-	    item 'Slack Community',             'http://groovycommunity.com/',                      'fa-slack'
+	    item 'Slack Community',             'http://wwww.groovycommunity.com/',                      'fa-slack'
     }
 }
 

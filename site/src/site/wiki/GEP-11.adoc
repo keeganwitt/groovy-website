@@ -257,7 +257,7 @@ Differences to groovy.mop.internal.DefaultMetaProperty:
 
 === Mailing-list discussions
 
-* https://markmail.org/message/zujumywsb73px2ky[groovy-user: Groovy 3]
+* https://marc.info/?l=groovy-user&m=134070969008201&w=2[groovy-user: Groovy 3]
 
 === Reference implementation
 

@@ -41,7 +41,7 @@ The main benefit of using configuration files are:
 
 == URLs
 
-https://groovy.markmail.org/thread/jahqbj6su5ddvuah[groovy-dev: GEP 5 - file extension based AST transformations]
+https://marc.info/?l=groovy-dev&m=126725425413269&w=2[groovy-dev: GEP 5 - file extension based AST transformations]
 
 == Update history
 

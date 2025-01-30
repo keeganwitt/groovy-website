@@ -108,4 +108,4 @@ For Groovy 5, we are currently exploring the possibility of adding more
 functions in GQuery, like `bar` and `stringAgg`. If you are interested in this
 functionality, please get in touch via the
 https://groovy-lang.org/mailing-lists.html[mailing lists] or
-http://groovycommunity.com/[Slack].
+http://www.groovycommunity.com/[Slack].

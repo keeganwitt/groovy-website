@@ -42,7 +42,7 @@ layout 'layouts/main.groovy', true,
                                         a feature or to gather support and ideas for your feature enhancement request.
                                         '''
                                         yield 'Alternatively, consider using the '
-                                        a(href: 'https://groovycommunity.com/', 'Slack')
+                                        a(href: 'https://www.groovycommunity.com/', 'Slack')
                                         yield " channel. (This channel is not endorsed by the Apache Software Foundation; it's run by Groovy enthusiasts in the community.)"
                                     }
                                 }

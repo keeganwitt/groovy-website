@@ -247,7 +247,7 @@ def template() { new MarkupBuilder().html { p('Hello') } }
 
 === Mailing-list discussions
 
-* https://markmail.org/thread/a4qhxtjzu3wsw6e5[groovy-dev: Static compilation for Groovy]: +
+* https://marc.info/?l=groovy-dev&m=132095119732500&w=2[groovy-dev: Static compilation for Groovy]: +
 An interesting discussion where dynamic lovers explain why they do not want static compilation
 
 === JIRA issues

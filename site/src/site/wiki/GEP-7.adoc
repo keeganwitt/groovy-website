@@ -156,7 +156,7 @@ JSON Spec and Java implementations
 
 === Mailing-list discussions
 
-* https://markmail.org/thread/5ofqwr6t33okyh6g[groovy-dev: Built-in JSON support in 1.8]
+* https://marc.info/?l=groovy-dev&m=129623197505984&w=2[groovy-dev: Built-in JSON support in 1.8]
 
 === JIRA issues
 

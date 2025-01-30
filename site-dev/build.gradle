@@ -148,6 +148,7 @@ tasks.register('webzip', Zip) {
 // Creates a new commit on asf-site branch
 tasks.register('commitWebsite') {
     dependsOn webzip
+    def skipClone = project.hasProperty('skipClone')
     doLast {
         assert grgitClass : "git repository not found?"
         assert file("$generatedDevSite/index.html").exists()
@@ -156,7 +157,7 @@ tasks.register('commitWebsite') {
         def latestCommit = gitin.log(maxCommits: 1)[0].abbreviatedId
 
         def gitout
-        if (project.hasProperty('skipClone')) {
+        if (skipClone) {
             gitout = grgitClass.open(dir: stagingDevSite)
         } else {
             println "Cloning $gitboxUrl to $stagingDevSite. This may take a few minutes ..."

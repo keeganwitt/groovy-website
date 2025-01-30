@@ -104,7 +104,7 @@ and not all types are exhaustively covered.
 * https://openjdk.java.net/jeps/397[JEP 397: Sealed Classes (Second Preview)]
 * https://openjdk.java.net/jeps/409[JEP 409: Sealed Classes]
 * https://kotlinlang.org/docs/sealed-classes.html[Sealed Classes] in Kotlin
-* https://docs.scala-lang.org/sips/sealed-types.html[Sealed Classes] in Scala
+* https://github.com/scala/improvement-proposals/pull/43[Sealed Types] in Scala (withdrawn)
 
 === Reference implementation
 

@@ -286,7 +286,7 @@ The proposed behaviour is therefore to align the instanceof case with multicatch
 
 === Mailing-list discussions
 
-* https://markmail.org/thread/reou7z35nk64cai5[groovy-user: What to do on assignment?] Discussion about the expected behaviour when STC detects a potential error on assignment (for example, possible loose of precision on implicit number casts)
+* https://marc.info/?l=groovy-user&m=131805623302039&w=2[groovy-user: [grumpy mode\] What to do on assignment?] Discussion about the expected behaviour when STC detects a potential error on assignment (for example, possible loss of precision on implicit number casts)
 
 === JIRA issues
 

@@ -195,9 +195,9 @@ Those languages also supply a splice operator $(...) to turn AST back into code.
 
 == References and useful links
 
-https://groovy.markmail.org/thread/4pw7uzl5ulkb5zbe[groovy-dev: Groovy AST Builder discussion]
+https://marc.info/?l=groovy-dev&m=123880759618095&w=2[groovy-dev: Groovy AST Builder discussion]
 
-https://groovy.markmail.org/thread/bbusithri2xmhmiw[groovy-dev: Several issues with GEP-2 AST Builder "from specification"]
+https://marc.info/?l=groovy-dev&m=124187435114834&w=2[groovy-dev: Several issues with GEP-2 AST Builder "from specification"]
 
 https://en.wikipedia.org/wiki/Template_Haskell[Template Haskell]
 

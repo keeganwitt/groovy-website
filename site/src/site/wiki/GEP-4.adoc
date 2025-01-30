@@ -115,7 +115,7 @@ There are no real drawbacks to having an opposite syntax. The number of Boo AST 
 
 Mailing List Discussions
 
-* groovy-dev: https://groovy.markmail.org/thread/mgo3ze3uvn2jalz4[Groovy AstBuilder AST Templates]
+* groovy-dev: https://marc.info/?l=groovy-dev&m=126632536126812&w=2[Groovy AstBuilder AST Templates]
 
 == Update history
 

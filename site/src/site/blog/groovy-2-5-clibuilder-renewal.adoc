@@ -345,7 +345,7 @@ assert remaining == [&#39;foo&#39;]
 </div>
 <div class="paragraph">
 <p>If all positional parameters have the same type, the <code>@Unparsed</code> annotation can be used with an array type other than <code>String[]</code>.
-Again, the type conversion is done using <a href="http://docs.groovy-lang.org/2.5.0-SNAPSHOT/html/gapi/index.html?org/codehaus/groovy/runtime/StringGroovyMethods.html#asType">StringGroovyMethods#asType(String, Class)</a>
+Again, the type conversion is done using <a href="https://docs.groovy-lang.org/2.5.0/html/gapi/index.html?org/codehaus/groovy/runtime/StringGroovyMethods.html#asType">StringGroovyMethods#asType(String, Class)</a>
 in the Commons CLI version, while the picocli version of CliBuilder supports a <a href="http://picocli.info/#_built_in_types">superset</a> of those types.</p>
 </div>
 <div class="paragraph">
