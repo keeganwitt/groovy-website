@@ -116,5 +116,5 @@ https://github.com/apache/groovy/pull/1606
 
 == Update history
 
-1 (2021-07-22) Initial draft
+1 (2021-07-22) Initial draft +
 2 (2021-11-06) Update to align with 4.0.0-beta-2
