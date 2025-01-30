@@ -178,7 +178,10 @@ tasks.register('commitWebsite') {
         }
         assert file("${stagingDevSite}/index.html").exists()
         gitout.add(patterns: ['.'])
-        gitout.remove(patterns: gitout.status().unstaged.getRemoved())
+        def removedFiles = gitout.status().unstaged.getRemoved()
+        if (removedFiles) {
+            gitout.remove(patterns: removedFiles)
+        }
 
         if (!gitout.status().staged.getAllChanges()) {
             println 'No changes to commit'
