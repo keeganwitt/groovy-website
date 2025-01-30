@@ -45,7 +45,7 @@ But in addition to those benefits, it's the release process itself which greatly
 * several build plans are dedicated to builds and releases:
 ** the http://ci.groovy-lang.org/viewType.html?buildTypeId=Groovy_BintrayIntegration_UploadSnapshots&guest=1[snapshot upload] plan builds Groovy from sources and deploys the artifacts to the http://oss.jfrog.org/oss-snapshot-local/org/codehaus/groovy/[OSS Artifactory Snapshot Repository].
 ** the http://ci.groovy-lang.org/viewType.html?buildTypeId=Groovy_BintrayIntegration_ReleasePlan&guest=1[release plan] allows a release manager to release a new version of Groovy directly from the CI server
-** the http://ci.groovy-lang.org/viewType.html?buildTypeId=Groovy_BintrayIntegration_GvmBroadcast[GVM broadcast] plan allows us to announce a new release of Groovy to http://gvmtool.net/[GVM] and its https://twitter.com/gvmtool[Twitter account] directly from the CI server
+** the http://ci.groovy-lang.org/viewType.html?buildTypeId=Groovy_BintrayIntegration_GvmBroadcast[GVM broadcast] plan allows us to announce a new release of Groovy to \http://gvmtool.net/ (obsolete - now SDKMAN) and its https://twitter.com/gvmtool[Twitter account] directly from the CI server
 ** the http://ci.groovy-lang.org/viewType.html?buildTypeId=Groovy_BintrayIntegration_GvmMakeDefault[GVM default] plan allows us to notify GVM that a specific Groovy version is the new default version, directly from the CI server
 
 The last two GVM plans are separated because they need to be triggered manually, once we are ready to announce that a new Groovy version is out. Let's now describe what the release plan does, so that we can imagine what adaptations will be required to go the Apache Way.

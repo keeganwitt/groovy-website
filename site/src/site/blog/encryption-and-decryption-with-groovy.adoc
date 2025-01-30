@@ -26,7 +26,7 @@ First, the cipher factory:
 var factory = { Cipher.getInstance('AES/CBC/PKCS5Padding') }
 ----
 
-For our cipher algorithm, we are using the Advanced Encryption Standard (https://en.wikipedia.org/wiki/Advanced_Encryption_Standard[AES]) algorithm, in Cipher Block Chaining (https://www.highgo.ca/2019/08/08/the-difference-in-five-modes-in-the-aes-encryption-algorithm/[CBC]) mode, with https://en.wikipedia.org/wiki/Padding_(cryptography)#PKCS#5_and_PKCS#7[PKCS5 padding]. We'll look at other options later.
+For our cipher algorithm, we are using the Advanced Encryption Standard (https://en.wikipedia.org/wiki/Advanced_Encryption_Standard[AES]) algorithm, in Cipher Block Chaining (https://www.highgo.ca/2019/08/08/the-difference-in-five-modes-in-the-aes-encryption-algorithm/[CBC]) mode, with https://en.wikipedia.org/wiki/Padding_%28cryptography%29#PKCS%235_and_PKCS%237[PKCS5 padding]. We'll look at other options later.
 
 Next we generate our secret key. Our secret key is our password. Only someone who has the password will be able to decrypt the encrypted message. We could use any random bits for our key, but like passwords, we want to choose a strong key rather than a weak one. Cryptographic libraries provide classes to generate such keys. We just need to provide the key size. AES supports 128, 192 and 256-bit keys. We'll choose 192 here:
 
