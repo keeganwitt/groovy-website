@@ -34,13 +34,20 @@ Handling cases explicitly like this soon becomes tedious.
 We'll look at some libraries which can help us handle comparisons
 in more general ways.
 
-First, we'll examine three libraries for performing similarity matching:
+First, we'll examine two libraries for performing similarity matching using string metrics:
 
-* info.debatty:java-string-similarity
-* org.apache.commons:commons-text Apache Commons Text
-* commons-codec:commons-codec Apache Commons Codec for Soundex
+* `info.debatty:java-string-similarity`
+* `org.apache.commons:commons-text` Apache Commons Text
 
-Then we'll look at some deep learning options.
+Then we'll look at some libraries for phonetic matching:
+
+* `commons-codec:commons-codec` Apache Commons Codec for Soundex and Metaphone
+* `org.openrefine:main` OpenRefine for Metaphone3
+
+Then we'll look at some deep learning options for increased semantic matching:
+
+* `org.deeplearning4j:deeplearning4j-nlp` for Glove and ConceptNet models
+* `ai.djl` with Pytorch for a universal-sentence-encoder model and Tensorflow with an Angle model
 
 == Simple String Metrics
 
@@ -309,3 +316,9 @@ Other referenced sites:
 * https://github.com/tdebatty/java-string-similarity
 * https://github.com/OpenRefine/OpenRefine
 * https://djl.ai/
+
+Related libraries and links:
+
+* https://github.com/EdDuarte/similarity-search-java
+* https://github.com/intuit/fuzzy-matcher
+* https://www.youtube.com/watch?v=AHlnGId-Y-0
