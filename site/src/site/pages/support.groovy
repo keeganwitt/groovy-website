@@ -18,7 +18,7 @@ layout 'layouts/main.groovy', true,
                                 p 'There are numerous ways to get help with Groovy: '
                                 ul {
                                     li "discuss language usage or direction with other Groovy users and developers through the ${$a(href: 'mailing-lists.html', 'mailing-lists')} - this is the place for all official discussions"
-                                    li "discuss matters on ${$a(href: 'https://wwww.groovycommunity.com/', 'Slack')}; it's run by Groovy enthusiasts in the community for casual conversations and Q&A"
+                                    li "discuss matters on ${$a(href: 'https://www.groovycommunity.com/', 'Slack')}; it's run by Groovy enthusiasts in the community for casual conversations and Q&A"
                                     li "ask a question on ${$a(href: 'https://stackoverflow.com/questions/tagged/groovy', 'Stack Overflow')}; these are answered by Groovy enthusiasts in the community"
                                     li "find known issues (or create new ones) in our ${$a(href: 'reporting-issues.html', 'bug tracker')}"
                                     li "attend upcoming ${$a(href: 'events.html', 'events and conferences')} to learn more about Groovy and to share your experience with others"

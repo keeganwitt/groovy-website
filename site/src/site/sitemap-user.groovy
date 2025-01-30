@@ -49,7 +49,7 @@ menu {
         item 'Source code on GitHub',       'https://github.com/apache/groovy',                 'fa-github'
         item 'Report issues in Jira',       'reporting-issues.html',                            'fa-bug'
         item 'Stack Overflow questions',    'http://stackoverflow.com/questions/tagged/groovy', 'fa-stack-overflow'
-	    item 'Slack Community',             'http://wwww.groovycommunity.com/',                      'fa-slack'
+	    item 'Slack Community',             'http://www.groovycommunity.com/',                      'fa-slack'
     }
 }
 
@@ -271,7 +271,7 @@ books {
     book('Programming Groovy 2') {
         authors 'Venkat Subramaniam'
         cover 'img/books/vslg2.jpg'
-        url 'http://pragprog.com/book/vslg2/programming-groovy-2'
+        url 'https://pragprog.com/titles/vslg2/programming-groovy-2/'
         description 'Dynamic productivity for the Java developer'
     }
 
@@ -377,7 +377,7 @@ usergroups {
     // South-America
     userGroup('Grails Brasil - Groovy and Grails users group of Brazil') {
         location 'South-America/Brazil'
-        url 'http://www.grailsbrasil.com.br'
+        url 'https://www.facebook.com/groups/grails.brasil/'
     }
     userGroup('Brazil Groovy and Grails Meetup') {
         location 'South-America/Brazil'
