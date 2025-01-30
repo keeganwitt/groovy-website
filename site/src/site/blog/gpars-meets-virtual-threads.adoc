@@ -7,9 +7,9 @@ Paul King
 
 image:img/gpars_logo.png[gpars,150,float="right"]
 An exciting feature coming in JDK21 is Virtual Threads
-(https://openjdk.java.net/jeps/444[JEP 444]).
-It has been previewed in JDK19 (https://openjdk.java.net/jeps/425[JEP 425])
-and JDK20 (https://openjdk.java.net/jeps/436[JEP 436]) but JDK21 will be the first version
+(https://openjdk.org/jeps/444[JEP 444]).
+It has been previewed in JDK19 (https://openjdk.org/jeps/425[JEP 425])
+and JDK20 (https://openjdk.org/jeps/436[JEP 436]) but JDK21 will be the first version
 that the feature is available without using Java's preview switch.
 The examples in this blog were tested with Groovy 4.0.11 using JDK version 21-ea+18-1480
 (and using JDK19 with preview features enabled).

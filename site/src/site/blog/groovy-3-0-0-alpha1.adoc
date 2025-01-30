@@ -5,6 +5,5 @@ Remko Popma
 :description: Groovy 2.4.16 Windows Installer Release Announcement.
 
 The Windows installer for Groovy 3.0.0-alpha-4 (Community Artifact) is available from the usual place:
-https://bintray.com/groovy/Distributions/download_file?file_path=groovy-3.0.0-alpha-4-installer.exe
-
+https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-3.0.0-alpha-4/
 Note this installer doesn't include Spock since there isn't a Spock release compatible with Groovy 3.0.

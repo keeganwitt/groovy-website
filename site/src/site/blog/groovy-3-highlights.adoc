@@ -256,12 +256,13 @@ artifacts can be found on that page along with information to allow you to verif
 You can use the zip installation on any platform with Java support, or consider using an installer
 for your platform or IDE.
 
-The Windows installer for the latest versions of Groovy 3 are available from https://bintray.com/groovy/Distributions/Windows-Installer[bintray]. (community artifact)
+The Windows installer (community artifact) for the latest versions of Groovy 3 are available from:
+https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/
 
 For Linux users, the latest versions of Groovy 3 are also available in the
 https://snapcraft.io/groovy[Snap Store]. (community artifact)
 
-For Eclipse users, the latest versions of the Groovy 3 groovy-eclipse-batch plugin are available from https://bintray.com/groovy/maven/groovy-eclipse-batch/[bintray]. (community artifact)
+For Eclipse users, the latest versions of the Groovy 3 groovy-eclipse-batch plugin are available from bintray (UPDATE: now Maven Central). (community artifact)
 
 For Intellij users, the latest community editions of
 https://www.jetbrains.com/idea/[IDEA] have Groovy 3 support.

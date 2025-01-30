@@ -419,7 +419,7 @@ names << 35     // boom! fails early
 === Underscore as a placeholder
 
 The use of "_" (underscore) as a placeholder for unused parameters is earmarked
-for inclusion in future Java versions (see "Treatment of underscores" in https://openjdk.java.net/jeps/302[JEP 302: Lambda Leftovers]).
+for inclusion in future Java versions (see "Treatment of underscores" in https://openjdk.org/jeps/302[JEP 302: Lambda Leftovers]).
 This is available in Groovy 5. Some examples:
 
 [source,groovy]
@@ -471,10 +471,10 @@ and could be supported in contexts where expressions are expected.
 
 As inspiration, Java has made, or is investigating future enhancements
 including switch expressions and other related enhancements:
-link:https://openjdk.java.net/jeps/354[JEP 354: Switch Expressions (Second Preview)]
-link:https://openjdk.java.net/jeps/361[JEP 361: Switch Expressions]
-link:https://openjdk.java.net/jeps/405[JEP 405: Record Patterns & Array Patterns (Preview)]
-link:https://openjdk.java.net/jeps/406[JEP 406: Pattern Matching for switch (Preview)]
+link:https://openjdk.org/jeps/354[JEP 354: Switch Expressions (Second Preview)]
+link:https://openjdk.org/jeps/361[JEP 361: Switch Expressions]
+link:https://openjdk.org/jeps/405[JEP 405: Record Patterns & Array Patterns (Preview)]
+link:https://openjdk.org/jeps/406[JEP 406: Pattern Matching for switch (Preview)]
 We should investigate these proposals both in terms of enhancing the existing Groovy switch
 but also in terms of deciding which syntax from Java we might like to support in the future.
 

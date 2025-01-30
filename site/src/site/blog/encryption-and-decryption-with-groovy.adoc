@@ -194,7 +194,7 @@ If you are encrypting and decrypting entire files, the JDK has special classes f
 == References
 
 * https://en.wikipedia.org/wiki/Comparison_of_cryptography_libraries[Comparison of cryptography libraries] (Wikipedia)
-* https://asyncq.com/how-to-encrypt-and-decrypt-data-in-java[How to encrypt and decrypt data in Java] (also on https://i-sammy.medium.com/how-to-encrypt-and-decrypt-data-in-java-de41be237422[medium.com])
+* https://web.archive.org/web/20241130150756/https://asyncq.com/how-to-encrypt-and-decrypt-data-in-java[How to encrypt and decrypt data in Java] (also on https://i-sammy.medium.com/how-to-encrypt-and-decrypt-data-in-java-de41be237422[medium.com])
 * https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk18on/1.71.1[Bouncy castle] in maven central
 * https://www.baeldung.com/java-aes-encryption-decryption[AES Encryption and Decryption in Java] (Baeldung)
 * https://www.baeldung.com/java-encryption-iv[Initialization Vector for Encryption in Java] (Baeldung)

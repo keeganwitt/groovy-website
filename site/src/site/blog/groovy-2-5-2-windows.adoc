@@ -5,4 +5,4 @@ Remko Popma
 :description: Groovy 2.5.2 Windows Installer Release Announcement.
 
 The Windows installer for Groovy 2.5.2 (community artifact) is available from:
-https://dl.bintray.com/groovy/Distributions/groovy-2.5.2-installer.exe
+https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-2.5.2/
