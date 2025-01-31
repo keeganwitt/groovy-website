@@ -7,15 +7,32 @@ Paul King
 
 == Introduction
 
+Let's build a wordle-like word guessing game. But instead of telling you how many
+correct and misplaced letters, we'll give you more hints, but slightly less obvious
+ones, to make it a little more challenging!
+
+We won't (directly) even tell you how many letters are in the word,
+but we'll give hints like:
+
+* How close your guess sounds like the hidden word.
+* How close your guess is to the meaning of the hidden word.
+* Instead of correct and misplaced letters, we'll give you some distance
+and similarity measures which will give you clues about how many
+correct letters you have, do you have the correct letters in order
+and so forth.
+
+== Background
+
 String similarity tries to answer the question: is one word
-(or phrase, sentence, paragraph, document) the same as another.
+(or phrase, sentence, paragraph, document) the same as, or similar to, another.
 This is an important capability in many scenarios involving searching
 or asking questions or invoking commands.
 It can help answer questions like:
 
 * Are two Jira/GitHub issues duplicates of the same issue?
 * Are two (or more) customer records actually for the same customer?
-* Is some social media topic trending because multiple posts are really about the same thing?
+* Is some social media topic trending because multiple posts which, even though they contain
+slightly different words, are really about the same thing?
 * Can I understand some natural language customer request even when it contains spelling mistakes?
 * As a doctor, can I find a medical journal paper discussing a patient's medical diagnosis/symptoms/treatment?
 * As a programmer, can I find a solution to my coding problem?
