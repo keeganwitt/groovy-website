@@ -20,6 +20,21 @@ It can help answer questions like:
 * As a doctor, can I find a medical journal paper discussing a patient's medical diagnosis/symptoms/treatment?
 * As a programmer, can I find a solution to my coding problem?
 
+When comparing two things to see if they are the same,
+we often want to incorporate a certain amount of fuzziness:
+
+* Are two words the same except for case? E.g. `cat` and `Cat`.
+* Are two words the same except for spelling variations?
+E.g. `Clare`, `Claire`, and `Clair`.
+* Are two words the same except for a misspelling or typo?
+E.g. `mathematiks`, and `computter`.
+* Are two phrases the same except for order and/or inconsequential words?
+E.g. `the red car` and `the car of colour red`
+* Do the words sound the same?
+E.g. `there` , `their`, and `they're`
+* Are the words variations meaning the same (or similar) thing?
+E.g. `cow`, `bull`, `calf`, `bovine`, `cattle`, or `livestock`
+
 Very simple cases can typically be explicitly catered for by hand, e.g.
 using String library methods or regular expressions:
 
@@ -51,31 +66,85 @@ Then we'll look at some deep learning options for increased semantic matching:
 
 == Simple String Metrics
 
-https://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein],
-https://en.wikipedia.org/wiki/Jaccard_index[Jaccard],
-https://en.wikipedia.org/wiki/Hamming_distance[Hamming],
-https://en.wikipedia.org/wiki/Longest_common_subsequence[LongestCommonSubsequence],
-https://en.wikipedia.org/wiki/Jaro_distance[JaroWinkler].
+String metrics provide some sort of measure of the sameness of the characters in words (or phrases). These algorithms generally compute similarity or distance (inverse similarity).
+
+There are numerous tutorials that describe various string metric algorithms. We won't replicate those tutorials but here is a summary of some common ones:
+
+[cols="2,7"]
+|===
+| Algorithm |Description
+
+| https://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein]
+| The minimum number of "edits" (inserts, deletes, or substitutions) required to convert from one word to another.
+Distance between `kitten` and `sitting` is 3 (swap `s` for `k`, swap `i` for `e`, add `g` at end).
+Distance between `grounds` and `aground` is 2 (add `a` at start, remove `s` at end).
+
+| https://en.wikipedia.org/wiki/Jaccard_index[Jaccard]
+| Defines a ratio between two sample sets. This could be sets of
+characters in a word, or words in a sentence. The ratio is the intersection of sets divided by the union of sets.
+`bear` vs `bare` would be 100%, `pair` vs `pear` would be 60%.
+
+| https://en.wikipedia.org/wiki/Hamming_distance[Hamming]
+| Similar to Levenshtein but insertions and deletions aren't allowed.
+Distance between `black` and `block` is 1 (swap `o` for `a`).
+Distance between `grounds` and `aground` is 7 (swap all chars since none are in the correct position).
+
+| https://en.wikipedia.org/wiki/Longest_common_subsequence[LongestCommonSubsequence]
+| The maximum number of characters appearing in order in the two words, not necessarily consecutively.
+LCS of `grounds` and `aground` is 6 (`ground`).
+LCS of `string` and `single` is 4 (`s`, `i`, `n`, `g`).
+
+|===
+
+You may be wondering what practical use these algorithms might have.
+Longest commons subsequence is the algorithm behind the popular `diff` tool.
+
+Groovy has in fact a built-in example of a variant of the Levenshtein measure
+it uses for error reporting. Groovy uses a variant known as the Damerau-Levenshtein distance.
+This variant counts transposing two characters within the original word as one "edit".
+The Levenshtein distance of `fish` and ifsh` is 2.
+The Damerau-Levenshtein distance of `fish` and ifsh` is 1.
+
+As an example, for this code:
 
 [source,groovy]
 ----
 'foo'.toUpper()
 ----
 
+Groovy will give this error message:
+
 ----
 No signature of method: java.lang.String.toUpper() is applicable for argument types: () values: []
 Possible solutions: toUpperCase(), toURI(), toURL(), toURI(), toURL(), toSet()
 ----
+
+And this code:
 
 [source,groovy]
 ----
 'foo'.touppercase()
 ----
 
+Gives this error:
+
 ----
 No signature of method: java.lang.String.touppercase() is applicable for argument types: () values: []
 Possible solutions: toUpperCase(), toUpperCase(java.util.Locale), toLowerCase(), toLowerCase(java.util.Locale)
 ----
+
+The values returned as possible solutions are the best methods found for the String
+class according the Damerau-Levenshtein distance but with some smarts added to
+cater for closest matching parameters. This includes Groovy's String extension methods
+and (if using dynamic metaprogramming) any methods added at runtime.
+
+NOTE: You'll frequently get feedback about using incorrect methods from your IDE
+or the Groovy compiler (with static checking enabled). But having this feedback
+provides a great fallback especially when using Groovy scripts outside an IDE.
+
+Let's now look at some examples of running various string metric algorithms.
+We'll use algorithm from Apache Commons Text and the `info.debatty:java-string-similarity`
+library.
 
 ++++
 <pre>
