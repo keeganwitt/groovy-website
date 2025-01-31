@@ -54,6 +54,7 @@ class CheckLinks {
             if (rejected || !url) {
                 def path = "file:///${new File("$baseDir/${currentPath ? currentPath + '/' : ''}$link").canonicalPath.replace('\\', '/')}"
                 url = URI.create(path).toURL()
+                link = url.file
             }
             logger?.debug("Checking URL: $url")
             def cx = url.openConnection()
