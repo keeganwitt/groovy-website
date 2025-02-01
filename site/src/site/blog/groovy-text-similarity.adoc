@@ -249,6 +249,7 @@ Rather than show the results of all algorithms for all pairs, let's just show a 
 that give us insight into which similarity measures might be most useful for our game.
 
 A first observation is the usefulness of Jaccard with k=1 (looking at the set of individual letters).
+Here we can imagine that `bear` might be our guess and `bare` might be the hidden word.
 
 ++++
 <pre>
@@ -270,6 +271,10 @@ Jaccard (debatty k=1)           0.00 <span style="color:green">▏</span>
 
 We can rule out all letters from our guess!
 
+What about Jaccard looking at multi-letter sequences? Well, if you were trying to determine
+whether a social media account `@elton_john` might be the same person as the email `john.elton@gmail.com`,
+Jaccard with higher indexes would help you out.
+
 ++++
 <pre>
       elton john VS john elton
@@ -283,6 +288,10 @@ Jaccard (debatty k=2)           0.00 <span style="color:red">▏</span>
 Jaccard (debatty k=3)           0.00 <span style="color:red">▏</span>
 </pre>
 ++++
+
+Note that for "Elton John" backwards, Jaccard with higher values of k quickly drops to zero but just swapping
+the words (like our social media account and email with punctuation removed) remains high. So higher value
+values of k for Jaccard definitely have there place but perhaps not needed for our game.
 
 ++++
 <pre>
