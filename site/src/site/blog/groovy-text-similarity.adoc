@@ -163,21 +163,143 @@ Let's now look at some examples of running various string metric algorithms.
 We'll use algorithm from Apache Commons Text and the `info.debatty:java-string-similarity`
 library.
 
+Both these libraries support numerous string metric classes.
+Methods to calculate both similarity and distance are provided.
+We'll look at both in turn.
+
+First, let's look at some similarity measures.
+These typically range from 0 (meaning no similarity)
+to 1 (meaning they are the same).
+
+We'll look at the following subset of similarity measures
+from the two libraries. Note that there is a fair bit of overlap
+between the two libraries. We'll do a little cross-checking
+between the two libraries but won't compare them exhaustively.
+
+[source,groovy]
+----
+var simAlgs = [
+    NormalizedLevenshtein: new NormalizedLevenshtein()::similarity,
+    'Jaccard (debatty k=1)': new Jaccard(1)::similarity,
+    'Jaccard (debatty k=2)': new Jaccard(2)::similarity,
+    'Jaccard (debatty k=3)': new Jaccard()::similarity,
+    'Jaccard (commons text k=1)': new JaccardSimilarity()::apply,
+    'JaroWinkler (debatty)': new JaroWinkler()::similarity,
+    'JaroWinkler (commons text)': new JaroWinklerSimilarity()::apply,
+    RatcliffObershelp: new RatcliffObershelp()::similarity,
+    SorensenDice: new SorensenDice()::similarity,
+    Cosine: new Cosine()::similarity,
+]
+----
+
+In the sample code, we run these measures for the following pairs:
+
+[source,groovy]
+----
+var pairs = [
+    ['there', 'their'],
+    ['cat', 'hat'],
+    ['cat', 'kitten'],
+    ['cat', 'dog'],
+    ['bear', 'bare'],
+    ['bear', 'bean'],
+    ['pair', 'pear'],
+    ['sort', 'sought'],
+    ['cow', 'bull'],
+    ['winning', 'grinning'],
+    ['knows', 'nose'],
+    ['ground', 'aground'],
+    ['grounds', 'aground'],
+    ['peeler', 'repeal'],
+    ['hippo', 'hippopotamus'],
+    ['kangaroo', 'kangarxx'],
+    ['kangaroo', 'xxngaroo'],
+    ['elton john', 'john elton'],
+    ['elton john', 'nhoj notle'],
+    ['my name is Yoda', 'Yoda my name is'],
+    ['the cat sat on the mat', 'the fox jumped over the dog'],
+    ['poodles are cute', 'dachshunds are delightful']
+]
+----
+
+Here is the output from the first pair:
+
 ++++
 <pre>
       there VS their
-JaroWinklerSimilarity                     0.91 <span style="color:green">██████████████████</span>
-JaroWinkler                               0.91 <span style="color:green">██████████████████</span>
-Jaccard (debatty k=1)                     0.80 <span style="color:green">████████████████</span>
-RatcliffObershelp                         0.80 <span style="color:green">████████████████</span>
-JaccardSimilarity (commons text k=1)      0.80 <span style="color:green">████████████████</span>
-NormalizedLevenshtein                     0.60 <span style="color:red">████████████</span>
-Cosine                                    0.33 <span style="color:red">██████</span>
-Jaccard (debatty k=2)                     0.33 <span style="color:red">██████</span>
-SorensenDice                              0.33 <span style="color:red">██████</span>
-Jaccard (debatty k=3)                     0.20 <span style="color:red">████</span>
+JaroWinkler (commons text)      0.91 <span style="color:green">██████████████████</span>
+JaroWinkler (debatty)           0.91 <span style="color:green">██████████████████</span>
+Jaccard (debatty k=1)           0.80 <span style="color:green">████████████████</span>
+Jaccard (commons text k=1)      0.80 <span style="color:green">████████████████</span>
+RatcliffObershelp               0.80 <span style="color:green">████████████████</span>
+NormalizedLevenshtein           0.60 <span style="color:red">████████████</span>
+Cosine                          0.33 <span style="color:red">██████</span>
+Jaccard (debatty k=2)           0.33 <span style="color:red">██████</span>
+SorensenDice                    0.33 <span style="color:red">██████</span>
+Jaccard (debatty k=3)           0.20 <span style="color:red">████</span>
 </pre>
 ++++
+
+We have color coded the bars in the chart with 80% and above colored green deeming it a "match" in terms of similarity.
+You could choose some different threshold for matching depending on your use case.
+
+We can see that the different algorithms rank the similarity of the two words differently.
+
+Rather than show the results of all algorithms for all pairs, let's just show a few highlights
+that give us insight into which similarity measures might be most useful for our game.
+
+A first observation is the usefulness of Jaccard with k=1 (looking at the set of individual letters).
+
+++++
+<pre>
+      bear VS bare
+Jaccard (debatty k=1)           1.00 <span style="color:green">████████████████████</span>
+</pre>
+++++
+
+Here we know that we have correctly guessed all the letters!
+
+For another example:
+
+++++
+<pre>
+      cow VS bull
+Jaccard (debatty k=1)           0.00 <span style="color:green">▏</span>
+</pre>
+++++
+
+We can rule out all letters from our guess!
+
+++++
+<pre>
+      elton john VS john elton
+Jaccard (debatty k=1)           1.00 <span style="color:green">████████████████████</span>
+Jaccard (debatty k=2)           0.80 <span style="color:green">████████████████</span>
+Jaccard (debatty k=3)           0.45 <span style="color:red">█████████</span>
+
+      elton john VS nhoj notle
+Jaccard (debatty k=1)           1.00 <span style="color:green">████████████████████</span>
+Jaccard (debatty k=2)           0.00 <span style="color:red">▏</span>
+Jaccard (debatty k=3)           0.00 <span style="color:red">▏</span>
+</pre>
+++++
+
+++++
+<pre>
+      bear VS bean
+JaroWinkler (commons text)      0.88 <span style="color:green">█████████████████</span>
+JaroWinkler (debatty)           0.88 <span style="color:green">█████████████████</span>
+NormalizedLevenshtein           0.75 <span style="color:red">███████████████</span>
+RatcliffObershelp               0.75 <span style="color:red">███████████████</span>
+Jaccard (debatty k=1)           0.60 <span style="color:red">████████████</span>
+Jaccard (commons text k=1)      0.60 <span style="color:red">████████████</span>
+Jaccard (debatty k=2)           0.50 <span style="color:red">██████████</span>
+SorensenDice                    0.50 <span style="color:red">██████████</span>
+Cosine                          0.50 <span style="color:red">█████████</span>
+Jaccard (debatty k=3)           0.33 <span style="color:red">██████</span>
+</pre>
+++++
+
 
 == Phonetic Algorithms
 
