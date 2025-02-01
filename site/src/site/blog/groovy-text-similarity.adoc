@@ -128,7 +128,7 @@ Longest commons subsequence is the algorithm behind the popular `diff` tool.
 
 Groovy has in fact a built-in example of a variant of the Levenshtein measure
 it uses for error reporting. Groovy uses a variant known as the Damerau-Levenshtein distance.
-This variant counts transposing two characters within the original word as one "edit".
+This variant counts transposing two adjacent characters within the original word as one "edit".
 The Levenshtein distance of `fish` and ifsh` is 2.
 The Damerau-Levenshtein distance of `fish` and ifsh` is 1.
 
