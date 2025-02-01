@@ -95,10 +95,13 @@ There are numerous tutorials that describe various string metric algorithms. We 
 | The minimum number of "edits" (inserts, deletes, or substitutions) required to convert from one word to another.
 Distance between `kitten` and `sitting` is 3 (swap `s` for `k`, swap `i` for `e`, add `g` at end).
 Distance between `grounds` and `aground` is 2 (add `a` at start, remove `s` at end).
+https://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance[Damerau–Levenshtein distance]
+is a variant that allows transposition of two adjacent letters to count as a single edit.
 
 | https://en.wikipedia.org/wiki/Jaccard_index[Jaccard]
 | Defines a ratio between two sample sets. This could be sets of
-characters in a word, or words in a sentence. The ratio is the intersection of sets divided by the union of sets.
+characters in a word, or words in a sentence, or sets of `k` consecutive characters in a phrase.
+The ratio is the _intersection_ of sets divided by the _union_ of sets.
 `bear` vs `bare` would be 100%, `pair` vs `pear` would be 60%.
 
 | https://en.wikipedia.org/wiki/Hamming_distance[Hamming]
@@ -110,6 +113,13 @@ Distance between `grounds` and `aground` is 7 (swap all chars since none are in 
 | The maximum number of characters appearing in order in the two words, not necessarily consecutively.
 LCS of `grounds` and `aground` is 6 (`ground`).
 LCS of `string` and `single` is 4 (`s`, `i`, `n`, `g`).
+It accounts for insertions and deletions but not substitutions.
+
+| https://en.wikipedia.org/wiki/Jaro%E2%80%93Winkler_distance[Jaro–Winkler]
+| This is a metric also measuring edit distance but weights edits to favor
+words with common prefixes.
+JaroWinkler of `ground` and `groudn` (last two letters swapped) is 0.97.
+JaroWinkler of `ground` and `rgound` (first two letters swapped) is 0.94.
 
 |===
 
@@ -702,9 +712,11 @@ Other referenced sites:
 * https://github.com/tdebatty/java-string-similarity
 * https://github.com/OpenRefine/OpenRefine
 * https://djl.ai/
+* https://deeplearning4j.konduit.ai/deeplearning4j/reference/word2vec-glove-doc2vec
 
 Related libraries and links:
 
 * https://github.com/EdDuarte/similarity-search-java
 * https://github.com/intuit/fuzzy-matcher
 * https://www.youtube.com/watch?v=AHlnGId-Y-0
+* https://opensource.com/article/20/12/groovy
