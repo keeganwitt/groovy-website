@@ -389,6 +389,76 @@ image:img/AnimalSemanticSimilarity.png[]
 image:img/AnimalSemanticMeaningPcaBubblePlot.png[]
 
 ----
+Algorithm            conceptnet
+
+               /c/fr/vache    █████████▏
+               /c/de/kuh      █████████▏
+/c/en/cow      /c/en/bovine   ███████▏
+               /c/fr/bovin    ███████▏
+               /c/en/bull     █████▏
+
+               /c/fr/taureau  █████████▏
+               /c/en/cow      █████▏
+/c/en/bull     /c/fr/vache    █████▏
+               /c/de/kuh      █████▏
+               /c/fr/bovin    █████▏
+
+               /c/de/kuh      █████▏
+               /c/en/cow      █████▏
+/c/en/calf     /c/fr/vache    █████▏
+               /c/en/bovine   █████▏
+               /c/fr/bovin    █████▏
+
+               /c/fr/bovin    █████████▏
+               /c/en/cow      ███████▏
+/c/en/bovine   /c/de/kuh      ███████▏
+               /c/fr/vache    ███████▏
+               /c/en/calf     █████▏
+
+               /c/en/bovine   █████████▏
+               /c/fr/vache    ███████▏
+/c/fr/bovin    /c/de/kuh      ███████▏
+               /c/en/cow      ███████▏
+               /c/fr/taureau  █████▏
+
+               /c/en/cow      █████████▏
+               /c/de/kuh      █████████▏
+/c/fr/vache    /c/fr/bovin    ███████▏
+               /c/en/bovine   ███████▏
+               /c/fr/taureau  █████▏
+
+               /c/en/bull     █████████▏
+               /c/fr/bovin    █████▏
+/c/fr/taureau  /c/fr/vache    █████▏
+               /c/en/cow      █████▏
+               /c/de/kuh      █████▏
+
+               /c/en/cow      █████████▏
+               /c/fr/vache    █████████▏
+/c/de/kuh      /c/fr/bovin    ███████▏
+               /c/en/bovine   ███████▏
+               /c/en/calf     █████▏
+
+               /c/en/cat      ████████▏
+               /c/de/katze    ████████▏
+/c/en/kitten   /c/en/bull     ██▏
+               /c/en/cow      █▏
+               /c/de/kuh      █▏
+
+               /c/de/katze    █████████▏
+               /c/en/kitten   ████████▏
+/c/en/cat      /c/en/bull     ██▏
+               /c/en/cow      ██▏
+               /c/fr/taureau  █▏
+
+               /c/en/cat      █████████▏
+               /c/en/kitten   ████████▏
+/c/de/katze    /c/en/bull     ██▏
+               /c/de/kuh      ██▏
+               /c/fr/taureau  ██▏
+----
+
+----
 Algorithm       angle                use                  conceptnet           glove                fasttext
 
               bovine    ████████▏  bovine    ███████▏   bovine    ███████▏   bovine    ██████▏    bovine    ███████▏
