@@ -78,14 +78,16 @@ Then we'll look at some libraries for phonetic matching:
 
 Then we'll look at some deep learning options for increased semantic matching:
 
-* `org.deeplearning4j:deeplearning4j-nlp` for Glove and ConceptNet models
+* `org.deeplearning4j:deeplearning4j-nlp` for Glove, ConceptNet, and FastText models
 * `ai.djl` with Pytorch for a universal-sentence-encoder model and Tensorflow with an Angle model
 
 == Simple String Metrics
 
-String metrics provide some sort of measure of the sameness of the characters in words (or phrases). These algorithms generally compute similarity or distance (inverse similarity).
+String metrics provide some sort of measure of the sameness of the characters in words (or phrases).
+These algorithms generally compute similarity or distance (inverse similarity).
 
-There are numerous tutorials that describe various string metric algorithms. We won't replicate those tutorials but here is a summary of some common ones:
+There are numerous tutorials that describe various string metric algorithms.
+We won't replicate those tutorials but here is a summary of some common ones:
 
 [cols="2,7"]
 |===
@@ -103,7 +105,6 @@ is a variant that allows transposition of two adjacent letters to count as a sin
 characters in a word, or words in a sentence, or sets of `k` consecutive characters in a phrase.
 The ratio is the _intersection_ of sets divided by the _union_ of sets.
 `bear` vs `bare` would be 100%, `pair` vs `pear` would be 60%.
-
 | https://en.wikipedia.org/wiki/Hamming_distance[Hamming]
 | Similar to Levenshtein but insertions and deletions aren't allowed.
 Distance between `black` and `block` is 1 (swap `o` for `a`).
@@ -123,11 +124,14 @@ JaroWinkler of `ground` and `rgound` (first two letters swapped) is 0.94.
 
 |===
 
-You may be wondering what practical use these algorithms might have.
-Longest commons subsequence is the algorithm behind the popular `diff` tool.
+You may be wondering what practical use these algorithms might have. Here is just a few use cases:
 
-Groovy has in fact a built-in example of a variant of the Levenshtein measure
-it uses for error reporting. Groovy uses a variant known as the Damerau-Levenshtein distance.
+* Longest commons subsequence is the algorithm behind the popular `diff` tool
+* Hamming distance is an important metric when designing algorithms for error detection, error correction and checksums
+* Levenshtein is used in search engines (like Apache Lucene and Apache Solr)
+for fuzzy matching searches and for spelling correction software
+
+Groovy has in fact a built-in example of using the Damerau-Levenshtein distance metric.
 This variant counts transposing two adjacent characters within the original word as one "edit".
 The Levenshtein distance of `fish` and ifsh` is 2.
 The Damerau-Levenshtein distance of `fish` and ifsh` is 1.
