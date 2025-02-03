@@ -134,9 +134,9 @@ JaroWinkler of `ground` and `rgound` (first two letters swapped) is 0.94.
 
 |===
 
-You may be wondering what practical use these algorithms might have. Here is just a few use cases:
+You may be wondering what practical use these algorithms might have. Here are just a few use cases:
 
-* Longest commons subsequence is the algorithm behind the popular `diff` tool
+* Longest common subsequence is the algorithm behind the popular `diff` tool
 * Hamming distance is an important metric when designing algorithms for error detection, error correction and checksums
 * Levenshtein is used in search engines (like Apache Lucene and Apache Solr)
 for fuzzy matching searches and for spelling correction software
@@ -913,4 +913,5 @@ Related libraries and links:
 * https://github.com/EdDuarte/similarity-search-java
 * https://github.com/intuit/fuzzy-matcher
 * https://www.youtube.com/watch?v=AHlnGId-Y-0
+* https://www.baeldung.com/cs/string-similarity-edit-distance
 * https://opensource.com/article/20/12/groovy
