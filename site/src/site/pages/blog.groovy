@@ -71,10 +71,10 @@ layout 'layouts/main.groovy', true,
                             h1(title)
                             p {
                                 if (doc.authors) {
-                                    def multiple = doc.authors.size() > 1
-                                    span {
-                                        yield "Author${multiple ? 's' : ''}: "
-                                        i(doc.authors*.fullName.join(', '))
+                                    div(style: "display:flex;padding:0.2ex") {
+                                        def multiple = doc.authors.size() > 1
+                                        span("Author${multiple ? 's' : ''}:&nbsp;")
+                                        yieldUnescaped doc.authors.collect(DocUtils.&prettyAuthors).join('<span style="width:2ex"></span>')
                                     }
                                 }
                                 if (doc.revisionInfo?.date) {

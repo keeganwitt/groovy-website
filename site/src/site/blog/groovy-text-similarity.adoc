@@ -1,5 +1,5 @@
 = Groovy Text Similarity
-Paul King
+Paul King <paulk-asert|PMC_Member>; James King <jakingy|Contributor>
 :revdate: 2025-02-01T20:30:00+00:00
 :draft: true
 :keywords: groovy, deep learning, apache commons
@@ -20,6 +20,9 @@ but we'll give hints like:
 and similarity measures which will give you clues about how many
 correct letters you have, do you have the correct letters in order
 and so forth.
+
+If you are new to Groovy, consider checking out this
+https://opensource.com/article/20/12/groovy[Groovy game building tutorial] first.
 
 == Background
 
@@ -84,9 +87,16 @@ Then we'll look at some deep learning options for increased semantic matching:
 == Simple String Metrics
 
 String metrics provide some sort of measure of the sameness of the characters in words (or phrases).
-These algorithms generally compute similarity or distance (inverse similarity).
+These algorithms generally compute similarity or distance (inverse similarity). The two are related.
+Consider `cat` vs `hat`. There is one "edit" to change from one word to the other according
+to the Levenshtein algorithm (described shortly). So, we give this a distance of 1.
+We can alternatively produce a normalized similarity value using `(word_size - distance) / word_size`,
+where `word_size` is the size of the largest of the two words. So we'd get a Levenshtein
+similarity measure of 2/3 (or 0.67) for `cat` vs `hat`.
 
-There are numerous tutorials that describe various string metric algorithms.
+For our game, we'll sometimes want the distance, other times we'll use the similarity.
+
+There are numerous tutorials (see <<further_info,further information>>) that describe various string metric algorithms.
 We won't replicate those tutorials but here is a summary of some common ones:
 
 [cols="2,7"]
@@ -220,20 +230,28 @@ var pairs = [
     ['pair', 'pear'],
     ['sort', 'sought'],
     ['cow', 'bull'],
-    ['winning', 'grinning'],
+    ['winners', 'grinners'],
     ['knows', 'nose'],
     ['ground', 'aground'],
     ['grounds', 'aground'],
     ['peeler', 'repeal'],
     ['hippo', 'hippopotamus'],
-    ['kangaroo', 'kangarxx'],
-    ['kangaroo', 'xxngaroo'],
     ['elton john', 'john elton'],
     ['elton john', 'nhoj notle'],
     ['my name is Yoda', 'Yoda my name is'],
     ['the cat sat on the mat', 'the fox jumped over the dog'],
     ['poodles are cute', 'dachshunds are delightful']
 ]
+----
+
+We can run our algorithms on our pairs like follows:
+
+[source,groovy]
+----
+pairs.each { wordPair ->
+    var results = simAlgs.collectValues { alg -> alg(*wordPair) }
+    // display results ...
+}
 ----
 
 Here is the output from the first pair:
@@ -251,6 +269,7 @@ Cosine                          0.33 <span style="color:red">██████<
 Jaccard (debatty k=2)           0.33 <span style="color:red">██████</span>
 SorensenDice                    0.33 <span style="color:red">██████</span>
 Jaccard (debatty k=3)           0.20 <span style="color:red">████</span>
+
 </pre>
 ++++
 
@@ -269,6 +288,7 @@ Here we can imagine that `bear` might be our guess and `bare` might be the hidde
 <pre>
       bear VS bare
 Jaccard (debatty k=1)           1.00 <span style="color:green">████████████████████</span>
+
 </pre>
 ++++
 
@@ -280,6 +300,7 @@ For another example:
 <pre>
       cow VS bull
 Jaccard (debatty k=1)           0.00 <span style="color:green">▏</span>
+
 </pre>
 ++++
 
@@ -300,29 +321,198 @@ Jaccard (debatty k=3)           0.45 <span style="color:red">██████�
 Jaccard (debatty k=1)           1.00 <span style="color:green">████████████████████</span>
 Jaccard (debatty k=2)           0.00 <span style="color:red">▏</span>
 Jaccard (debatty k=3)           0.00 <span style="color:red">▏</span>
+
 </pre>
 ++++
 
 Note that for "Elton John" backwards, Jaccard with higher values of k quickly drops to zero but just swapping
 the words (like our social media account and email with punctuation removed) remains high. So higher value
 values of k for Jaccard definitely have there place but perhaps not needed for our game.
+Dealing with k sequential letters (also referred to as n sequential letters) is common.
+There is in fact a special term _n-grams_ for such sequences.
+While n-grams play an important role in measuring similarity, it doesn't add
+a lot of value for our game. [fuchsia]#So we'll just use Jaccard with k=1 in the game.#
+
+Let's now look at JaroWinkler. This measure looks at the number of edits but
+calculates a weighted score penalising changes at the start, which in turn
+means that words with common prefixes have higher similarity scores.
+
+If we look at the words 'superstar' and 'supersonic', 5 of the 11 distinct letters
+are in common (hence the Jaccard score of 5/11 or 0.45), but since they both start
+with the same 6 letters, it scores a high JaroWinkler value of 0.90.
+
+Swapping to 'partnership' and 'leadership', 7 of the 11 distinct letters are
+in common hence the higher Jaccard score of 0.64, but even though they both end
+with the same 6 characters, it gives us a lower JaroWinkler score of 0.73.
 
 ++++
 <pre>
-      bear VS bean
-JaroWinkler (commons text)      0.88 <span style="color:green">█████████████████</span>
-JaroWinkler (debatty)           0.88 <span style="color:green">█████████████████</span>
-NormalizedLevenshtein           0.75 <span style="color:red">███████████████</span>
-RatcliffObershelp               0.75 <span style="color:red">███████████████</span>
-Jaccard (debatty k=1)           0.60 <span style="color:red">████████████</span>
-Jaccard (commons text k=1)      0.60 <span style="color:red">████████████</span>
-Jaccard (debatty k=2)           0.50 <span style="color:red">██████████</span>
-SorensenDice                    0.50 <span style="color:red">██████████</span>
-Cosine                          0.50 <span style="color:red">█████████</span>
-Jaccard (debatty k=3)           0.33 <span style="color:red">██████</span>
+      superstar VS supersonic
+JaroWinkler (debatty)           0.90 <span style="color:green">██████████████████</span>
+Jaccard (debatty k=1)           0.45 <span style="color:red">█████████</span>
+
+      partnership VS leadership
+JaroWinkler (debatty)           0.73 <span style="color:red">██████████████</span>
+Jaccard (debatty k=1)           0.64 <span style="color:red">████████████</span>
+
 </pre>
 ++++
 
+Perhaps it could be interesting to know if the start of our guess is close to the hidden word. [fuchsia]#So we'll use the JaroWinkler measure in our game.#
+
+Let's now swap over to distance measures.
+
+Let's first explore the range of distance measures we have available to us by looking at the following distance measures:
+
+[source,groovy]
+----
+var distAlgs = [
+    NormalizedLevenshtein: new NormalizedLevenshtein()::distance,
+    'WeightedLevenshtein (t is near r)': new WeightedLevenshtein({ char c1, char c2 ->
+        c1 == 't' && c2 == 'r' ? 0.5 : 1.0
+    })::distance,
+    Damerau: new Damerau()::distance,
+    OptimalStringAlignment: new OptimalStringAlignment()::distance,
+    LongestCommonSubsequence: new LongestCommonSubsequence()::distance,
+    MetricLCS: new MetricLCS()::distance,
+    'NGram(2)': new NGram(2)::distance,
+    'NGram(4)': new NGram(4)::distance,
+    QGram: new QGram(2)::distance,
+    CosineDistance: new CosineDistance()::apply,
+    HammingDistance: new HammingDistance()::apply,
+    JaccardDistance: new JaccardDistance()::apply,
+    JaroWinklerDistance: new JaroWinklerDistance()::apply,
+    LevenshteinDistance: LevenshteinDistance.defaultInstance::apply,
+]
+----
+
+Not all of these metrics are normalized, so graphing them like before isn't as useful.
+Instead, we will have a set of predefined phrases (similar to the index of a search engine),
+and we will find the closest phrases to some query.
+
+Here are our predefined phrases:
+
+[source,groovy]
+----
+var phrases = [
+    'The sky is blue',
+    'The blue sky',
+    'The blue cat',
+    'The sea is blue',
+    'Blue skies following me',
+    'My ferrari is red',
+    'Apples are red',
+    'I read a book',
+    'The wind blew',
+    'Numbers are odd or even',
+    'Red noses',
+    'Read knows',
+    'Hippopotamus',
+]
+----
+
+Now, let's use the query `The blue car`. We'll find the distance from the query to each of the
+candidates phrases and return the closest three. Here are the results for `The blue car`:
+
+----
+NormalizedLevenshtein: The blue cat (0.08), The blue sky (0.25), The wind blew (0.62)
+WeightedLevenshtein (t is near r): The blue cat (0.50), The blue sky (3.00), The wind blew (8.00)
+Damerau: The blue cat (1.00), The blue sky (3.00), The wind blew (8.00)
+OptimalStringAlignment: The blue cat (1.00), The blue sky (3.00), The wind blew (8.00)
+LongestCommonSubsequence (debatty): The blue cat (2.00), The blue sky (6.00), The sky is blue (11.00)
+MetricLCS: The blue cat (0.08), The blue sky (0.25), The wind blew (0.46)
+NGram(2): The blue cat (0.04), The blue sky (0.21), The wind blew (0.58)
+NGram(4): The blue cat (0.02), The blue sky (0.13), The wind blew (0.50)
+QGram: The blue cat (2.00), The blue sky (6.00), The sky is blue (11.00)
+CosineDistance: The blue sky (0.33), The blue cat (0.33), The sky is blue (0.42)
+HammingDistance: The blue cat (1), The blue sky (3), Hippopotamus (12)
+JaccardDistance: The blue cat (0.18), The sea is blue (0.33), The blue sky (0.46)
+JaroWinklerDistance: The blue cat (0.03), The blue sky (0.10), The wind blew (0.32)
+LevenshteinDistance: The blue cat (1), The blue sky (3), The wind blew (8)
+LongestCommonSubsequenceDistance  (commons text): The blue cat (2), The blue sky (6), The sky is blue (11)
+----
+
+As another example, let's query `Red roses`:
+
+----
+NormalizedLevenshtein: Red noses (0.11), Read knows (0.50), Apples are red (0.71)
+WeightedLevenshtein (t is near r): Red noses (1.00), Read knows (5.00), The blue sky (9.00)
+Damerau: Red noses (1.00), Read knows (5.00), The blue sky (9.00)
+OptimalStringAlignment: Red noses (1.00), Read knows (5.00), The blue sky (9.00)
+MetricLCS: Red noses (0.11), Read knows (0.40), The blue sky (0.67)
+NGram(2): Red noses (0.11), Read knows (0.55), Apples are red (0.75)
+NGram(4): Red noses (0.11), Read knows (0.53), Apples are red (0.82)
+QGram: Red noses (4.00), Read knows (13.00), Apples are red (15.00)
+CosineDistance: Red noses (0.50), The sky is blue (1.00), The blue sky (1.00)
+HammingDistance: Red noses (1), The sky is blue (-), The blue sky (-)
+JaccardDistance: Red noses (0.25), Read knows (0.45), Apples are red (0.55)
+JaroWinklerDistance: Red noses (0.04), Read knows (0.20), The sea is blue (0.37)
+LevenshteinDistance: Red noses (1), Read knows (5), The blue sky (9)
+LongestCommonSubsequenceDistance  (commons text): Red noses (2), Read knows (7), The blue sky (13)
+----
+
+Let's examine these results. Firstly, there are way too many measures
+for most folks to comfortably reason about. We want to shrink the set down.
+
+We have various Levenshtein values on display.
+Some are the actual "edit" distance, others are a metric.
+For our game, since we don't know the length of the word initially,
+we thought it might be useful to know the exact number of edits.
+A normalized value of 0.5 could mean any of
+1 letter wrong in a 2-letter word,
+2 letters wrong in a 4-letter word,
+3 letters wrong in a 6-letter word,
+and so forth.
+
+We also think the actual distance measure might be something that wordle players
+could relate to. Once you know the size of the hidden word,
+the distance indirectly gives you the number of correct letters
+(which is something wordle players are used to - just here we don't know
+which ares are correct).
+
+We also thought about Damerau-Levenshtein. It allows transposition of adjacent
+characters and, while that adds value in most spell-checking scenarios,
+for our game it might be harder to keep visualize what the distance measure
+might mean with that additional possible change.
+
+[fuchsia]#So, we'll use the standard Levenshtein distance in the game.#
+
+We could continue reasoning in this way about the other measures,
+but we'll jump to our solution, and try to give you examples of why
+we think they are useful. [fuchsia]#We added Hamming distance and LongestCommonSubsequence#
+(similarity measure not a distance measure) to our list.
+
+Let's look at some examples to highlight our thinking.
+
+Let's look at some examples for hamming distance. Consider these results:
+
+----
+cat vs dog: LongestCommonSubsequence (0) Hamming (3) Levenshtein (3)
+cow vs bull: LongestCommonSubsequence (0) Hamming (-) Levenshtein (4)
+----
+
+For `cat` vs `dog`, the LCS value tells us we didn't have any correct letters in our guess.
+We'd have at least an LCS value of 1 if we had one correct character somewhere.
+The fact that Hamming is now 3, means that the hidden word (like our guess) must
+have 3 letters in it - since we can substitute 3 times. The Levenshtein value confirms this.
+
+For `cow` vs `bull`, because Hamming didn't return a result we know that the guess and
+hidden word are different sizes (remember it's an algorithm that requires the sizes to be the same).
+We also know that our guess also has no correct letters. But the Levenshtein value of 4
+tells us less in this case. If `cow` was our guess, the hidden word could be `bull`
+or `cowbell`. We do know that the size of the hidden word is between 4 and 7.
+
+Consider now this example:
+
+----
+grounds vs aground: LongestCommonSubsequence (6) Hamming(7) Levenshtein(2)
+----
+
+The fact that Hamming returned 7 means that our guess has the correct number of letters.
+The fact that the LCS value was 6 means that there is one spurious letter in our guess.
+If the spurious letter was somewhere in the middle of our guess, then Hamming shouldn't
+show that all letters are incorrect. Hence, we know that the spurious letter is the first
+or last. The Levenshtein value confirms this (one insertion at one end and one delete at one end).
 
 == Phonetic Algorithms
 
@@ -703,7 +893,7 @@ green         cat       ██████▏    cat       ███▏       hi
               feline    █████▏     bare      ███▏       bear      ▏          cow       █▏         bear      ███▏
 ----
 
-== Further information
+== Further information [[further_info]]
 
 Source code for this post:
 

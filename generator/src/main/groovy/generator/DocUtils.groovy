@@ -26,4 +26,16 @@ class DocUtils {
     static String prettyDate(String s) {
         Date.parse(RFC3339, s).format(PRETTY)
     }
+
+    static String prettyAuthors(author) {
+        if (!author.email) return "<i>$author.fullName</i>"
+        def (githubId, role) = author.email.split(/\|/)
+        """
+<a href="https://github.com/$githubId/" target="_blank" rel="noopener noreferrer"><img style="border-radius:50%;height:48px;width:auto" src="https://github.com/${githubId}.png" alt="${author.fullName}"></a>
+<div style="display:grid;align-items:center;margin:0.1ex;padding:0ex">
+  <div><a href="https://github.com/$githubId/" target="_blank" rel="noopener noreferrer"><span>${author.fullName}</span></a></div>
+  <div><small><i>${role.replace('_', ' ')}</i></small></div>
+</div>
+        """
+    }
 }
