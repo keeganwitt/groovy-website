@@ -1,6 +1,6 @@
 = Groovy Text Similarity
 Paul King <paulk-asert|PMC_Member>; James King <jakingy|Contributor>
-:revdate: 2025-02-01T20:30:00+00:00
+:revdate: 2025-02-03T20:30:00+00:00
 :draft: true
 :keywords: groovy, deep learning, apache commons
 :description: This blog looks at processing some algorithms for testing text similarity.
