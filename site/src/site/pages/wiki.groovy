@@ -11,9 +11,9 @@ title = header.documentTitle.main
 
 layout 'layouts/main.groovy', true,
         pageTitle: "The Apache Groovy programming language - Developer docs - $title",
-        extraStyles: ['https://cdnjs.cloudflare.com/ajax/libs/prettify/r298/prettify.min.css'],
+        extraStyles: [relative('css/prettify.min.css')],
         extraFooter: contents {
-            script(src:'https://cdnjs.cloudflare.com/ajax/libs/prettify/r298/prettify.min.js') { }
+            script(src:relative('js/prettify.min.js')) { }
             script { yieldUnescaped "document.addEventListener('DOMContentLoaded',prettyPrint)" }
         },
         mainContent: contents {

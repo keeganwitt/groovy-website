@@ -10,7 +10,7 @@ list.each { k, v ->
 layout 'layouts/main.groovy', true,
         pageTitle: "The Apache Groovy programming language - Blogs",
         extraFooter: contents {
-            script(src: 'https://cdnjs.cloudflare.com/ajax/libs/list.js/1.5.0/list.min.js') { }
+            script(src: relative('js/vendor/list.min.js')) { }
             script {
                 yieldUnescaped '''
                 var blogList = new List('blog-list', {
@@ -24,8 +24,8 @@ layout 'layouts/main.groovy', true,
                 });
                 '''
             }
-            script(src: 'https://cdn.amcharts.com/lib/5/index.js') { }
-            script(src: 'https://cdn.amcharts.com/lib/5/wc.js') { }
+            script(src: relative('js/vendor/amscharts5_index.min.js')) { }
+            script(src: relative('js/vendor/amscharts5_wc.min.js')) { }
             script {
                 yieldUnescaped """
                 var root = am5.Root.new("chartdiv");

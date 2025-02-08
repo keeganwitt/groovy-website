@@ -19,10 +19,10 @@ if (doc.attributes.description) {
 
 layout 'layouts/main.groovy', true,
         pageTitle: "The Apache Groovy programming language - Blogs - $title",
-        extraStyles: ['https://cdnjs.cloudflare.com/ajax/libs/prettify/r298/prettify.min.css'],
+        extraStyles: [relative('css/prettify.min.css')],
         extraMeta: metas,
         extraFooter: contents {
-            script(src:'https://cdnjs.cloudflare.com/ajax/libs/prettify/r298/prettify.min.js') { }
+            script(src:relative('js/vendor/prettify.min.js')) { }
             script { yieldUnescaped "document.addEventListener('DOMContentLoaded',prettyPrint)" }
         },
         mainContent: contents {
