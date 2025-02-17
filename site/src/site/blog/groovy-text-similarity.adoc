@@ -41,8 +41,8 @@ https://opensource.com/article/20/12/groovy[Groovy game building tutorial] first
 
 String similarity tries to answer the question: is one word
 (or phrase, sentence, paragraph, document) the same as, or similar to, another.
-This is an important capability in many scenarios involving searching
-or asking questions or invoking commands.
+This is an important capability in many scenarios involving searching,
+asking questions, or invoking commands.
 It can help answer questions like:
 
 * Are two Jira/GitHub issues duplicates of the same issue?
@@ -65,7 +65,7 @@ E.g. `mathematiks`, and `computter`.
 E.g. `the red car` and `the car of colour red`
 * Do the words sound the same?
 E.g. `there` , `their`, and `they're`
-* Are the words variations meaning the same (or similar) thing?
+* Are the words variations that mean the same (or similar) thing?
 E.g. `cow`, `bull`, `calf`, `bovine`, `cattle`, or `livestock`
 
 Very simple cases can typically be explicitly catered for by hand, e.g.
@@ -92,20 +92,20 @@ Then we'll look at some libraries for phonetic matching:
 * `commons-codec:commons-codec` Apache Commons Codec for Soundex and Metaphone
 * `org.openrefine:main` OpenRefine for Metaphone3
 
-Then we'll look at some deep learning options for increased semantic matching:
+Then we'll look at some deep learning options for semantic matching:
 
 * `org.deeplearning4j:deeplearning4j-nlp` for GloVe, ConceptNet, and FastText models
 * `ai.djl` with Pytorch for a universal-sentence-encoder model and Tensorflow with an Angle model
 
 == Simple String Metrics
 
-String metrics provide some sort of measure of the sameness of the characters in words (or phrases).
+String metrics provide some measure of the sameness of the characters in words (or phrases).
 These algorithms generally compute similarity or distance (inverse similarity). The two are related.
-Consider `cat` vs `hat`. There is one "edit" to change from one word to the other according
-to the Levenshtein algorithm (described shortly). So, we give this a distance of 1.
+Consider `cat` vs `hat`. One "edit" is required to change from one word to the other according
+to the Levenshtein algorithm (described shortly). So, we say `cat` is distance one away from `hat`.
 We can alternatively produce a normalized similarity value using `(word_size - distance) / word_size`,
 where `word_size` is the size of the largest of the two words. So we'd get a Levenshtein
-similarity measure of 2/3 (or 0.67) for `cat` vs `hat`.
+similarity measure of 2/3 (or 0.67). In other words, `cat` is 67% similar to `hat`.
 
 For our game, we'll sometimes want the distance, other times we'll use the similarity.
 
@@ -127,7 +127,7 @@ is a variant that allows transposition of two adjacent letters to count as a sin
 | Defines a ratio between two sample sets. This could be sets of
 characters in a word, or words in a sentence, or sets of `k` consecutive characters in a phrase.
 The ratio is the _intersection_ of sets divided by the _union_ of sets.
-`bear` vs `bare` would be 100%, `pair` vs `pear` would be 60%.
+`bear` vs `bare` would be 100%. `pair` vs `pear` would be 60% as there are 3 shared letters (`a`,`p`,`r`) out of 5 letters total (`a`,`e`,`i`,`p`,`r`).
 | https://en.wikipedia.org/wiki/Hamming_distance[Hamming]
 | Similar to Levenshtein but insertions and deletions aren't allowed.
 Distance between `black` and `block` is 1 (swap `o` for `a`).
@@ -197,7 +197,7 @@ or the Groovy compiler (with static checking enabled). But having this feedback
 provides a great fallback especially when using Groovy scripts outside an IDE.
 
 Let's now look at some examples of running various string metric algorithms.
-We'll use algorithm from Apache Commons Text and the `info.debatty:java-string-similarity`
+We'll use algorithms from Apache Commons Text and the `info.debatty:java-string-similarity`
 library.
 
 Both these libraries support numerous string metric classes.
@@ -340,7 +340,7 @@ Jaccard (debatty k=3)           0.00 <span style="color:red">▏</span>
 
 Note that for "Elton John" backwards, Jaccard with higher values of k quickly drops to zero but just swapping
 the words (like our social media account and email with punctuation removed) remains high. So higher value
-values of k for Jaccard definitely have there place but perhaps not needed for our game.
+values of k for Jaccard definitely have their place but are perhaps not needed for our game.
 Dealing with k sequential letters (also referred to as n sequential letters) is common.
 There is in fact a special term _n-grams_ for such sequences.
 While n-grams play an important role in measuring similarity, it doesn't add
@@ -375,7 +375,7 @@ Perhaps it could be interesting to know if the start of our guess is close to th
 
 Let's now swap over to distance measures.
 
-Let's first explore the range of distance measures we have available to us by looking at the following distance measures:
+Let's first explore the range of distance measures we have available to us:
 
 [source,groovy]
 ----
@@ -481,51 +481,32 @@ We also think the actual distance measure might be something that wordle players
 could relate to. Once you know the size of the hidden word,
 the distance indirectly gives you the number of correct letters
 (which is something wordle players are used to - just here we don't know
-which ares are correct).
+which specific letters are correct).
 
 We also thought about Damerau-Levenshtein. It allows transposition of adjacent
 characters and, while that adds value in most spell-checking scenarios,
-for our game it might be harder to keep visualize what the distance measure
-might mean with that additional possible change.
+for our game it might be harder to conceptualise what the distance measure
+means with that additional possible change.
 
 [fuchsia]#So, we'll use the standard Levenshtein distance in the game.#
 
-We could continue reasoning in this way about the other measures,
-but we'll jump to our solution, and try to give you examples of why
-we think they are useful. [fuchsia]#We added Hamming distance and LongestCommonSubsequence#
-(similarity measure not a distance measure) to our list.
-
-Let's look at some examples to highlight our thinking.
-
-Let's look at some examples for hamming distance. Consider these results:
+The last measure added to our list was the longest common subsequence. Let's look at some examples to highlight our thinking as to why:
 
 ----
-cat vs dog: LongestCommonSubsequence (0) Hamming (3) Levenshtein (3)
-cow vs bull: LongestCommonSubsequence (0) Hamming (-) Levenshtein (4)
+bat vs tab: LongestCommonSubsequence (1), Jaccard (3/3)
+back vs buck: LongestCommonSubsequence (3) Jaccard (3/5)
 ----
 
-For `cat` vs `dog`, the LCS value tells us we didn't have any correct letters in our guess.
-We'd have at least an LCS value of 1 if we had one correct character somewhere.
-The fact that Hamming is now 3, means that the hidden word (like our guess) must
-have 3 letters in it - since we can substitute 3 times. The Levenshtein value confirms this.
+For `bat` vs `tab`, the Jaccard similarity of 100% tells us that the guess contains exactly all the (distinct) letters of the hidden word.
+The LCS value of 1 tells us that no two letters appear in the correct order. The only
+way this is possible is if the letters appear in reverse order.
 
-For `cow` vs `bull`, because Hamming didn't return a result we know that the guess and
-hidden word are different sizes (remember it's an algorithm that requires the sizes to be the same).
-We also know that our guess also has no correct letters. But the Levenshtein value of 4
-tells us less in this case. If `cow` was our guess, the hidden word could be `bull`
-or `cowbell`. We do know that the size of the hidden word is between 4 and 7.
+For `back` vs `buck`, the LCS of 3 combined with the Jaccard of 3/5 tells us that the three shared letters
+also appear in the same order in both the guess and hidden words.
 
-Consider now this example:
+[fuchsia]#We'll use the LongestCommonSubsequence distance in the game to capture some ordering information.#
 
-----
-grounds vs aground: LongestCommonSubsequence (6) Hamming(7) Levenshtein(2)
-----
 
-The fact that Hamming returned 7 means that our guess has the correct number of letters.
-The fact that the LCS value was 6 means that there is one spurious letter in our guess.
-If the spurious letter was somewhere in the middle of our guess, then Hamming shouldn't
-show that all letters are incorrect. Hence, we know that the spurious letter is the first
-or last. The Levenshtein value confirms this (one insertion at one end and one delete at one end).
 
 == Phonetic Algorithms
 
