@@ -637,6 +637,10 @@ to load and use these models.
 * Context-dependent approaches can provide more accurate matching if the context is
 known, but require more in-depth analysis. For example, if we see "monopoly" we might think of a company with no competition. If we see "money" we might think of currency.
 But if we see those two words together, we immediately switch context to board games.
+As another example, the phrases "What is your age?" and "How old are you?" should match highly
+even though individual words like "old" and "age" may only have moderate semantic
+similarity using the word2vec approaches.
++
 We'll look at two models which use this approach.
 https://github.com/SeanLee97/AnglE[Universal AnglE] is a model based on BERT/LLM-based
 sentence embeddings and is used in conjunction with https://pytorch.org/[PyTorch].
@@ -818,7 +822,7 @@ to load and use the https://github.com/SeanLee97/AnglE[AnglE] https://huggingfac
 This model has one various state-of-the-art (SOTA) awards in the STS field.
 
 Unlike the previous models, AnglE supports conceptual embeddings.
-Therefore, we can feed in phrases not just words and it will match up similar phrases
+Therefore, we can feed in phrases not just words, and it will match up similar phrases
 taking into account the context information about the word usage in that phrase.
 
 So, let's have a set of sample phrases and try to find the closest of those phrases by similarity
@@ -918,7 +922,55 @@ bovine (0.39)
 
 === UAE
 
-Using DJL with Tensorflow and the UAE model:
+The https://djl.ai/[Deep Java Library]
+also has link:++https://www.tensorflow.org/[TensorFlow]++[https://pytorch.org/[Tensorflow\]] integration
+to load and use the https://research.google/pubs/universal-sentence-encoder/[USE] https://www.kaggle.com/models/google/universal-sentence-encoder[model].
+
+The USE model also supports conceptual embeddings, so we'll use the same phrases as we did for AngleE.
+
+Here is what the code looks like:
+
+[source,groovy]
+----
+String[] samplePhrases = [
+    'bull', 'bovine', 'kitten', 'hay', 'The sky is blue',
+    'The sea is blue', 'The grass is green', 'One two three',
+    'Bulls consume hay', 'Bovines convert grass to milk',
+    'Dogs play in the grass', 'Bulls trample grass',
+    'Dachshunds are delightful', 'I like cats and dogs']
+
+String[] queries = [
+    'cow', 'cat', 'dog', 'grass', 'Cows eat grass',
+    'Poodles are cute', 'The water is turquoise']
+
+String tensorFlowHub = "https://storage.googleapis.com/tfhub-modules"
+String modelUrl = "$tensorFlowHub/google/universal-sentence-encoder/4.tar.gz"
+var criteria = Criteria.builder()
+    .optApplication(Application.NLP.TEXT_EMBEDDING)
+    .setTypes(String[], float[][])
+    .optModelUrls(modelUrl)
+    .optTranslator(new UseTranslator())
+    .optEngine("TensorFlow")
+    .optProgress(new ProgressBar())
+    .build()
+
+var model = criteria.loadModel()
+var predictor = model.newPredictor()
+var sampleEmbeddings = predictor.predict(samplePhrases)
+
+var queryEmbeddings = predictor.predict(queries)
+queryEmbeddings.eachWithIndex { s, i ->
+    println "\n    ${queries[i]}"
+    sampleEmbeddings
+        .collect { MathUtil.cosineSimilarity(it, s) }
+        .withIndex()
+        .sort { -it.v1 }
+        .take(5)
+        .each { printf '%s (%4.2f)%n', samplePhrases[it.v2], it.v1 }
+}
+----
+
+Here is the output:
 
 ----
     cow
@@ -930,17 +982,17 @@ kitten (0.44)
 
     cat
 kitten (0.75)
+I like cats and dogs (0.39)
 bull (0.35)
 hay (0.31)
 bovine (0.26)
-Dogs play in the grass (0.22)
 
     dog
 kitten (0.54)
 Dogs play in the grass (0.45)
 bull (0.39)
+I like cats and dogs (0.37)
 hay (0.35)
-Dachshunds are delightful (0.27)
 
     grass
 The grass is green (0.61)
@@ -958,10 +1010,10 @@ bovine (0.44)
 
     Poodles are cute
 Dachshunds are delightful (0.54)
+I like cats and dogs (0.42)
 Dogs play in the grass (0.27)
 Bulls consume hay (0.19)
 bovine (0.16)
-Bulls trample grass (0.15)
 
     The water is turquoise
 The sea is blue (0.56)
@@ -971,8 +1023,11 @@ kitten (0.17)
 One two three (0.17)
 ----
 
-
 === Comparing Algorithm Choices
+
+We have looked at 5 different STS algorithms but which one should we use for our game?
+
+Let's have a look at the results of some common word for all 5 algorithms:
 
 ----
 Algorithm       angle                use                  conceptnet           glove                fasttext
@@ -1073,6 +1128,22 @@ green         cat       ██████▏    cat       ███▏       hi
               bear      ██████▏    bear      ███▏       milk      ▏          bear      █▏         cow       ███▏
               feline    █████▏     bare      ███▏       bear      ▏          cow       █▏         bear      ███▏
 ----
+
+All the algorithms do reasonably well at recognizing related words, but here are some observations:
+
+* Even though the AnglE and USE models could potentially provide more accurate matching due to context,
+the fact that we are using single words means that there is no context.
+So maybe they are overkill for the scenario of our game.
+* The different models have different baselines for what "related" means.
+AnglE for instance seems to hover around the 40-50% region for words that have an "average" semantic relationship.
+ConceptNet stays around 0% for such words and can even go negative.
+* Different models do better in different situations at recognizing similarity, i.e. there is no perfect model
+that seems to always outperform the others.
+
+Looking at these results, if we were doing a production ready game, we'd just pick ConceptNet, and
+we'd probably look for an English only model since the multilingual one takes the longest of all 5
+models to load. But given the educational tone of this post, [fuchsia]#we'll include the semantic similarity
+measure from all 5 models in our game#.
 
 == Playing the game
 
