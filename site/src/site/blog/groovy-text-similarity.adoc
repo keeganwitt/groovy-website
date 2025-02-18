@@ -1,25 +1,24 @@
 = Groovy Text Similarity
 Paul King <paulk-asert|PMC_Member>; James King <jakingy|Contributor>
 :revdate: 2025-02-18T20:30:00+00:00
-:draft: true
 :keywords: groovy, deep learning, apache commons, phonetics, pytorch, tensorflow, codecs, word2vec, djl, deeplearning4j, sts, llm
 :description: This blog looks at processing some algorithms for testing text similarity.
 
 == Introduction
 
-Let's build a wordle-like word guessing game. But instead of telling you how many
-correct and misplaced letters, we'll give you more hints, but slightly less obvious
-ones, to make it a little more challenging!
-
-We won't (directly) even tell you how many letters are in the word,
-but we'll give hints like:
-
-* How close your guess _sounds_ like the hidden word.
-* How close your guess is to the _meaning_ of the hidden word.
-* Instead of correct and misplaced letters, we'll give you some _distance
-and similarity measures_ which will give you clues about how many
-correct letters you have, whether you have the correct letters in order,
-and so forth.
+> Let's build a wordle-like word guessing game. But instead of telling you how many
+> correct and misplaced letters, we'll give you more hints, but slightly less obvious
+> ones, to make it a little more challenging!
+>
+> We won't (directly) even tell you how many letters are in the word,
+> but we'll give hints like:
+>
+> * How close your guess _sounds_ like the hidden word.
+> * How close your guess is to the _meaning_ of the hidden word.
+> * Instead of correct and misplaced letters, we'll give you some _distance
+> and similarity measures_ which will give you clues about how many
+> correct letters you have, whether you have the correct letters in order,
+> and so forth.
 
 So, we're thinking of a game that is a cross between other games.
 Guessing letters of a word like
@@ -36,7 +35,7 @@ Our goals here aren't to polish a production ready version of the game, but to:
 * Show off the latest releases from Apache Commons Text and Apache Commons Codec
 * Give you insight into string-metric similarity algorithms
 * Give you insight into phonetic similarity algorithms
-* Give you insight into semantic textual similarity (STS) algorithms powered by machine learning and deep neural networks using technologies like PyTorch, Tensorflow, and Word2vec
+* Give you insight into semantic textual similarity (STS) algorithms powered by machine learning and deep neural networks using frameworks like PyTorch, TensorFlow, and Word2vec, and technologies like large language models (LLMs) and BERT
 * Highlight how easy it is to play with the above technologies using Apache Groovy
 
 If you are new to Groovy, consider checking out this
@@ -99,7 +98,7 @@ Then we'll look at some libraries for phonetic matching:
 
 Then we'll look at some deep learning options for semantic matching:
 
-* `org.deeplearning4j:deeplearning4j-nlp` for GloVe, ConceptNet, and FastText models
+* `org.deeplearning4j:deeplearning4j-nlp` for GloVe, ConceptNet, and fastText models
 * `ai.djl` with Pytorch for a universal-sentence-encoder model and Tensorflow with an AnglE model
 
 == Simple String Metrics
@@ -630,7 +629,7 @@ are applicable in all contexts (very roughly).
 We'll look at three models which use this approach.
 https://en.wikipedia.org/wiki/Word2vec[Word2vec] by Google Research,
 https://nlp.stanford.edu/projects/glove/[GloVe] by Stanford NLP, and
-https://fasttext.cc/[FastText] by Facebook Research.
+https://fasttext.cc/[fastText] by Facebook Research.
 We'll use
 https://deeplearning4j.konduit.ai/deeplearning4j/reference/word2vec-glove-doc2vec[DeepLearning4J]
 to load and use these models.
@@ -650,7 +649,7 @@ model is trained and optimized for greater-than-word length text, such as senten
 https://www.tensorflow.org/[TensorFlow].
 We'll use the https://djl.ai/[Deep Java Library] to load and use both of these models on the JDK.
 
-=== FastText
+=== fastText
 Many Word2Vec libraries can read and write models to a standard file format based on the original https://github.com/tmikolov/word2vec[Google implementation].
 
 For example, we can download some of the pre-trained models from the https://radimrehurek.com/gensim/models/word2vec.html[Gensim Python library], convert them to the Word2Vec format, and then open them with https://deeplearning4j.konduit.ai/deeplearning4j/reference/word2vec-glove-doc2vec[DeepLearning4J].
@@ -662,10 +661,10 @@ glove_vectors = gensim.downloader.load('fasttext-wiki-news-subwords-300')
 glove_vectors.save_word2vec_format("fasttext-wiki-news-subwords-300.bin", binary=True)
 ----
 
-https://huggingface.co/fse/fasttext-wiki-news-subwords-300[This model] has
+This https://huggingface.co/fse/fasttext-wiki-news-subwords-300[fastText model] has
 1 million word vectors trained on Wikipedia 2017, UMBC webbase corpus and statmt.org news dataset (16B tokens).
 
-We simply serialize the https://fasttext.cc/[FastText] model into our Word2Vec representation,
+We simply serialize the https://fasttext.cc/[fastText] model into our Word2Vec representation,
 and can then call methods like `similarity` and `wordsNearest` as shown here:
 
 [source,groovy]
@@ -674,7 +673,7 @@ var modelName = 'fasttext-wiki-news-subwords-300.bin'
 var path = Paths.get(ConceptNet.classLoader.getResource(modelName).toURI()).toFile()
 Word2Vec model = WordVectorSerializer.readWord2VecModel(path)
 String[] words = ['bull', 'calf', 'bovine', 'cattle', 'livestock', 'horse']
-println """GloVe similarity to cow: ${
+println """fastText similarity to cow: ${
     words
         .collectEntries { [it, model.similarity('cow', it)] }
         .sort { -it.value }
@@ -687,7 +686,7 @@ Nearest words in vocab: ${model.wordsNearest('cow', 4)}
 Which gives this output:
 
 ----
-FastText similarity to cow: [bovine:0.72, cattle:0.70, calf:0.67, bull:0.67, livestock:0.61, horse:0.60]
+fastText similarity to cow: [bovine:0.72, cattle:0.70, calf:0.67, bull:0.67, livestock:0.61, horse:0.60]
 Nearest words in vocab: [cows, goat, pig, bovine]
 ----
 
@@ -1177,7 +1176,7 @@ Levenshtein                    Distance: 10, Insert: 0, Delete: 3, Substitute: 7
 Jaccard                        0%
 JaroWinkler                    PREFIX 0% / SUFFIX 0%
 Phonetic                       Metaphone=AFTRXK 47% / Soundex=A136 0%
-Meaning                        AnglE 45% / Use 21% / ConceptNet 2% / GloVe -4% / FastText 19%
+Meaning                        AnglE 45% / Use 21% / ConceptNet 2% / GloVe -4% / fastText 19%
 ----
 
 It looks like we really bombed out, but in fact this is good news. What did we learn:
@@ -1205,7 +1204,7 @@ Levenshtein                    Distance: 6, Insert: 2, Delete: 0, Substitute: 4
 Jaccard                        22%
 JaroWinkler                    PREFIX 56% / SUFFIX 45%
 Phonetic                       Metaphone=FRT 39% / Soundex=F630 0%
-Meaning                        AnglE 64% / Use 41% / ConceptNet 37% / GloVe 31% / FastText 44%
+Meaning                        AnglE 64% / Use 41% / ConceptNet 37% / GloVe 31% / fastText 44%
 ----
 
 What did we learn?
@@ -1233,7 +1232,7 @@ Levenshtein                    Distance: 1, Insert: 0, Delete: 0, Substitute: 1
 Jaccard                        71%
 JaroWinkler                    PREFIX 90% / SUFFIX 96%
 Phonetic                       Metaphone=BTNK 79% / Soundex=B352 75%
-Meaning                        AnglE 52% / Use 35% / ConceptNet 2% / GloVe 4% / FastText 25%
+Meaning                        AnglE 52% / Use 35% / ConceptNet 2% / GloVe 4% / fastText 25%
 ----
 
 We have 6 letters right in a row and 5 of the 6 distinct letters.
@@ -1249,7 +1248,7 @@ Levenshtein                    Distance: 0, Insert: 0, Delete: 0, Substitute: 0
 Jaccard                        100%
 JaroWinkler                    PREFIX 100% / SUFFIX 100%
 Phonetic                       Metaphone=PTNK 100% / Soundex=P352 100%
-Meaning                        AnglE 100% / Use 100% / ConceptNet 100% / GloVe 100% / FastText 100%
+Meaning                        AnglE 100% / Use 100% / ConceptNet 100% / GloVe 100% / fastText 100%
 
 Congratulations, you guessed correctly!
 ----
@@ -1264,7 +1263,7 @@ Levenshtein                    Distance: 7, Insert: 4, Delete: 0, Substitute: 3
 Jaccard                        22%
 JaroWinkler                    PREFIX 42% / SUFFIX 46%
 Phonetic                       Metaphone=BL 38% / Soundex=B400 25%
-Meaning                        AnglE 46% / Use 40% / ConceptNet 0% / GloVe 0% / FastText 31%
+Meaning                        AnglE 46% / Use 40% / ConceptNet 0% / GloVe 0% / fastText 31%
 ----
 * Since LCS is 1, [fuchsia]#the letters shared with the hidden word are in the reverse order#.
 * There were 4 inserts and 0 deletes which means [fuchsia]#the hidden word has 8 letters#.
@@ -1277,7 +1276,7 @@ Levenshtein                    Distance: 6, Insert: 5, Delete: 0, Substitute: 1
 Jaccard                        25%
 JaroWinkler                    PREFIX 47% / SUFFIX 0%
 Phonetic                       Metaphone=LK 38% / Soundex=L200 0%
-Meaning                        AnglE 50% / Use 18% / ConceptNet 11% / GloVe 13% / FastText 37%
+Meaning                        AnglE 50% / Use 18% / ConceptNet 11% / GloVe 13% / fastText 37%
 ----
 * Jaccard of 2 / 8 tells us [fuchsia]#two of the letters in 'leg' appear in the hidden word#.
 * LCS of 2 tells us that [fuchsia]#they appear in the same order as in the hidden word#.
@@ -1294,7 +1293,7 @@ Levenshtein                    Distance: 8, Insert: 0, Delete: 0, Substitute: 8
 Jaccard                        15%
 JaroWinkler                    PREFIX 50% / SUFFIX 50%
 Phonetic                       Metaphone=LNKX 34% / Soundex=L522 0%
-Meaning                        AnglE 46% / Use 12% / ConceptNet -11% / GloVe -4% / FastText 25%
+Meaning                        AnglE 46% / Use 12% / ConceptNet -11% / GloVe -4% / fastText 25%
 ----
 * 8 substitutions means [fuchsia]#none of the letters are in the same spot as 'languish'#.
 
@@ -1307,7 +1306,7 @@ Levenshtein                    Distance: 4, Insert: 0, Delete: 0, Substitute: 4
 Jaccard                        40%
 JaroWinkler                    PREFIX 83% / SUFFIX 75%
 Phonetic                       Metaphone=ELKXN 50% / Soundex=E423 75%
-Meaning                        AnglE 47% / Use 13% / ConceptNet -5% / GloVe -7% / FastText 26%
+Meaning                        AnglE 47% / Use 13% / ConceptNet -5% / GloVe -7% / fastText 26%
 ----
 * Jaccard tells us we have 4 distinct letters shared with the hidden word and yet we have a LCS of 5. [fuchsia]#The duplicate 'E' must be correct and the order of all correct letters must match the hidden word.#
 * Only 4 substitutions means [fuchsia]#8-4=4 letters are in the correct position#.
@@ -1323,7 +1322,7 @@ Levenshtein                    Distance: 0, Insert: 0, Delete: 0, Substitute: 0
 Jaccard                        100%
 JaroWinkler                    PREFIX 100% / SUFFIX 100%
 Phonetic                       Metaphone=ELFTR 100% / Soundex=E413 100%
-Meaning                        AnglE 100% / Use 100% / ConceptNet 100% / GloVe 100% / FastText 100%
+Meaning                        AnglE 100% / Use 100% / ConceptNet 100% / GloVe 100% / fastText 100%
 
 Congratulations, you guessed correctly!
 ----
@@ -1338,7 +1337,7 @@ Levenshtein                    Distance: 8, Insert: 0, Delete: 4, Substitute: 4
 Jaccard                        50%
 JaroWinkler                    PREFIX 61% / SUFFIX 49%
 Phonetic                       Metaphone=AFTRXK 33% / Soundex=A136 25%
-Meaning                        AnglE 44% / Use 11% / ConceptNet -7% / GloVe 1% / FastText 15%
+Meaning                        AnglE 44% / Use 11% / ConceptNet -7% / GloVe 1% / fastText 15%
 ----
 
 What do we know?
@@ -1360,7 +1359,7 @@ Levenshtein                    Distance: 4, Insert: 0, Delete: 0, Substitute: 4
 Jaccard                        57%
 JaroWinkler                    PREFIX 67% / SUFFIX 67%
 Phonetic                       Metaphone=KRS 74% / Soundex=C620 75%
-Meaning                        AnglE 51% / Use 12% / ConceptNet 5% / GloVe 23% / FastText 26%
+Meaning                        AnglE 51% / Use 12% / ConceptNet 5% / GloVe 23% / fastText 26%
 ----
 
 This tells us:
@@ -1381,7 +1380,7 @@ Levenshtein                    Distance: 6, Insert: 0, Delete: 0, Substitute: 6
 Jaccard                        67%
 JaroWinkler                    PREFIX 56% / SUFFIX 56%
 Phonetic                       Metaphone=RSTS 61% / Soundex=R232 25%
-Meaning                        AnglE 54% / Use 25% / ConceptNet 18% / GloVe 18% / FastText 31%
+Meaning                        AnglE 54% / Use 25% / ConceptNet 18% / GloVe 18% / fastText 31%
 ----
 
 We learned:
@@ -1401,7 +1400,7 @@ Levenshtein                    Distance: 0, Insert: 0, Delete: 0, Substitute: 0
 Jaccard                        100%
 JaroWinkler                    PREFIX 100% / SUFFIX 100%
 Phonetic                       Metaphone=KRT 100% / Soundex=C630 100%
-Meaning                        AnglE 100% / Use 100% / ConceptNet 100% / GloVe 100% / FastText 100%
+Meaning                        AnglE 100% / Use 100% / ConceptNet 100% / GloVe 100% / fastText 100%
 
 Congratulations, you guessed correctly!
 ----
@@ -1443,6 +1442,9 @@ and let datascience condense the results for us. We might end up with
 a chart something like this (some guesses and hints for Round 3 shown):
 
 image:img/gameBubble.png[Game BubleChart,width=70%]
+
+But these are just ideas. A production ready game is for another time.
+We hope you have enjoyed playing along and learning a little more about text similarity.
 
 == Further information [[further_info]]
 
