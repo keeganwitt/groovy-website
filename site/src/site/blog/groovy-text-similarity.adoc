@@ -2,7 +2,7 @@
 Paul King <paulk-asert|PMC_Member>; James King <jakingy|Contributor>
 :revdate: 2025-02-18T20:30:00+00:00
 :draft: true
-:keywords: groovy, deep learning, apache commons, phonetics, pytorch, tensorflow, codecs, word2vec, djl, deeplearning4j
+:keywords: groovy, deep learning, apache commons, phonetics, pytorch, tensorflow, codecs, word2vec, djl, deeplearning4j, sts, llm
 :description: This blog looks at processing some algorithms for testing text similarity.
 
 == Introduction
@@ -22,21 +22,22 @@ correct letters you have, whether you have the correct letters in order,
 and so forth.
 
 So, we're thinking of a game that is a cross between other games.
-Guessing letters like
+Guessing letters of a word like
 https://www.nytimes.com/games/wordle/index.html[Wordle],
-but with less direct clues, sort of like
-https://en.wikipedia.org/wiki/Mastermind_(board_game)[Master Mind], and
-incorporating some of the ideas behind guessing words by semantic meaning like
+but with less direct clues, sort of like how a black key peg in
+https://en.wikipedia.org/wiki/Mastermind_(board_game)[Master Mind] indicates that you
+have one of the colored code pegs in the correct position, but you don't know which one.
+It also will incorporate some of the ideas behind word-guessing games like
 https://semantle.com/[Semantle], or
-https://proximity.clevergoat.com/[Proximity].
+https://proximity.clevergoat.com/[Proximity] which also use semantic meaning.
 
 Our goals here aren't to polish a production ready version of the game, but to:
 
 * Show off the latest releases from Apache Commons Text and Apache Commons Codec
 * Give you insight into string-metric similarity algorithms
 * Give you insight into phonetic similarity algorithms
-* Give you insight into semantic similarity algorithms powered by machine learning and deep neural networks using technologies like PyTorch, Tensorflow, and Word2vec
-* To highlight how easy it is to play with the above technologies using Apache Groovy
+* Give you insight into semantic textual similarity (STS) algorithms powered by machine learning and deep neural networks using technologies like PyTorch, Tensorflow, and Word2vec
+* Highlight how easy it is to play with the above technologies using Apache Groovy
 
 If you are new to Groovy, consider checking out this
 https://opensource.com/article/20/12/groovy[Groovy game building tutorial] first.
@@ -867,7 +868,7 @@ queries.each { query ->
 ----
 
 For each query, we find the 5 closest phrases from the sample phrase.
-When run, the results look like this:
+When run, the results look like this (library logging elided):
 
 ----
     cow
@@ -923,8 +924,8 @@ bovine (0.39)
 === UAE
 
 The https://djl.ai/[Deep Java Library]
-also has link:++https://www.tensorflow.org/[TensorFlow]++[https://pytorch.org/[Tensorflow\]] integration
-to load and use the https://research.google/pubs/universal-sentence-encoder/[USE] https://www.kaggle.com/models/google/universal-sentence-encoder[model].
+also has link:++https://www.tensorflow.org/[TensorFlow]++[https://pytorch.org/[TensorFlow\]] integration
+which we'll use to load and exercise Google's https://research.google/pubs/universal-sentence-encoder/[USE] https://www.kaggle.com/models/google/universal-sentence-encoder[model].
 
 The USE model also supports conceptual embeddings, so we'll use the same phrases as we did for AngleE.
 
@@ -962,7 +963,7 @@ var queryEmbeddings = predictor.predict(queries)
 queryEmbeddings.eachWithIndex { s, i ->
     println "\n    ${queries[i]}"
     sampleEmbeddings
-        .collect { MathUtil.cosineSimilarity(it, s) }
+        .collect { cosineSimilarity(it, s) }
         .withIndex()
         .sort { -it.v1 }
         .take(5)
@@ -970,7 +971,7 @@ queryEmbeddings.eachWithIndex { s, i ->
 }
 ----
 
-Here is the output:
+Here is the output (library logging elided):
 
 ----
     cow
@@ -1140,12 +1141,20 @@ ConceptNet stays around 0% for such words and can even go negative.
 * Different models do better in different situations at recognizing similarity, i.e. there is no perfect model
 that seems to always outperform the others.
 
-Looking at these results, if we were doing a production ready game, we'd just pick ConceptNet, and
-we'd probably look for an English only model since the multilingual one takes the longest of all 5
+Looking at these results, if we were doing a production ready game, we'd just pick one model, probably ConceptNet,
+and we'd probably look for an English only model since the multilingual one takes the longest of all 5
 models to load. But given the educational tone of this post, [fuchsia]#we'll include the semantic similarity
 measure from all 5 models in our game#.
 
 == Playing the game
+
+The game has a very simple text UI. It runs on your operating systems shell, command or console windows
+or within your IDE. The game picks a random word of unknown size. You are given 30 rounds to guess the hidden word.
+For each round, you can enter one word, and you will be given numerous metrics about how similar
+your guess is to the hidden word. You will be given some hints if you take too long (more on that later).
+
+Let's see what some rounds of play look like, and we'll give you some commentary on
+the thinking we were using when playing those rounds.
 
 === Round 1
 
@@ -1310,7 +1319,6 @@ Meaning                        AnglE 100% / Use 100% / ConceptNet 100% / GloVe 1
 
 Congratulations, you guessed correctly!
 ----
-
 
 === Round 3
 
