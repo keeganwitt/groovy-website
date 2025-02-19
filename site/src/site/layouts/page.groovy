@@ -26,6 +26,7 @@ head {
     }
     title(pageTitle)
     link(href: relative("img/favicon.ico"), type: "image/x-ico", rel: "icon")
+    script(src: relative('js/matomo.js')) { }
     def styles = extraStyles ?: []
     ['bootstrap.css', 'font-awesome.min.css', 'style.css', *styles].each {
         link rel: 'stylesheet', type: 'text/css', href:
