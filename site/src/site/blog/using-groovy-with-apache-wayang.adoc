@@ -4,7 +4,7 @@ Paul King <paulk-asert|PMC_Member>
 :pygments-style: emacs
 :icons: font
 :revdate: 2022-06-19T13:01:07+00:00
-:updated: 2025-02-15T14:30:00+00:00
+:updated: 2025-02-20T14:10:00+00:00
 :keywords: centroids, data science, groovy, kmeans, records, apache spark, apache wayang
 :description: This post looks at using Apache Wayang and Apache Spark with Apache Groovy to cluster various Whiskies.
 
@@ -306,7 +306,26 @@ class TransformCSV extends Transform<double[], String> {
 }
 ----
 
-With this operator defined, we can now write our
+ML4all includes a pre-defined `KMeansStageWithZeros` localStage operator, but
+we'll initialize our KMeans using random centroids with a custom operator:
+
+[source,groovy]
+----
+class KMeansStageWithRandoms extends LocalStage {
+    int k, dimension
+    private r = new Random()
+
+    void staging(ML4allModel model) {
+        double[][] centers = new double[k][]
+        for (i in 0..<k) {
+            centers[i] = (0..<dimension).collect { r.nextGaussian() + 2 } as double[]
+        }
+        model.put('centers', centers)
+    }
+}
+----
+
+With these operators defined, we can now write our scripts:
 
 [source,groovy]
 ----
@@ -394,6 +413,6 @@ https://github.com/paulk-asert/groovy-data-science/tree/master/subprojects/Whisk
 .Update history
 ****
 *19/Jun/2022*: Initial version. +
-*15/Feb/2025*: Updated for Apache Wayang 1.0.0.
+*20/Feb/2025*: Updated for Apache Wayang 1.0.0.
 ****
 
