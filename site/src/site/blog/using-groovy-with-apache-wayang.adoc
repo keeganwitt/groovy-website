@@ -8,6 +8,11 @@ Paul King <paulk-asert|PMC_Member>
 :keywords: centroids, data science, groovy, kmeans, records, apache spark, apache wayang
 :description: This post looks at using Apache Wayang and Apache Spark with Apache Groovy to cluster various Whiskies.
 
+> In the quest to find the perfect single-malt Scotch whisky,
+> let's use Apache Wayang's cross-platform data processing and
+> cross-platform machine learning capabilities to cluster
+> related whiskies by their flavour profile.
+
 image:https://www.apache.org/logos/res/wayang/default.png[wayang logo,100,float="right"]
 https://wayang.apache.org/[Apache Wayang] (incubating) is an API
 for big data cross-platform processing. It provides an abstraction
@@ -30,7 +35,7 @@ The whiskies produced from
 https://www.niss.org/sites/default/files/ScotchWhisky01.txt[86 distilleries]
 have been ranked by expert tasters according to 12 criteria
 (Body, Sweetness, Malty, Smoky, Fruity, etc.).
-We'll use a KMeans algorithm to calculate the centroids.
+We'll use a https://en.wikipedia.org/wiki/K-means_clustering[KMeans] algorithm to calculate the centroids.
 This is similar to the
 https://github.com/apache/incubator-wayang/blob/main/README.md#k-means[KMeans example in the Wayang documentation]
 but instead of 2 dimensions (x and y coordinates), we have 12
@@ -51,7 +56,18 @@ is the notional "point" in the middle of the cluster. For us,
 it reflects the typical measure of each criteria for a whiskey
 in that cluster.
 
-== Implementation Details
+== Implementing a distributed KMeans
+
+We'll start by using Wayang's data processing capabilities
+to write our own distributed KMeans algorithm.
+We'll circle back to look at the new built-in KMeans
+that is part of Wayang's ML4all module.
+
+To build a distributed KMeans algorithm, we'll need to
+pass around some information between the processing nodes
+on whatever data processing platform (e.g. Apache Spark)
+that we'll eventually use to run our application.
+So, we first define those data structures.
 
 We'll start with defining a Point record:
 
