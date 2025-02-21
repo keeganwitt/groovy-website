@@ -8,10 +8,10 @@ Paul King <paulk-asert|PMC_Member>
 :keywords: centroids, data science, groovy, kmeans, records, apache spark, apache wayang
 :description: This post looks at using Apache Wayang and Apache Spark with Apache Groovy to cluster various Whiskies.
 
-> In the quest to find the perfect single-malt Scotch whisky,
+> _In the quest to find the perfect single-malt Scotch whisky,
 > let's use Apache Wayang's cross-platform data processing and
 > cross-platform machine learning capabilities to cluster
-> related whiskies by their flavour profile.
+> related whiskies by their flavor profiles._
 
 image:https://www.apache.org/logos/res/wayang/default.png[wayang logo,100,float="right"]
 https://wayang.apache.org/[Apache Wayang] (incubating) is an API
