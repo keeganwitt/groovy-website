@@ -1,5 +1,5 @@
 = Searching with Lucene
-Paul King
+Paul King <paulk-asert|PMC_Member>
 :revdate: 2024-11-25T15:30:00+00:00
 :updated: 2024-12-22T08:45:00+00:00
 :keywords: aggregation, search, lucene, groovy, emoji, regex
