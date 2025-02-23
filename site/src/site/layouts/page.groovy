@@ -39,7 +39,7 @@ body {
         a(href: 'https://github.com/apache/groovy') {
             img(
                     style: "position: fixed; top: 20px; right: -58px; border: 0; z-index: 100; transform: rotate(45deg);",
-                    src: '/img/horizontal-github-ribbon.png'
+                    src: relative('img/horizontal-github-ribbon.png')
             )
         }
     }

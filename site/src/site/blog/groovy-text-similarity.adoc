@@ -32,10 +32,8 @@ https://proximity.clevergoat.com/[Proximity] which also use semantic meaning.
 
 Our goals here aren't to polish a production ready version of the game, but to:
 
-* Show off the latest releases from https://commons.apache.org/proper/commons-text/[Apache Commons Text] and
-https://commons.apache.org/proper/commons-codec/[Apache Commons Codec]
-* Give you insight into string-metric similarity algorithms
-* Give you insight into phonetic similarity algorithms
+* Give you insight into string-metric similarity algorithms (like those in the latest https://commons.apache.org/proper/commons-text/[Apache Commons Text] release)
+* Give you insight into phonetic similarity algorithms (like those in the latest https://commons.apache.org/proper/commons-codec/[Apache Commons Codec] release)
 * Give you insight into semantic textual similarity (STS) algorithms powered by machine learning and deep neural networks using frameworks like PyTorch, TensorFlow, and Word2vec, and technologies like large language models (LLMs) and BERT
 * Highlight how easy it is to play with the above technologies using https://groovy.apache.org[Apache Groovy]
 
