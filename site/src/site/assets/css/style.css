@@ -1,4 +1,4 @@
-@import url(https://fonts.googleapis.com/css?family=Source+Code+Pro:500,700|Open+Sans:400,600);
+@import url(./notosans.css);
 
 html, code, kbd, pre, samp {
     -ms-text-size-adjust: 100%;
@@ -257,8 +257,14 @@ article .content time {
     color: orange;
 }
 
+@font-face {
+    font-family: "Block";
+    src: "Noto Sans JP";
+    unicode-range: U+2580-259F;
+}
+
 code, kbd, pre, samp {
-    font-family: "Source Code Pro", "Consolas", "Monaco", "Bitstream Vera Sans Mono", "Courier New", Courier, monospace;
+    font-family: "Block", "Noto Sans Mono", "Consolas", "Monaco", "Bitstream Vera Sans Mono", "Courier New", Courier, monospace;
 }
 
 #contribute-btn {

@@ -44,7 +44,7 @@ layout 'layouts/main.groovy', true,
                                     .gs-snippet {
                                         margin-left: 8px;
                                         line-height: 18px;
-                                        font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+                                        font-family: "Noto Sans JP", "Helvetica Neue", Helvetica, Arial, sans-serif;
                                     }
                                     .gsc-cursor-page {
                                         margin: 4px;
@@ -84,7 +84,7 @@ layout 'layouts/main.groovy', true,
                                         border: 0px;
                                     }
                                     .gsc-webResult, .gsc-result {
-                                        font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+                                        font-family: "Noto Sans JP", "Helvetica Neue", Helvetica, Arial, sans-serif;
                                     }
                                     .gsst_a, .gscb_a {
                                         margin-top: 3px;
