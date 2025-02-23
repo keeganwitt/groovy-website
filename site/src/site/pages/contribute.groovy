@@ -227,6 +227,19 @@ layout 'layouts/main.groovy', true,
 
                             hr(class: 'divider')
 
+                            h2('Subprojects')
+
+                            p 'The following subprojects are run under the auspices of the Groovy project:'
+
+                            ul {
+                                li {
+                                    a(href: 'https://groovy.apache.org/geb', 'Geb')
+                                    yield ' is a browser automation solution.'
+                                }
+                            }
+
+                            hr(class: 'divider')
+
                             h2('Donating to Friends of Groovy Open Collective')
 
                             p """
