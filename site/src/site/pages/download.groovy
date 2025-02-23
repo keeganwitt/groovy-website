@@ -284,7 +284,7 @@ layout 'layouts/main.groovy', true,
                                 h1 'Operating system/package manager installation'
 
                                 p {
-                                    a(href: 'http://groovy-lang.org/install.html', 'Installing')
+                                    a(href: 'https://groovy-lang.org/install.html', 'Installing')
                                     yield ' Apache Groovy from a distribution zip is not hard but if you don\'t want'
                                     yield ' the hassle, consider the alternatives listed here.'
                                 }

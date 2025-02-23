@@ -13,7 +13,7 @@ This release is a maintenance release of the GROOVY_2_5_X branch. It is strongly
 
 This release includes 50 bug fixes/improvements as outlined in the changelog: https://issues.apache.org/jira/secure/ReleaseNote.jspa?projectId=12318123&version=12343876
 
-Sources, convenience binaries, downloadable documentation and an SDK bundle can be found at: http://www.groovy-lang.org/download.html
+Sources, convenience binaries, downloadable documentation and an SDK bundle can be found at: https://www.groovy-lang.org/download.html
 
 We recommend you verify your installation using the information on that page.
 

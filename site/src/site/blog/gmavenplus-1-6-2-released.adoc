@@ -8,7 +8,7 @@ Remko Popma
 
 GMavenPlus Plugin is a rewrite of https://github.com/groovy/gmaven[GMaven],
 a http://maven.apache.org/[Maven] plugin that allows you to
-integrate http://groovy-lang.org/[Groovy] into your Maven projects.
+integrate https://groovy-lang.org/[Groovy] into your Maven projects.
 
 Basic usage can be found on the
 https://github.com/groovy/GMavenPlus/wiki/Usage[usage] page,

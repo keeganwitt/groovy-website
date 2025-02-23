@@ -2,10 +2,10 @@
 
 v1.2, March 28, 2018
 
-:teamcity: http://ci.groovy-lang.org
-:groovy: http://groovy-lang.org
+:teamcity: https://ci.groovy-lang.org
+:groovy: https://groovy-lang.org
 :bintray: https://bintray.com/[Bintray]
-:gradle: http://gradle.org[Gradle]
+:gradle: https://gradle.org[Gradle]
 
 _NOTE_
 ****
@@ -233,15 +233,15 @@ Dear community,
 
 We are pleased to announce the first release of Apache Groovy done under the Apache Software Foundation
 Incubator sponsorship! Apache Groovy is a multi-facet programming language for the JVM. Details can be
-found at http://groovy-lang.org
+found at https://groovy-lang.org
 
 This release is a maintenance release of the 2.4.x branch, but contains critical fixes, in particular a fix
-for a 0-day vulnerability. Details can be found on http://groovy-lang.org/security.html
+for a 0-day vulnerability. Details can be found on https://groovy-lang.org/security.html
 
 It is strongly encouraged that all users upgrade to this version. There is no plan to provide patches for
 older versions of Groovy which were not developped under the Foundation umbrella.
 
-Changelog for this version can be found at: http://groovy-lang.org/changelogs/changelog-2.4.6.html
+Changelog for this version can be found at: https://groovy-lang.org/changelogs/changelog-2.4.6.html
 Sources can be downloaded from: http://www.groovy-lang.org/download.html
 Convenience binaries, SDK and documentation can be found at: http://www.groovy-lang.org/download.html
 

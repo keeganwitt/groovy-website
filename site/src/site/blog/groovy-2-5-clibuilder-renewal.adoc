@@ -828,7 +828,7 @@ so only long option names with a double hypen prefix (<code>--option</code>) are
 Groovy 2.5 CliBuilder offers a host of exciting new features.
 Try it out and let us know what you think!
 
-For reference: Groovy http://groovy-lang.org/[site] and
+For reference: Groovy https://groovy-lang.org/[site] and
 GitHub https://github.com/apache/groovy/[mirror],
 picocli http://picocli.info/[site] and
 https://github.com/remkop/picocli[picocli GitHub project].

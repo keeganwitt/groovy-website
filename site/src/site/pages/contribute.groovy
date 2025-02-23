@@ -20,7 +20,7 @@ layout 'layouts/main.groovy', true,
                                 ul {
                                     li {
                                         yield 'helping other users or discussing future language directions on the '
-                                        a(href: 'http://groovy-lang.org/mailing-lists.html', 'mailing-lists')
+                                        a(href: 'https://groovy-lang.org/mailing-lists.html', 'mailing-lists')
                                     }
                                     li {
                                         yield 'contribute to discussions on '
@@ -63,7 +63,7 @@ layout 'layouts/main.groovy', true,
                                     yield '''
                                         If you encounter a problem, want to discuss a new feature,
                                         share interesting findings, and more, then the '''
-                                    a(href: 'http://groovy-lang.org/mailing-lists.html', 'mailing-lists')
+                                    a(href: 'https://groovy-lang.org/mailing-lists.html', 'mailing-lists')
                                     yield '''
                                         are the place to go to start a conversation with the Groovy developers
                                         and other Groovy users. Discussions on the mailing list are archived.
@@ -89,7 +89,7 @@ layout 'layouts/main.groovy', true,
                                 }
                                 p {
                                     yield 'Before submitting a new issue, we recommend you read our guide to '
-                                    a(href: 'http://groovy-lang.org/reporting-issues.html', 'reporting issues')
+                                    a(href: 'https://groovy-lang.org/reporting-issues.html', 'reporting issues')
                                 }
                                 p {
                                     button(type: 'button', class: 'btn btn-default', 'Report an issue',
@@ -119,17 +119,17 @@ layout 'layouts/main.groovy', true,
                                 ul {
                                     li {
                                         yield 'the '
-                                        a(href: 'http://groovy-lang.org/single-page-documentation.html', 'reference documentation')
+                                        a(href: 'https://groovy-lang.org/single-page-documentation.html', 'reference documentation')
                                         yield ' covering the language specification, the user guides, getting started, and more.'
                                     }
                                     li {
                                         yield 'the '
-                                        a(href: 'http://groovy-lang.org/api.html', 'GroovyDoc APIs')
+                                        a(href: 'https://groovy-lang.org/api.html', 'GroovyDoc APIs')
                                         yield ' documenting the classes of the Groovy code base'
                                     }
                                     li {
                                         yield 'the '
-                                        a(href: 'http://groovy-lang.org/gdk.html', 'Groovy GDK')
+                                        a(href: 'https://groovy-lang.org/gdk.html', 'Groovy GDK')
                                         yield ' documentation, explaining how Groovy enriches the JDK APIs'
                                     }
                                     li {

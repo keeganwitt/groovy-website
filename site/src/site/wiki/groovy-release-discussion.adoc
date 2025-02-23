@@ -2,10 +2,10 @@
 
 v1.1, March 28, 2018
 
-:teamcity: http://ci.groovy-lang.org
-:groovy: http://groovy-lang.org
+:teamcity: https://ci.groovy-lang.org
+:groovy: https://groovy-lang.org
 :bintray: https://bintray.com/[Bintray]
-:gradle: http://gradle.org[Gradle]
+:gradle: https://gradle.org[Gradle]
 :category: dev
 
 _NOTE_

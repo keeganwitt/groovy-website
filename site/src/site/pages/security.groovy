@@ -67,7 +67,7 @@ This vulnerability was discovered by:
 References:
 
 * http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2015-3253[CVE-2015-3253: Remote execution of untrusted code]
-* http://groovy-lang.org/security.html
+* https://groovy-lang.org/security.html
 
 '''
                             a(name: 'CVE-2016-6814') {}
@@ -134,7 +134,7 @@ History:
 References:
 
 * http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-6814[CVE-2016-6814: Remote execution of untrusted code]
-* http://groovy-lang.org/security.html
+* https://groovy-lang.org/security.html
 
 '''
                             a(name: 'CVE-2020-17521') {}

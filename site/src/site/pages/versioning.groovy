@@ -27,7 +27,7 @@ layout 'layouts/main.groovy', true,
                                     }
                                 }
                                 li {
-                                    a(href: 'indy.html', 'Invoke dynamic support')
+                                    a(href: "${userSiteBase}indy.html", 'Invoke dynamic support')
                                 }
                             }
                         }

@@ -7,7 +7,7 @@ Remko Popma
 Dear community,
 
 image:img/groovy_logo.png[Groovy logo,200,float="right"]
-The Apache Groovy team is pleased to announce version 2.5.2 of Apache Groovy. Apache Groovy is a multi-facet programming language for the JVM. Further details can be found at the http://groovy.apache.org website.
+The Apache Groovy team is pleased to announce version 2.5.2 of Apache Groovy. Apache Groovy is a multi-facet programming language for the JVM. Further details can be found at the https://groovy.apache.org website.
 
 This release is a maintenance release of the GROOVY_2_5_X branch. It is strongly encouraged that all users using prior versions on this branch upgrade to this version.
 

@@ -184,7 +184,7 @@ groovy.util.GroovyTestCase => groovy.test.GroovyTestCase
 
 In most cases, both the old and new class are available in Groovy 3.
 But by Groovy 4, the old classes will be removed.
-See the http://groovy-lang.org/releasenotes/groovy-3.0.html[release notes]
+See the https://groovy-lang.org/releasenotes/groovy-3.0.html[release notes]
 for a complete list of these changes.
 
 == DGM improvements

@@ -4,7 +4,7 @@ Paul King
 :keywords: groovy, award
 :description: Congratulations to Graeme Rocher for receiving the Oracle Groundbreaker award.
 
-The http://groovy.apache.org/[Apache Groovy] team congratulates long-time Groovy committer
+The https://groovy.apache.org/[Apache Groovy] team congratulates long-time Groovy committer
 Graeme Rocher on receiving his Groundbreaker award at Oracle Code One.
 
 Graeme has made numerous significant contributions to Apache Groovy and has also founded

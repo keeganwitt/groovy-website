@@ -13,7 +13,7 @@ layout 'layouts/main.groovy', true,
         pageTitle: "The Apache Groovy programming language - Developer docs - $title",
         extraStyles: [relative('css/prettify.min.css')],
         extraFooter: contents {
-            script(src:relative('js/prettify.min.js')) { }
+            script(src:relative('js/vendor/prettify.min.js')) { }
             script { yieldUnescaped "document.addEventListener('DOMContentLoaded',prettyPrint)" }
         },
         mainContent: contents {

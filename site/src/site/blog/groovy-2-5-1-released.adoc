@@ -7,9 +7,9 @@ Remko Popma
 Dear community,
 
 image:img/groovy_logo.png[Groovy logo,200,float="right"]
-The Apache Groovy team is pleased to announce version 2.5.1 of Apache Groovy. Apache Groovy is a multi-faceted programming language for the JVM. Further details can be found at the http://groovy.apache.org website.
+The Apache Groovy team is pleased to announce version 2.5.1 of Apache Groovy. Apache Groovy is a multi-faceted programming language for the JVM. Further details can be found at the https://groovy.apache.org website.
 
-For this release we focused on fixing up some of the usability/packaging issues that the 2.5.0 release introduced as part of supporting Groovy across JDKs 7 through (soon) 11. Maven/Gradle users not needing JAXB should now have a much improved experience building with the new version. (SUREFIRE users should read the release notes about some caveats). In 2.5.2, we should have additional changes to improve the build experience even further for JAXB users and users of the Groovy command-line tools. Please read the release notes for further information: http://groovy-lang.org/releasenotes/groovy-2.5.html#Groovy2.5releasenotes-Addendum251
+For this release we focused on fixing up some of the usability/packaging issues that the 2.5.0 release introduced as part of supporting Groovy across JDKs 7 through (soon) 11. Maven/Gradle users not needing JAXB should now have a much improved experience building with the new version. (SUREFIRE users should read the release notes about some caveats). In 2.5.2, we should have additional changes to improve the build experience even further for JAXB users and users of the Groovy command-line tools. Please read the release notes for further information: https://groovy-lang.org/releasenotes/groovy-2.5.html#Groovy2.5releasenotes-Addendum251
 
 This release is a maintenance release of the GROOVY_2_5_X branch. It is strongly encouraged that all users using prior versions on this branch upgrade to this version.
 

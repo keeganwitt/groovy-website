@@ -35,7 +35,7 @@ historically structured according to this requirement.
 
 Groovy 3 provided duplicate versions of numerous classes (in old and new packages)
 to allow Groovy users to migrate towards the new JPMS compliant package names.
-See the link:http://groovy-lang.org/releasenotes/groovy-3.0.html#Groovy3.0releasenotes-Splitpackages[Groovy 3 release notes]
+See the link:https://groovy-lang.org/releasenotes/groovy-3.0.html#Groovy3.0releasenotes-Splitpackages[Groovy 3 release notes]
 for more details. Groovy 4 no longer provides the duplicate legacy classes.
 
 In short, time to stop using `groovy.util.XmlSlurper` and start using `groovy.xml.XmlSlurper`.

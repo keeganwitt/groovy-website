@@ -6,7 +6,7 @@ Remko Popma
 
 The CodeNarc Team is proud to announce the release of version 1.2.
 
-http://codenarc.org/[CodeNarc] is a static analysis tool for Groovy source code.
+https://codenarc.org/[CodeNarc] is a static analysis tool for Groovy source code.
 
 Version 1.2 includes 5 new rules and several enhancements and bug fixes. See the full details in the https://github.com/CodeNarc/CodeNarc/blob/master/CHANGELOG.md[release notes].
 

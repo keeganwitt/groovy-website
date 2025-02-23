@@ -9,7 +9,7 @@ Dear community,
 image:img/groovy_logo.png[Groovy logo,200,float="right"]
 The Apache Groovy team is pleased to announce version 2.4.16 of Apache Groovy.
 Apache Groovy is a multi-faceted programming language for the JVM.
-Further details can be found at the http://groovy.apache.org website.
+Further details can be found at the https://groovy.apache.org website.
 
 This release is a maintenance release of the GROOVY_2_4_X branch.
 While we recommend moving to the current 2.5.x releases (currently 2.5.4),
@@ -20,7 +20,7 @@ This release includes 18 bug fixes/improvements as outlined in the changelog:
 https://issues.apache.org/jira/secure/ReleaseNote.jspa?projectId=12318123&version=12342996
 
 Sources, convenience binaries, downloadable documentation and an SDK
-bundle can be found at: http://www.groovy-lang.org/download.html
+bundle can be found at: https://www.groovy-lang.org/download.html
 
 We recommend you verify your installation using the information on that page.
 

@@ -18,7 +18,7 @@ exciting as we bring to fruition the hard work (including hundreds of
 improvements and fixes) that have already gone into 3.0.0.
 
 Apache Groovy is a multi-faceted programming language for the JVM.
-Further details can be found at the http://groovy.apache.org website.
+Further details can be found at the https://groovy.apache.org website.
 
 This is a pre-release of a new version of Groovy.
 We greatly appreciate any feedback you can give us when using this version.

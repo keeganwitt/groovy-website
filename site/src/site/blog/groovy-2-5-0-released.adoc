@@ -7,15 +7,15 @@ Remko Popma
 Dear community,
 
 image:img/groovy_logo.png[Groovy logo,200,float="right"]
-The Apache Groovy team is pleased to announce version 2.5.0 of Apache Groovy. Apache Groovy is a multi-faceted programming language for the JVM. Further details can be found at the http://groovy.apache.org website.
+The Apache Groovy team is pleased to announce version 2.5.0 of Apache Groovy. Apache Groovy is a multi-faceted programming language for the JVM. Further details can be found at the https://groovy.apache.org website.
 
 We are sure you'll enjoy the features in this new version of Groovy. Your feedback on any unintentional glitches is welcome.
 
 This release includes 12 bug fixes/improvements since the last RC as outlined in the changelog: https://issues.apache.org/jira/secure/ReleaseNote.jspa?projectId=12318123&version=12343341
 
-The full list of over 300 bug fixes/improvements since 2.4 can be found here: http://groovy-lang.org/changelogs/changelog-2.5.0.html
+The full list of over 300 bug fixes/improvements since 2.4 can be found here: https://groovy-lang.org/changelogs/changelog-2.5.0.html
 
-The full release notes can be found here: http://groovy-lang.org/releasenotes/groovy-2.5.html
+The full release notes can be found here: https://groovy-lang.org/releasenotes/groovy-2.5.html
 
 Sources, convenience binaries, downloadable documentation and an SDK bundle can be found at: http://www.groovy-lang.org/download.html We recommend you verify your installation using the information on that page.
 
