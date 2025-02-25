@@ -17,5 +17,5 @@ ul(class: 'nav-sidebar') {
         }
     }
 }
-br()
-include unescaped: 'html/twittersearch.html'
+//br()
+//include unescaped: 'html/twittersearch.html'
