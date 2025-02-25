@@ -168,7 +168,7 @@ tasks.register('commitWebsite') {
 
         // Delete the previous content. These are asf-site branch paths.
         gitout.remove(patterns: ['.'])
-        fileTree(stagingDevSite).exclude('.git', '.asf.yaml', 'geb').visit { delete it.file }
+        fileTree(stagingDevSite).exclude('.git', '.well-known', '.asf.yaml', 'geb').visit { delete it.file }
         assert !file("${stagingDevSite}/index.html").exists()
 
         // Copy the built content and add it.
