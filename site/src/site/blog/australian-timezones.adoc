@@ -8,7 +8,7 @@ https://kenkousen.substack.com/[Ken Kousen] posted another
 https://t.co/VM4f4lpM7a[Tales from the jar side] episode
 covering among other things, time zones in Antarctica.
 
-image:img/stations_antarctica.png[Research stations and timezones in Antarctica,width=800]
+image:img/stations_antarctica.png[Research stations and timezones in Antarctica,width=600,link=https://external-preview.redd.it/16_JjhwH0lSETAc7LMNvulifXMrs-43lWIs_nr2OPIs.jpg?width=960&crop=smart&auto=webp&v=enabled&s=7fe189e9ed24d481d3445fad245bd6ae18ee5740]
 
 Let's replicate his example in Groovy before looking at time zones
 more broadly in Australia. Why Australia? Well, that's where I'm from but also
@@ -17,7 +17,7 @@ is the equivalent of Ken's exploration at the South Pole:
 
 [subs="quotes"]
 ----
-[lime]*Groovy Shell* (4.0.9, JVM: 17.0.2)
+[lime]*Groovy Shell* (4.0.26, JVM: 21.0.6)
 Type ':help' or ':h' for help.
 -------------------------------------------------------------------------------
 groovy:000> import java.time.*
