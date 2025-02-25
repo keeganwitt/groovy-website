@@ -1,5 +1,5 @@
 = Australian Time Zones
-Paul King
+Paul King <paulk-asert|PMC_Member>
 :revdate: 2023-02-20T20:00:00+00:00
 :keywords: groovy, datetime, timezone, date
 :description: Inspired by a recent update related to Antarctic timezones, this post looks at some interesting Australian time zone facts.
@@ -8,7 +8,7 @@ https://kenkousen.substack.com/[Ken Kousen] posted another
 https://t.co/VM4f4lpM7a[Tales from the jar side] episode
 covering among other things, time zones in Antarctica.
 
-image:https://external-preview.redd.it/16_JjhwH0lSETAc7LMNvulifXMrs-43lWIs_nr2OPIs.jpg?width=960&crop=smart&auto=webp&v=enabled&s=7fe189e9ed24d481d3445fad245bd6ae18ee5740[Research stations and timezones in Antarctica]
+image:img/stations_antarctica.png[Research stations and timezones in Antarctica,width=800]
 
 Let's replicate his example in Groovy before looking at time zones
 more broadly in Australia. Why Australia? Well, that's where I'm from but also
@@ -44,7 +44,12 @@ Let's look at all Australian timezones, including Eucla, and the three
 Antarctic research stations, Casey, Davis, and Mawson
 (seen on the right of the above map).
 
-Before we dive into coding, let's look at the timezones we're interested in:
+Before we dive into coding, let's look at the timezones we're interested in.
+First a picture showing the main timezones (source: wikipedia):
+
+image:img/autimezones.png[Australian timezones,width=500]
+
+And now a more complete table:
 
 [cols="1,3,2,5"]
 |===
@@ -185,7 +190,7 @@ or the longest straight section of tarred road in Australia (146 km, 91 mi),
 then the Nullarbor plain is the place to be, but otherwise it's not high
 on most folks tourist attractions must-see list.
 
-image:https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Highway_sign%2C_Nullarbor%2C_2017_%2802%29.jpg/1920px-Highway_sign%2C_Nullarbor%2C_2017_%2802%29.jpg[Nullarbor plain,600]
+image:img/nullarbor.png[Nullarbor plain,600]
 
 But the Nullarbor is the place to be if you want to know about another obscure timezone fact!
 When the Indian Pacific train travels between
@@ -207,7 +212,7 @@ That's about 1/4 of the way to New Zealand!
 Being that far East of the mainland, it's not surprising to find out that
 it has a timezone 30 minutes earlier than the mainland.
 
-image:https://www.thesenior.com.au/images/transform/v1/crop/frm/ezJUJGp6GbYvhKygBYtWTb/90dd6397-e247-4c3f-aacf-bd15b7cf8586.jpg/r0_31_600_371_w1200_h678_fmax.jpg[Lord Howe Island]
+image:img/lordhoweisland.jpg[Lord Howe Island,width=500]
 
 Apparently, some years back,
 https://www.atlasobscura.com/places/lord-howe-islands-time#:~:text=The%20reason%20for%20this%20unique,UTC%20%2B10%3A00%20clock[the governor wanted to have a timezone coinciding
@@ -260,17 +265,22 @@ The two assertions pass and the final println has the following output:
 [+10:00, +11:00, +07:00, +08:45, +09:30, +10:30, +05:00, +08:00, +06:30, +12:00]
 ----
 
-Just one final timezone obscurity to wrap up.
+Let's head to the Gold Coast at the Queensland-New South Wales border to wrap up.
 
 The Queensland-New South Wales border actually cuts Gold Coast Airport almost
 precisely in half, including the runway. Technically, flights departing in the summer
 months leave the terminal in one time zone and take off from the ground in another.
+
+image:img/goldcoast_airport.png[Fireworks on the Gold Coast,400]
+
 This has the potential to severely muck up the airlines _departed-on-time_ statistics!
 Thankfully the airport chooses to operate exclusively on Queensland time to avoid
 any potential confusion.
 
-image:https://www.wearegoldcoast.com.au/wp-content/uploads/2021/04/ryanfowlerphotography.jpg[Fireworks on the Gold Coast,600]
-
 Incidentally, if you love to celebrate New Year's Eve, Gold Coast might be the
-perfect destination. You can party and watch fireworks in Tweed Heads before heading
-just 10s of metres North to count down to midnight all over again, just one hour later.
+perfect destination.
+
+image:img/fireworks_beach.png[Fireworks on the Gold Coast,400]
+
+You can party and watch fireworks in Tweed Heads before walking a handful of steps North
+to Coolangatta where you can count down to midnight all over again, just one hour later.
