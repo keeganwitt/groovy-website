@@ -215,33 +215,9 @@ ecosystem {
 
 allEvents {
     // Note that the event image should be 257x180 to look nice
-    event('Everything Open 2024') {
-        location 'Gladstone, Australia'
-        date 'April 16-18, 2024'
-        url 'https://everythingopen.au/'
-        logo 'img/confs/eo2024.png'
-        description '''
-            <p>
-            Everything Open is a conference focused on open technologies, including Linux, open source software,
-            open hardware and open data, and the communities that surround them.
-            </p>
-        '''
-    }
-    event('Community over Code EU') {
-        location 'Bratislava, Slovakia'
-        date 'June 3-5, 2024'
-        url 'https://eu.communityovercode.org/'
-        logo 'img/confs/coc2024eu.png'
-        description '''
-            <p>
-            The latest innovations from dozens of Apache projects and their communities in a collaborative,
-            vendor-neutral environment.
-            </p>
-        '''
-    }
     event('Community over Code NA') {
-        location 'Denver, Colorado'
-        date 'October 7-10, 2024'
+        location 'Minneapolis, Minnesota'
+        date 'September 11-14, 2025'
         url 'https://communityovercode.org/'
         logo 'img/confs/coc2024.png'
         description '''
