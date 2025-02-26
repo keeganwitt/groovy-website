@@ -385,4 +385,4 @@ and see if it really helps.
 * https://en.wikipedia.org/wiki/Fast_inverse_square_root[Fast inverse square root on Wikipedia]
 * https://medium.com/hard-mode/the-legendary-fast-inverse-square-root-e51fee3b49d9[History behind the algorithm]
 * http://www.lomont.org/papers/2003/InvSqrt.pdf[Fast Inverse Square Root paper]
-* https://www.slideshare.net/maksym_zavershynskyi/fast-inverse-square-root[Behind the Performance of Quake 3 Engine: Fast Inverse Square Root]
+* https://web.archive.org/web/20221221151427/https://www.slideshare.net/maksym_zavershynskyi/fast-inverse-square-root[Behind the Performance of Quake 3 Engine: Fast Inverse Square Root]
