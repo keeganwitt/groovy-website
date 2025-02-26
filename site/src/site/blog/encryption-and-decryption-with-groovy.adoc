@@ -5,7 +5,7 @@ Paul King
 :description: This post looks at encrypting and decrypting data using Groovy with the \
 AES and CAST5 algorithms.
 
-Inspired by this recent https://asyncq.com/how-to-encrypt-and-decrypt-data-in-java[blog entry], here is an example showing how to encrypt and decrypt with Groovy.
+Inspired by this recent https://web.archive.org/web/20240215084444/https://asyncq.com/how-to-encrypt-and-decrypt-data-in-java[blog entry], here is an example showing how to encrypt and decrypt with Groovy.
 
 == Using the JDK crypto classes
 
