@@ -213,5 +213,5 @@ I hope you have learnt some additional JVM details!
 == Further information
 
 * https://github.com/paulk-asert/bytecode-fun[Github repo] of the above examples
-* A https://openjdk.org/jeps/8280389[draft JEP] for what might become an official API for parsing, generating, and transforming Java class files
+* A https://openjdk.org/jeps/457[JEP] for what might become an official API for parsing, generating, and transforming Java class files
 * Social media: https://twitter.com/ApacheGroovy[@ApacheGroovy] https://fosstodon.org/@ApacheGroovy[@ApacheGroovy@fosstodon.org]

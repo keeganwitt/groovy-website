@@ -930,7 +930,7 @@ bovine (0.39)
 === UAE
 
 The https://djl.ai/[Deep Java Library]
-also has link:++https://www.tensorflow.org/[TensorFlow]++[https://pytorch.org/[TensorFlow\]] integration
+also has https://www.tensorflow.org/[TensorFlow] integration
 which we'll use to load and exercise Google's https://research.google/pubs/universal-sentence-encoder/[USE] https://www.kaggle.com/models/google/universal-sentence-encoder[model].
 
 The USE model also supports conceptual embeddings, so we'll use the same phrases as we did for AngleE.
