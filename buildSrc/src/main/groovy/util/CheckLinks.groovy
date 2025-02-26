@@ -61,9 +61,9 @@ class CheckLinks {
             if (cx instanceof HttpURLConnection) {
                 CloseableHttpClient httpclient = HttpClients.createDefault()
                 RequestConfig requestConfig = RequestConfig.custom()
-                        .setSocketTimeout(10_000)
-                        .setConnectTimeout(10_000)
-                        .setConnectionRequestTimeout(10_000)
+                        .setSocketTimeout(20_000)
+                        .setConnectTimeout(20_000)
+                        .setConnectionRequestTimeout(20_000)
                         .setCookieSpec(CookieSpecs.STANDARD)
                         .build()
                 HttpGet httpget = new HttpGet(link)
