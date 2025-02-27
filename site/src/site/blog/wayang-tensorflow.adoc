@@ -17,6 +17,7 @@ https://groovy.apache.org/blog/groovy-oracle23ai[Oracle 23ai Vector data type]
 > image:https://www.apache.org/logos/res/wayang/default.png[wayang logo,100,float="right"]
 > [blue]_Let's look at classifying iris flowers using Apache Wayang
 > and TensorFlow with Groovy_
+>
 
 We'll look at an implementation heavily based on the
 Java test in the Apache Wayang
