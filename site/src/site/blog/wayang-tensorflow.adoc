@@ -1,11 +1,10 @@
 = Using TensorFlow from Apache Wayang
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2025-02-28T09:30:00+00:00
-:draft: true
 :keywords: groovy, wayang, iris, classification
 :description: This post looks at using TensorFlow and Apache Wayang with Apache Groovy.
 
-image:img/iris_flowers.png[iris flowers,200,float="right"]In previous blog posts, we have looked at:
+image:img/iris_flowers.png[iris flowers,180,float="right"]In previous blog posts, we have looked at:
 
 * Clustering whisky flavor profiles using
 https://groovy.apache.org/blog/using-groovy-with-apache-wayang[Apache Wayang's cross-platform machine learning] with Apache Spark
@@ -14,7 +13,7 @@ https://groovy.apache.org/blog/classifying-iris-flowers-with-deep[Deep Learning 
 * Classifying iris flowers using the
 https://groovy.apache.org/blog/groovy-oracle23ai[Oracle 23ai Vector data type]
 
-> image:https://www.apache.org/logos/res/wayang/default.png[wayang logo,120,float="right"]
+> image:https://www.apache.org/logos/res/wayang/default.png[wayang logo,140,float="right"]
 > [blue]_Let's look at classifying iris flowers using Apache Wayang
 > and TensorFlow with Groovy_
 > &nbsp;
