@@ -5,37 +5,45 @@ Paul King <paulk-asert|PMC_Member>
 :keywords: groovy, wayang, iris, classification
 :description: This post looks at using TensorFlow and Apache Wayang with Apache Groovy.
 
-In previous blog posts, we have looked at:
+image:img/iris_flowers.png[iris flowers,200,float="right"]In previous blog posts, we have looked at:
 
 * Clustering whisky flavor profiles using
-https://groovy.apache.org/blog/using-groovy-with-apache-wayang[Apache Wayang's cross-platform machine learning]
+https://groovy.apache.org/blog/using-groovy-with-apache-wayang[Apache Wayang's cross-platform machine learning] with Apache Spark
 * Classifying iris flowers with
 https://groovy.apache.org/blog/classifying-iris-flowers-with-deep[Deep Learning and GraalVM]
 * Classifying iris flowers using the
 https://groovy.apache.org/blog/groovy-oracle23ai[Oracle 23ai Vector data type]
 
-> Let's look at classifying iris flowers using Apache Wayang
-> and TensorFlow with Groovy
+> image:https://www.apache.org/logos/res/wayang/default.png[wayang logo,100,float="right"]
+> [blue]_Let's look at classifying iris flowers using Apache Wayang
+> and TensorFlow with Groovy_
 
 We'll look at an implementation heavily based on the
 Java test in the Apache Wayang
 https://github.com/apache/incubator-wayang/blob/main/wayang-tests-integration/src/test/java/org/apache/wayang/tests/TensorflowIrisIT.java[repo].
 
-Let's first define a helper method.
+First, we'll define a map of string constants to label values.
+
+[source,groovy]
+----
+var LABEL_MAP = ["Iris-setosa": 0, "Iris-versicolor": 1, "Iris-virginica": 2]
+----
+
+Now we can define a helper method to convert from our test and training CSV files into our data types.
 
 [source,groovy]
 ----
 def fileOperation(URI uri, boolean random) {
-    var textFileSource = new TextFileSource(uri.toString())
-    var mapOperator = new MapOperator<>(line -> line.split(",").with{
+    var textFileSource = new TextFileSource(uri.toString()) // <1>
+    var mapOperator = new MapOperator<>(line -> line.split(",").with{ // <2>
         new Tuple(it[0..-2]*.toFloat() as float[], LABEL_MAP[it[-1]]) }, String, Tuple)
 
-    var mapX = new MapOperator<>(tuple -> (float[]) tuple.field0, Tuple, float[])
-    var mapY = new MapOperator<>(tuple -> (Integer) tuple.field1, Tuple, Integer)
+    var mapX = new MapOperator<>(tuple -> (float[]) tuple.field0, Tuple, float[]) // <3>
+    var mapY = new MapOperator<>(tuple -> (Integer) tuple.field1, Tuple, Integer) // <3>
 
     if (random) {
         Random r = new Random()
-        var randomOperator = new SortOperator<>(e -> r.nextInt(), String, Integer)
+        var randomOperator = new SortOperator<>(e -> r.nextInt(), String, Integer) // <4>
         textFileSource.connectTo(0, randomOperator, 0)
         randomOperator.connectTo(0, mapOperator, 0)
     } else {
@@ -48,18 +56,27 @@ def fileOperation(URI uri, boolean random) {
     new Tuple<>(mapX, mapY)
 }
 ----
+<1> `TextFileSource` converts a text file into lines
+<2> `mapOperator` converts a line into a Tuple containing our float[] data and an Integer label
+<3> We also have `mapX` and `mapY` operators for
+getting the two parts from our Tuple
+<4> We can optionally randomly sort the incoming dataset
 
-We can now write our script:
+We'll use that helper method to create our test and training
+data sources:
 
 [source,groovy]
 ----
 var TEST_PATH = getClass().classLoader.getResource("iris_test.csv").toURI()
 var TRAIN_PATH = getClass().classLoader.getResource("iris_train.csv").toURI()
-var LABEL_MAP = ["Iris-setosa": 0, "Iris-versicolor": 1, "Iris-virginica": 2]
-
 var trainSource = fileOperation(TRAIN_PATH, true)
 var testSource = fileOperation(TEST_PATH, false)
+----
 
+We can now write the rest of our script:
+
+[source,groovy]
+----
 /* labels & features */
 Operator trainXSource = trainSource.field0
 Operator trainYSource = trainSource.field1
