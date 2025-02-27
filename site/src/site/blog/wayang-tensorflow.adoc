@@ -14,10 +14,10 @@ https://groovy.apache.org/blog/classifying-iris-flowers-with-deep[Deep Learning 
 * Classifying iris flowers using the
 https://groovy.apache.org/blog/groovy-oracle23ai[Oracle 23ai Vector data type]
 
-> image:https://www.apache.org/logos/res/wayang/default.png[wayang logo,100,float="right"]
+> image:https://www.apache.org/logos/res/wayang/default.png[wayang logo,120,float="right"]
 > [blue]_Let's look at classifying iris flowers using Apache Wayang
 > and TensorFlow with Groovy_
->
+> &nbsp;
 
 We'll look at an implementation heavily based on the
 Java test in the Apache Wayang
@@ -37,7 +37,8 @@ Now we can define a helper method to convert from our test and training CSV file
 def fileOperation(URI uri, boolean random) {
     var textFileSource = new TextFileSource(uri.toString()) // <1>
     var line2tupleOp = new MapOperator<>(line -> line.split(",").with{ // <2>
-        new Tuple(it[0..-2]*.toFloat() as float[], LABEL_MAP[it[-1]]) }, String, Tuple)
+        new Tuple(it[0..-2]*.toFloat() as float[], LABEL_MAP[it[-1]])
+    }, String, Tuple)
 
     var mapData = new MapOperator<>(tuple -> (float[]) tuple.field0, Tuple, float[]) // <3>
     var mapLabel = new MapOperator<>(tuple -> (Integer) tuple.field1, Tuple, Integer) // <3>
@@ -120,9 +121,10 @@ int batchSize = 45
 int epoch = 10
 var option = new DLTrainingOperator.Option(criterion, optimizer, batchSize, epoch)
 option.setAccuracyCalculation(new Mean(0).with(
-    new Cast(Op.DType.FLOAT32).with(new Eq().with(
-        new ArgMax(1).with(new Input(Input.Type.PREDICTED, Op.DType.FLOAT32)),
-        new Input(Input.Type.LABEL, Op.DType.INT32)
+    new Cast(Op.DType.FLOAT32).with(
+        new Eq().with(new ArgMax(1).with(
+            new Input(Input.Type.PREDICTED, Op.DType.FLOAT32)),
+            new Input(Input.Type.LABEL, Op.DType.INT32)
 ))))
 var trainingOp = new DLTrainingOperator<>(model, option, float[], Integer)
 ----
