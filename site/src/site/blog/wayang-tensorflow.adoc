@@ -35,30 +35,30 @@ Now we can define a helper method to convert from our test and training CSV file
 ----
 def fileOperation(URI uri, boolean random) {
     var textFileSource = new TextFileSource(uri.toString()) // <1>
-    var mapOperator = new MapOperator<>(line -> line.split(",").with{ // <2>
+    var line2tupleOp = new MapOperator<>(line -> line.split(",").with{ // <2>
         new Tuple(it[0..-2]*.toFloat() as float[], LABEL_MAP[it[-1]]) }, String, Tuple)
 
-    var mapX = new MapOperator<>(tuple -> (float[]) tuple.field0, Tuple, float[]) // <3>
-    var mapY = new MapOperator<>(tuple -> (Integer) tuple.field1, Tuple, Integer) // <3>
+    var mapData = new MapOperator<>(tuple -> (float[]) tuple.field0, Tuple, float[]) // <3>
+    var mapLabel = new MapOperator<>(tuple -> (Integer) tuple.field1, Tuple, Integer) // <3>
 
     if (random) {
         Random r = new Random()
-        var randomOperator = new SortOperator<>(e -> r.nextInt(), String, Integer) // <4>
-        textFileSource.connectTo(0, randomOperator, 0)
-        randomOperator.connectTo(0, mapOperator, 0)
+        var randomOp = new SortOperator<>(e -> r.nextInt(), String, Integer) // <4>
+        textFileSource.connectTo(0, randomOp, 0)
+        randomOp.connectTo(0, line2tupleOp, 0)
     } else {
-        textFileSource.connectTo(0, mapOperator, 0)
+        textFileSource.connectTo(0, line2tupleOp, 0)
     }
 
-    mapOperator.connectTo(0, mapX, 0)
-    mapOperator.connectTo(0, mapY, 0)
+    line2tupleOp.connectTo(0, mapData, 0)
+    line2tupleOp.connectTo(0, mapLabel, 0)
 
-    new Tuple<>(mapX, mapY)
+    new Tuple<>(mapData, mapLabel)
 }
 ----
 <1> `TextFileSource` converts a text file into lines
-<2> `mapOperator` converts a line into a Tuple containing our float[] data and an Integer label
-<3> We also have `mapX` and `mapY` operators for
+<2> `line2tupleOp` converts a line into a Tuple containing our `float[]` data in `field0` and an `Integer` label in `field1`
+<3> We also have `mapData` and `mapLabe` operators for
 getting the two parts from our Tuple
 <4> We can optionally randomly sort the incoming dataset
 
@@ -73,25 +73,29 @@ var trainSource = fileOperation(TRAIN_PATH, true)
 var testSource = fileOperation(TEST_PATH, false)
 ----
 
-We can now write the rest of our script:
+We can now write the rest of our script.
+First, we'll define features and labels:
 
 [source,groovy]
 ----
-/* labels & features */
-Operator trainXSource = trainSource.field0
-Operator trainYSource = trainSource.field1
-Operator testXSource = testSource.field0
-Operator testYSource = testSource.field1
+Operator trainData = trainSource.field0
+Operator trainLabel = trainSource.field1
+Operator testData = testSource.field0
+Operator testLabel = testSource.field1
+----
 
-/* model */
+We'll define a model.
+
+[source,groovy]
+----
 Op l1 = new Linear(4, 32, true)
-Op s1 = new Sigmoid()
-Op l2 = new Linear(32, 3, true)
-s1.with(l1.with(new Input(Input.Type.FEATURES)))
-l2.with(s1)
+Op s1 = new Sigmoid().with(l1.with(new Input(Input.Type.FEATURES)))
+Op l2 = new Linear(32, 3, true).with(s1)
 DLModel model = new DLModel(l2)
+----
 
-/* training options */
+[source,groovy]
+----
 Op criterion = new CrossEntropyLoss(3).with(
     new Input(Input.Type.PREDICTED, Op.DType.FLOAT32),
     new Input(Input.Type.LABEL, Op.DType.INT32)
@@ -104,12 +108,15 @@ option.setAccuracyCalculation(new Mean(0).with(new Cast(Op.DType.FLOAT32).with(n
     new ArgMax(1).with(new Input(Input.Type.PREDICTED, Op.DType.FLOAT32)),
     new Input(Input.Type.LABEL, Op.DType.INT32)
 ))))
+var trainingOp = new DLTrainingOperator<>(model, option, float[], Integer)
+----
 
-var trainingOperator = new DLTrainingOperator<>(model, option, float[], Integer)
-var predictOperator = new PredictOperator<>(float[], float[])
+[source,groovy]
+----
+var predictOp = new PredictOperator<>(float[], float[])
 
 /* map to label */
-var mapOperator = new MapOperator<>(array -> array.toList().indexed().max{ it.value }.key, float[], Integer)
+var bestFitOp = new MapOperator<>(array -> array.toList().indexed().max{ it.value }.key, float[], Integer)
 
 /* sink */
 var predicted = []
@@ -118,13 +125,13 @@ var predictedSink = createCollectingSink(predicted, Integer)
 var groundTruth = []
 var groundTruthSink = createCollectingSink(groundTruth, Integer)
 
-trainXSource.connectTo(0, trainingOperator, 0)
-trainYSource.connectTo(0, trainingOperator, 1)
-trainingOperator.connectTo(0, predictOperator, 0)
-testXSource.connectTo(0, predictOperator, 1)
-predictOperator.connectTo(0, mapOperator, 0)
-mapOperator.connectTo(0, predictedSink, 0)
-testYSource.connectTo(0, groundTruthSink, 0)
+trainData.connectTo(0, trainingOp, 0)
+trainLabel.connectTo(0, trainingOp, 1)
+trainingOp.connectTo(0, predictOp, 0)
+testData.connectTo(0, predictOp, 1)
+predictOp.connectTo(0, bestFitOp, 0)
+bestFitOp.connectTo(0, predictedSink, 0)
+testLabel.connectTo(0, groundTruthSink, 0)
 
 var wayangPlan = new WayangPlan(predictedSink, groundTruthSink)
 
