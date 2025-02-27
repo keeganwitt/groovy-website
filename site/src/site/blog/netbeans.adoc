@@ -4,7 +4,7 @@ Paul King <paulk-asert|PMC_Member>
 :keywords: netbeans, groovy, apache, debug, gradle
 :description: This post looks at using NetBeans and Groovy.
 
-> _Let's try using the latest Apache NetBeans with Apache Groovy._
+> [blue]#_Let's try using the latest Apache NetBeans with Apache Groovy._#
 
 The https://netbeans.apache.org/[Apache NetBeans] project recently
 https://netbeans.apache.org/front/main/blogs/entry/announce-apache-netbeans-25-released/[announced] the release of Apache NetBeans 25. Let's take it for a spin with
