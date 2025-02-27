@@ -1,0 +1,175 @@
+= Using TensorFlow from Apache Wayang
+Paul King <paulk-asert|PMC_Member>
+:revdate: 2025-02-28T09:30:00+00:00
+:draft: true
+:keywords: groovy, wayang, iris, classification
+:description: This post looks at using TensorFlow and Apache Wayang with Apache Groovy.
+
+In previous blog posts, we have looked at:
+
+* Clustering whisky flavor profiles using
+https://groovy.apache.org/blog/using-groovy-with-apache-wayang[Apache Wayang's cross-platform machine learning]
+* Classifying iris flowers with
+https://groovy.apache.org/blog/classifying-iris-flowers-with-deep[Deep Learning and GraalVM]
+* Classifying iris flowers using the
+https://groovy.apache.org/blog/groovy-oracle23ai[Oracle 23ai Vector data type]
+
+> Let's look at classifying iris flowers using Apache Wayang
+> and TensorFlow with Groovy
+
+We'll look at an implementation heavily based on the
+Java test in the Apache Wayang
+https://github.com/apache/incubator-wayang/blob/main/wayang-tests-integration/src/test/java/org/apache/wayang/tests/TensorflowIrisIT.java[repo].
+
+Let's first define a helper method.
+
+[source,groovy]
+----
+def fileOperation(URI uri, boolean random) {
+    var textFileSource = new TextFileSource(uri.toString())
+    var mapOperator = new MapOperator<>(line -> line.split(",").with{
+        new Tuple(it[0..-2]*.toFloat() as float[], LABEL_MAP[it[-1]]) }, String, Tuple)
+
+    var mapX = new MapOperator<>(tuple -> (float[]) tuple.field0, Tuple, float[])
+    var mapY = new MapOperator<>(tuple -> (Integer) tuple.field1, Tuple, Integer)
+
+    if (random) {
+        Random r = new Random()
+        var randomOperator = new SortOperator<>(e -> r.nextInt(), String, Integer)
+        textFileSource.connectTo(0, randomOperator, 0)
+        randomOperator.connectTo(0, mapOperator, 0)
+    } else {
+        textFileSource.connectTo(0, mapOperator, 0)
+    }
+
+    mapOperator.connectTo(0, mapX, 0)
+    mapOperator.connectTo(0, mapY, 0)
+
+    new Tuple<>(mapX, mapY)
+}
+----
+
+We can now write our script:
+
+[source,groovy]
+----
+var TEST_PATH = getClass().classLoader.getResource("iris_test.csv").toURI()
+var TRAIN_PATH = getClass().classLoader.getResource("iris_train.csv").toURI()
+var LABEL_MAP = ["Iris-setosa": 0, "Iris-versicolor": 1, "Iris-virginica": 2]
+
+var trainSource = fileOperation(TRAIN_PATH, true)
+var testSource = fileOperation(TEST_PATH, false)
+
+/* labels & features */
+Operator trainXSource = trainSource.field0
+Operator trainYSource = trainSource.field1
+Operator testXSource = testSource.field0
+Operator testYSource = testSource.field1
+
+/* model */
+Op l1 = new Linear(4, 32, true)
+Op s1 = new Sigmoid()
+Op l2 = new Linear(32, 3, true)
+s1.with(l1.with(new Input(Input.Type.FEATURES)))
+l2.with(s1)
+DLModel model = new DLModel(l2)
+
+/* training options */
+Op criterion = new CrossEntropyLoss(3).with(
+    new Input(Input.Type.PREDICTED, Op.DType.FLOAT32),
+    new Input(Input.Type.LABEL, Op.DType.INT32)
+)
+Optimizer optimizer = new Adam(0.1f) // optimizer with learning rate
+int batchSize = 45
+int epoch = 10
+var option = new DLTrainingOperator.Option(criterion, optimizer, batchSize, epoch)
+option.setAccuracyCalculation(new Mean(0).with(new Cast(Op.DType.FLOAT32).with(new Eq().with(
+    new ArgMax(1).with(new Input(Input.Type.PREDICTED, Op.DType.FLOAT32)),
+    new Input(Input.Type.LABEL, Op.DType.INT32)
+))))
+
+var trainingOperator = new DLTrainingOperator<>(model, option, float[], Integer)
+var predictOperator = new PredictOperator<>(float[], float[])
+
+/* map to label */
+var mapOperator = new MapOperator<>(array -> array.toList().indexed().max{ it.value }.key, float[], Integer)
+
+/* sink */
+var predicted = []
+var predictedSink = createCollectingSink(predicted, Integer)
+
+var groundTruth = []
+var groundTruthSink = createCollectingSink(groundTruth, Integer)
+
+trainXSource.connectTo(0, trainingOperator, 0)
+trainYSource.connectTo(0, trainingOperator, 1)
+trainingOperator.connectTo(0, predictOperator, 0)
+testXSource.connectTo(0, predictOperator, 1)
+predictOperator.connectTo(0, mapOperator, 0)
+mapOperator.connectTo(0, predictedSink, 0)
+testYSource.connectTo(0, groundTruthSink, 0)
+
+var wayangPlan = new WayangPlan(predictedSink, groundTruthSink)
+
+new WayangContext().with {
+    register(Java.basicPlugin())
+    register(Tensorflow.plugin())
+    execute(wayangPlan)
+}
+
+println "predicted:    $predicted"
+println "ground truth: $groundTruth"
+
+var correct = predicted.indices.count{ predicted[it] == groundTruth[it] }
+println "test accuracy: ${correct / predicted.size()}"
+----
+
+When run we get the following output:
+
+----
+Start training:
+[epoch 1, batch 1] loss: 6.300267 accuracy: 0.111111
+[epoch 1, batch 2] loss: 2.127365 accuracy: 0.488889
+[epoch 1, batch 3] loss: 1.647756 accuracy: 0.333333
+[epoch 2, batch 1] loss: 1.245312 accuracy: 0.333333
+[epoch 2, batch 2] loss: 1.901310 accuracy: 0.422222
+[epoch 2, batch 3] loss: 1.388500 accuracy: 0.244444
+[epoch 3, batch 1] loss: 0.593732 accuracy: 0.888889
+[epoch 3, batch 2] loss: 0.856900 accuracy: 0.466667
+[epoch 3, batch 3] loss: 0.595979 accuracy: 0.755556
+[epoch 4, batch 1] loss: 0.749081 accuracy: 0.666667
+[epoch 4, batch 2] loss: 0.945480 accuracy: 0.577778
+[epoch 4, batch 3] loss: 0.611283 accuracy: 0.755556
+[epoch 5, batch 1] loss: 0.625158 accuracy: 0.666667
+[epoch 5, batch 2] loss: 0.717461 accuracy: 0.577778
+[epoch 5, batch 3] loss: 0.525020 accuracy: 0.600000
+[epoch 6, batch 1] loss: 0.308523 accuracy: 0.888889
+[epoch 6, batch 2] loss: 0.830118 accuracy: 0.511111
+[epoch 6, batch 3] loss: 0.637414 accuracy: 0.600000
+[epoch 7, batch 1] loss: 0.265740 accuracy: 0.888889
+[epoch 7, batch 2] loss: 0.676369 accuracy: 0.511111
+[epoch 7, batch 3] loss: 0.443011 accuracy: 0.622222
+[epoch 8, batch 1] loss: 0.345936 accuracy: 0.666667
+[epoch 8, batch 2] loss: 0.599690 accuracy: 0.577778
+[epoch 8, batch 3] loss: 0.395788 accuracy: 0.755556
+[epoch 9, batch 1] loss: 0.342955 accuracy: 0.688889
+[epoch 9, batch 2] loss: 0.477057 accuracy: 0.933333
+[epoch 9, batch 3] loss: 0.376597 accuracy: 0.822222
+[epoch 10, batch 1] loss: 0.202404 accuracy: 0.888889
+[epoch 10, batch 2] loss: 0.515777 accuracy: 0.600000
+[epoch 10, batch 3] loss: 0.318649 accuracy: 0.911111
+Finish training.
+
+predicted:    [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+ground truth: [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
+test accuracy: 1
+----
+
+There is an element of randomness in our use case,
+so you might get slightly different results for each run.
+
+We hope you learned a little about
+https://groovy.apache.org/[Apache Groovy]
+and
+https://wayang.apache.org/[Apache Wayang]!
+Why not get involved!
