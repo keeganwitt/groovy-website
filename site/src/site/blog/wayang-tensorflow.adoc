@@ -30,7 +30,10 @@ First, we'll define a map of string constants to label values.
 var LABEL_MAP = ["Iris-setosa": 0, "Iris-versicolor": 1, "Iris-virginica": 2]
 ----
 
-Now we can define a helper method to convert from our test and training CSV files into our data types.
+Now we can create a helper method to define the operators we'll use to
+convert from our test and training CSV files into our datasets.
+Operators are the chunks of work that can be allocated to our processing platform.
+Ultimately, we'll have a graph of operators that form our plan of work.
 
 [source,groovy]
 ----
@@ -40,8 +43,8 @@ def fileOperation(URI uri, boolean random) {
         new Tuple(it[0..-2]*.toFloat() as float[], LABEL_MAP[it[-1]])
     }, String, Tuple)
 
-    var mapData = new MapOperator<>(tuple -> (float[]) tuple.field0, Tuple, float[]) // <3>
-    var mapLabel = new MapOperator<>(tuple -> (Integer) tuple.field1, Tuple, Integer) // <3>
+    var mapData = new MapOperator<>(tuple -> tuple.field0, Tuple, float[]) // <3>
+    var mapLabel = new MapOperator<>(tuple -> tuple.field1, Tuple, Integer) // <3>
 
     if (random) {
         Random r = new Random()
@@ -60,7 +63,7 @@ def fileOperation(URI uri, boolean random) {
 ----
 <1> `TextFileSource` converts a text file into lines
 <2> `line2tupleOp` converts a line into a Tuple containing our `float[]` data in `field0` and an `Integer` label in `field1`
-<3> We also have `mapData` and `mapLabe` operators for
+<3> We also have `mapData` and `mapLabel` operators for
 getting the two parts from our Tuple
 <4> We can optionally randomly sort the incoming dataset
 
@@ -86,7 +89,7 @@ Operator testData = testSource.field0
 Operator testLabel = testSource.field1
 ----
 
-Next up we'll define a model for our deep-learning network.
+Next up, we'll define a model for our deep-learning network.
 Recall that such networks have inputs (the features),
 one or more hidden layers, and outputs (in this case, labels).
 
@@ -97,7 +100,9 @@ The nodes can be activated by linear or non-linear functions.
 image:img/deep_node.png[Neural net node,width=600]
 
 We'll have 4 inputs going to 32 hidden nodes to 3 outputs
-with Sigmoid activation.
+with Sigmoid activation. These classes are all platform-agnostic.
+Nowhere here do we mention TensorFlow or use any TensorFlow
+classes.
 
 [source,groovy]
 ----
@@ -107,8 +112,8 @@ Op l2 = new Linear(32, 3, true).with(s1)
 DLModel model = new DLModel(l2)
 ----
 
-We define an operator, providing some needed options, that will do
-our training.
+We define a platform-agnostic deep learning training operator,
+providing some needed options, that will do our training.
 
 [source,groovy]
 ----
@@ -145,7 +150,7 @@ var groundTruth = []
 var groundTruthSink = createCollectingSink(groundTruth, Integer)
 ----
 
-With operators defined, let's connect them together:
+With operators defined, let's connect them together (define our graph of work):
 
 [source,groovy]
 ----
@@ -158,7 +163,7 @@ bestFitOp.connectTo(0, predictedSink, 0)
 testLabel.connectTo(0, groundTruthSink, 0)
 ----
 
-Let's now define a plan and execute it:
+Let's now place everything in a plan and execute it:
 
 [source,groovy]
 ----
