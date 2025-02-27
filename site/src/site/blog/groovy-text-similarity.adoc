@@ -98,7 +98,7 @@ Then we'll look at some libraries for phonetic matching:
 Then we'll look at some deep learning options for semantic matching:
 
 * `org.deeplearning4j:deeplearning4j-nlp` for GloVe, ConceptNet, and fastText models
-* `ai.djl` with Pytorch for a universal-sentence-encoder model and Tensorflow with an AnglE model
+* `ai.djl` with Pytorch for a universal-sentence-encoder model and TensorFlow with an AnglE model
 
 == Simple String Metrics
 
