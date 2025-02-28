@@ -349,6 +349,7 @@ class SiteGenerator {
         def outputDir = args[1] as File
         def sitemapFilename = args[2]
         def generator = new SiteGenerator(sourcesDir: sourcesDir, outputDir: outputDir, sitemapFilename: sitemapFilename)
+        System.setProperty('sitemapFilename', sitemapFilename)
         boolean watchMode = args.length > 3 ? Boolean.valueOf(args[3]) : false
         generator.generateSite()
 
