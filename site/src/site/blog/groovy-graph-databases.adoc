@@ -1,5 +1,5 @@
 = Using Graph Databases with Groovy
-Paul King
+Paul King <paulk-asert|PMC_Member>
 :revdate: 2024-09-02T22:18:00+00:00
 :updated: 2025-03-08T21:00:00+00:00
 :keywords: tugraph, apache tinkerpop, gremlin, neo4j, apache age, graph databases, apache hugegraph, arcadedb, orientdb, groovy
