@@ -265,7 +265,7 @@ and even other sports if we wanted to.
 
 Let's have a look at what our graph now looks like:
 
-image:https://raw.githubusercontent.com/paulk-asert/groovy-graphdb/main/docs/images/BackstrokeRecords.png[network of swim and swimmer vertices and relationship edges]
+image:img/BackstrokeRecords.png[network of swim and swimmer vertices and relationship edges]
 
 We now might want to query the graph in numerous ways.
 For instance, what countries had success at the Paris 2024 olympics,
@@ -369,7 +369,7 @@ Our next technology to examine is
 https://neo4j.com/product/neo4j-graph-database/[neo4j]. Neo4j is a graph
 database storing nodes and edges. Nodes and edges may have a label and properties (or attributes).
 
-image:https://dist.neo4j.com/wp-content/uploads/20230926084108/Logo_FullColor_RGB_TransBG.svg[neo4j logo,50%]
+image:img/Neo4jLogo.svg[neo4j logo,50%]
 
 Neo4j models edge relationships using enums. Let's create an enum for our example:
 
@@ -769,7 +769,7 @@ image:img/age-viewer.png[]
 
 == OrientDB
 
-image:https://www.orientdb.com/images/orientdb_logo_mid.png[orientdb logo,50%]
+image:img/orientdb_logo.png[orientdb logo,50%]
 
 The next graph database we'll look at is https://orientdb.org/[OrientDB].
 We used the open source Community edition. We used it in embedded mode but there are
@@ -859,7 +859,7 @@ We'll examine them next when we look at ArcadeDB.
 
 Now, we'll examine https://arcadedb.com/#getting-started[ArcadeDB].
 
-image:https://arcadedb.com/assets/images/arcadedb-logo-mini.png[arcadedb logo]
+image:img/arcadedb-logo.png[arcadedb logo]
 
 ArcadeDB is a rewrite/partial fork of OrientDB and carries over its Multi-Model nature.
 We used it in embedded mode but there are
@@ -982,7 +982,7 @@ image:img/ArcadeStudio.png[ArcadeStudio]
 Next, we'll look at
 https://tugraph.tech/[TuGraph].
 
-image:https://mdn.alipayobjects.com/huamei_qcdryc/afts/img/A*AbamQ5lxv0IAAAAAAAAAAAAADgOBAQ/original[tugraph logo,width=40%]
+image:img/tugraph.svg[tugraph logo,width=40%]
 
 We used the Community Edition using a docker image as outlined in the
 https://tugraph-db.readthedocs.io/en/latest/5.installation%26running/3.docker-deployment.html[documentation] and
