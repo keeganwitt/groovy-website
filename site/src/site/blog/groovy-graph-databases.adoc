@@ -5,10 +5,15 @@ Paul King <paulk-asert|PMC_Member>
 :keywords: tugraph, apache tinkerpop, gremlin, neo4j, apache age, graph databases, apache hugegraph, arcadedb, orientdb, groovy
 :description: This post illustrates using graph databases with Groovy.
 
-> [blue]#_Let's explore graph databases with Apache TinkerPop,
-> Neo4j, Apache AGE, OrientDB, ArcadeDB, Apache HugeGraph,
-> and TuGraph!_#
-> &nbsp;
+++++
+<table><tr><td style="padding: 0px; padding-left: 20px; padding-right: 20px; font-size: 18pt; line-height: 1.5; margin: 0px">
+++++
+[blue]#_Let's explore graph databases with Apache TinkerPop,
+Neo4j, Apache AGE, OrientDB, ArcadeDB, Apache HugeGraph,
+and TuGraph!_#
+++++
+</td></tr></table>
+++++
 
 In this blog post, we look at using property graph databases with Groovy.
 We'll look at:
