@@ -10,7 +10,7 @@ Paul King <paulk-asert|PMC_Member>
 ++++
 [blue]#_Let's explore graph databases with Apache TinkerPop,
 Neo4j, Apache AGE, OrientDB, ArcadeDB, Apache HugeGraph,
-and TuGraph!_#
+TuGraph, and GraphQL!_#
 ++++
 </td></tr></table>
 ++++
@@ -21,6 +21,7 @@ We'll look at:
 * Some advantages of property graph database technologies
 * Some features of Groovy which make using such databases a little nicer
 * Code examples for a common case study across 7 interesting graph databases
+* Code examples for the same case study using GraphQL
 
 == Case Study
 
@@ -1234,6 +1235,518 @@ gremlin.gremlin('''
 }
 ----
 
+== GraphQL
+
+For the databases we have looked at so far,
+most support either Gremlin or Cypher as their query language.
+Another open source graph query language framework
+that has gained some popularity in recent times is
+https://graphql.org[GraphQL].
+It lets you define graph-based data types and queries
+and provides a query language. It is often used to define
+APIs in client-server scenarios as an alternative to
+REST-based APIs.
+
+While frequently used in client-server scenarios,
+we'll explore using this technology for our case study.
+
+=== graphql-java
+
+The https://graphql-java.com[graphql-java] library provides
+an implementation of the GraphQL specification. It lets you
+read or define schema and query definitions and execute queries.
+We are going to map those queries to in-memory data structures.
+Let's define that data first.
+
+We'll use records to store our information:
+
+[source,groovy]
+----
+record Swimmer(String name, String country) {}
+
+record Swim(Swimmer who, String at, String result, String event, double time) {}
+----
+
+Let's now create our data structures:
+
+[source,groovy]
+----
+var es = new Swimmer('Emily Seebohm', '🇦🇺')
+var km = new Swimmer('Kylie Masse', '🇨🇦')
+var rs = new Swimmer('Regan Smith', '🇺🇸')
+var kmk = new Swimmer('Kaylee McKeown', '🇦🇺')
+var kb = new Swimmer('Katharine Berkoff', '🇺🇸')
+
+var swim1 = new Swim(es, 'London 2012', 'First', 'Heat 4', 58.23)
+var swim2 = new Swim(km, 'Tokyo 2021', 'First', 'Heat 4', 58.17)
+var swim3 = new Swim(km, 'Tokyo 2021', '🥈', 'Final', 57.72)
+var swim4 = new Swim(rs, 'Tokyo 2021', 'First', 'Heat 5', 57.96)
+var swim5 = new Swim(rs, 'Tokyo 2021', 'First', 'Semifinal 1', 57.86)
+var swim6 = new Swim(rs, 'Tokyo 2021', '🥉', 'Final', 58.05)
+var swim7 = new Swim(rs, 'Paris 2024', '🥈', 'Final', 57.66)
+var swim8 = new Swim(rs, 'Paris 2024', 'First', 'Relay leg1', 57.28)
+var swim9 = new Swim(kmk, 'Tokyo 2021', 'First', 'Heat 6', 57.88)
+var swim10 = new Swim(kmk, 'Tokyo 2021', '🥇', 'Final', 57.47)
+var swim11 = new Swim(kmk, 'Paris 2024', '🥇', 'Final', 57.33)
+var swim12 = new Swim(kb, 'Paris 2024', '🥉', 'Final', 57.98)
+
+var swims = [swim1, swim2, swim3, swim4, swim5, swim6,
+             swim7, swim8, swim9, swim10, swim11, swim12]
+----
+
+These represent our nodes but also the `who` field in `Swim`
+is the same as the `swam` edge in previous examples. Let's represent
+the `supersedes` edge as a list:
+
+[source,groovy]
+----
+var supersedes = [
+    [swim2, swim1],
+    [swim4, swim2],
+    [swim9, swim4],
+    [swim5, swim9],
+    [swim10, swim5],
+    [swim11, swim10],
+    [swim8, swim11],
+]
+----
+
+For now, we'll define a schema using the graphql schema syntax.
+It will include the details for swims and swimmers, and some queries:
+
+[source,graphql]
+----
+type Swimmer {
+    name: String!
+    country: String!
+}
+
+type Swim {
+    who: Swimmer!
+    at: String!
+    result: String!
+    event: String!
+    time: Float
+}
+
+type Query {
+    findSwim(name: String!, event: String!, at: String!): Swim!
+    recordsInFinals: [Swim!]
+    recordsInHeats: [Swim!]
+    allRecords: [Swim!]
+    success(at: String!): [Swim!]
+}
+----
+
+We are now going to define our GraphQL runtime.
+It will include the schema definition types and query APIs,
+but also we'll define providers which define how the
+data from our data structures is returned for each query:
+
+[source,groovy]
+----
+var generator = new SchemaGenerator()
+var types = getClass().getResourceAsStream("/schema.graphqls")
+    .withReader { reader -> new SchemaParser().parse(reader) }
+
+var swimFetcher = { DataFetchingEnvironment env ->
+    var name = env.arguments.name
+    var at = env.arguments.at
+    var event = env.arguments.event
+    swims.find{ s -> s.who.name == name && s.at == at && s.event == event }
+} as DataFetcher<Swim>
+
+var finalsFetcher = { DataFetchingEnvironment env ->
+    swims.findAll{ s -> s.event == 'Final' && supersedes.any{ it[0] == s } }
+} as DataFetcher<List<Swim>>
+
+var heatsFetcher = { DataFetchingEnvironment env ->
+    swims.findAll{ s -> s.event.startsWith('Heat') &&
+        (supersedes[0][1] == s || supersedes.any{ it[0] == s }) }
+} as DataFetcher<List<Swim>>
+
+var successFetcher = { DataFetchingEnvironment env ->
+    var at = env.arguments.at
+    swims.findAll{ s -> s.at == at }
+} as DataFetcher<List<Swim>>
+
+var recordsFetcher = { DataFetchingEnvironment env ->
+    supersedes.collect{it[0] }
+} as DataFetcher<List<Swim>>
+
+var wiring = RuntimeWiring.newRuntimeWiring()
+    .type("Query") { builder ->
+        builder.dataFetcher("findSwim", swimFetcher)
+        builder.dataFetcher("recordsInFinals", finalsFetcher)
+        builder.dataFetcher("recordsInHeats", heatsFetcher)
+        builder.dataFetcher("success", successFetcher)
+        builder.dataFetcher("allRecords", recordsFetcher)
+    }.build()
+var schema = generator.makeExecutableSchema(types, wiring)
+var graphQL = GraphQL.newGraphQL(schema).build()
+----
+
+We'll also define an `execute` helper method which executes a query
+using the runtime:
+
+[source,groovy]
+----
+var execute = { String query, Map variables = [:] ->
+    var executionInput = ExecutionInput.newExecutionInput()
+        .query(query)
+        .variables(variables)
+        .build()
+    graphQL.execute(executionInput)
+}
+----
+
+Let's now look at writing our previous queries.
+
+First, since we have in memory data structures, we'll acknowledge
+that it is easy to just write queries using those data structures, e.g.:
+
+[source,groovy]
+----
+swim1.with {
+    println "$who.name from $who.country swam a time of $time in $event at the $at Olympics"
+}
+----
+
+But, in a typical client-server environment, we won't have access to
+our data structures directly. We'll need to use the GraphQL API.
+Let's do this same query:
+
+[source,groovy]
+----
+execute('''
+    query findSwim($name: String!, $at: String!, $event: String!) {
+        findSwim(name: $name, at: $at, event: $event) {
+            who {
+                name
+                country
+            }
+            event
+            at
+            time
+        }
+    }
+''', [name: 'Emily Seebohm', at: 'London 2012', event: 'Heat 4']).data.findSwim.with {
+    println "$who.name from $who.country swam a time of $time in $event at the $at Olympics"
+}
+----
+
+To find the times for olympic records set in finals,
+we have a pre-defined query. We can simply call that query
+and ask for the time field to be returned:
+
+[source,groovy]
+----
+assert execute('''{
+    recordsInFinals {
+        time
+    }
+}''').data.recordsInFinals*.time == [57.47, 57.33]
+----
+
+We'll see later how to do this slightly more generically
+if we didn't have a pre-defined query.
+
+Similarly, we have a pre-defined query for "At which olympics were records set in heats":
+
+[source,groovy]
+----
+assert execute('''{
+    recordsInHeats {
+        at
+    }
+}''').data.recordsInHeats*.at.toUnique() == ['London 2012', 'Tokyo 2021']
+----
+
+For "Successful countries in Paris 2024", we have a query that accepts
+a parameter:
+
+[source,groovy]
+----
+assert execute('''
+    query success($at: String!) {
+        success(at: $at) {
+            who {
+                country
+            }
+        }
+    }
+''', [at: 'Paris 2024']).data.success*.who*.country.toUnique() == ['🇺🇸', '🇦🇺']
+----
+
+
+To "Print all records since London 2012", we use the `allRecords` query:
+
+[source,groovy]
+----
+execute('''{
+    allRecords {
+        at
+        event
+    }
+}''').data.allRecords.each {
+    println "$it.at $it.event"
+}
+----
+
+As an alternative to the `recordsInFinals` and `recordsInHeats` queries,
+we could have defined a slightly more generic one:
+
+[source,groovy]
+----
+var swimsFetcher = { DataFetchingEnvironment env ->
+    var event = env.arguments.event
+    var candidates = [supersedes[0][1]] + supersedes.collect(List::first)
+    candidates.findAll{ s -> event.startsWith('~')
+            ? s.event.matches(event[1..-1])
+            : s.event == event }
+} as DataFetcher<List<Swim>>
+----
+
+Our queries would then become:
+
+[source,groovy]
+----
+assert execute('''{
+    findSwims(event: "Final") {
+        time
+    }
+}''').data?.findSwims*.time == [57.47, 57.33]
+
+assert execute('''{
+    findSwims(event: "~Heat.*") {
+        at
+    }
+}''').data?.findSwims*.at.toUnique() == ['London 2012', 'Tokyo 2021']
+----
+
+The `swimsFetcher` data provider possibly requires further explanation.
+Here, we are explicitly defining a provider that can handle text or regex
+(starting with the '~' character) queries. This is because `graphql-java`
+doesn't provide any filtering out of the box. There are other libraries,
+e.g. https://github.com/intuit/graphql-filter-java[graphql-filter-java]
+and https://github.com/gentics/graphql-java-filter[graphql-java-filter] that provide such filtering,
+but we won't discuss them further here.
+
+=== GQL
+
+There are various libraries in the Groovy ecosystem related to GraphQL.
+Let's look at https://grooviter.github.io/gql/[GQL] which can be thought of as Groovy syntactic sugar over `graphql-java`.
+It makes it easier building GraphQL schemas and execute GraphQL queries without losing type safety.
+
+We first define our schema. Instead of using the GraphQL schema format,
+we can optionally define our schema in code. The `graphql-java` library
+also supports this, but with GQL it's nicer:
+
+[source,groovy]
+----
+var swimmerType = DSL.type('Swimmer') {
+    field 'name', GraphQLString
+    field 'country', GraphQLString
+}
+
+var swimType = DSL.type('Swim') {
+    field 'who', swimmerType
+    field 'at', GraphQLString
+    field 'result', GraphQLString
+    field 'event', GraphQLString
+    field 'time', GraphQLFloat
+}
+----
+
+Similarly, we can declare our queries and associate the providers:
+
+[source,groovy]
+----
+var schema = DSL.schema {
+    queries {
+        field('findSwim') {
+            type swimType
+            argument 'name', GraphQLString
+            argument 'at', GraphQLString
+            argument 'event', GraphQLString
+            fetcher { DataFetchingEnvironment env ->
+                var name = env.arguments.name
+                var at = env.arguments.at
+                var event = env.arguments.event
+                swims.find{ s -> s.who.name == name && s.at == at && s.event == event }
+            }
+        }
+        field('recordsInFinals') {
+            type list(swimType)
+            fetcher { DataFetchingEnvironment env ->
+                swims.findAll{ s -> s.event == 'Final' && supersedes.any{ it[0] == s } }
+            }
+        }
+        field('recordsInHeats') {
+            type list(swimType)
+            fetcher { DataFetchingEnvironment env ->
+                swims.findAll{ s -> s.event.startsWith('Heat') &&
+                    (supersedes[0][1] == s || supersedes.any{ it[0] == s }) }
+            }
+        }
+        field('success') {
+            type list(swimmerType)
+            argument 'at', GraphQLString
+            fetcher { DataFetchingEnvironment env ->
+                swims.findAll{ s -> s.at == env.arguments.at }*.who
+            }
+        }
+        field('allRecords') {
+            type list(swimType)
+            fetcher { DataFetchingEnvironment env ->
+                supersedes.collect{it[0] }
+            }
+        }
+    }
+}
+----
+
+As before, to print out information about one swim, we can use
+the in-memory data structure:
+
+[source,groovy]
+----
+swim1.with {
+    println "$who.name from $who.country swam a time of $time in $event at the $at Olympics"
+}
+----
+
+To use GQL, it can look like this:
+
+[source,groovy]
+----
+DSL.execute(schema, '''
+    query findSwim($name: String!, $at: String!, $event: String!) {
+        findSwim(name: $name, at: $at, event: $event) {
+            who {
+                name
+                country
+            }
+            event
+            at
+            time
+        }
+    }
+''', [name: 'Emily Seebohm', at: 'London 2012', event: 'Heat 4']).data.findSwim.with {
+    println "$who.name from $who.country swam a time of $time in $event at the $at Olympics"
+}
+----
+
+This is similar to what we saw with `graphql-java`, but the runtime
+is mostly hidden away.
+
+Our simple queries are also similar to before:
+
+[source,groovy]
+----
+assert DSL.execute(schema, '''{
+    recordsInFinals {
+        time
+    }
+}''').data.recordsInFinals*.time == [57.47, 57.33]
+----
+
+As an alternative, we can build our queries in code:
+
+[source,groovy]
+----
+assert DSL.newExecutor(schema).execute {
+    query('recordsInHeats') {
+        returns(Swim) {
+            at
+        }
+    }
+}.data.recordsInHeats*.at.toUnique() == ['London 2012', 'Tokyo 2021']
+----
+
+Alternatively, we can build the query as an explicit step:
+
+[source,groovy]
+----
+var query = DSL.buildQuery {
+    query('success', [at: 'Paris 2024']) {
+        returns(Swimmer) {
+            country
+        }
+    }
+}
+assert DSL.execute(schema, query).data.success*.country.toUnique() == ['🇺🇸', '🇦🇺']
+----
+
+Printing all records since London 2012 is also very similar to before:
+
+[source,groovy]
+----
+DSL.execute(schema, '''{
+    allRecords {
+        at
+        event
+    }
+}''').data.allRecords.each {
+    println "$it.at $it.event"
+}
+----
+
+=== neo4j-graphql-java
+
+As a final example, let's look at the support from the `neo4j-graphql-java` library. It lets you define your
+schema as a string like so:
+
+[source,groovy]
+----
+var schema = '''
+type Swimmer {
+    name: String!
+    country: String!
+}
+
+type Swim {
+    who: Swimmer! @relation(name: "swam", direction: IN)
+    at: String!
+    result: String!
+    event: String!
+    time: Float
+}
+
+type Query {
+    success(at: String!): [Swim!]
+}
+'''
+var graphql = new Translator(SchemaBuilder.buildSchema(schema))
+----
+
+The interesting part is that your can annotate your schema, e.g. the `@relation` clause for the `who` field which declares that this
+field corresponds to our `swam`edge.
+
+This means that we don't actually need to define the provider for
+that field. How does it work? The library converts your GraphQL
+queries into Cypher queries.
+
+We can execute like this:
+
+[source,groovy]
+----
+var cypher = graphql.translate('''
+query success($at: String!) {
+    success(at: $at) {
+        who {
+            country
+        }
+    }
+}
+''', [at: 'Paris 2024'])
+var (q, p) = [cypher.query.first(), cypher.params.first()]
+assert tx.execute(q, p)*.success*.who*.country.toUnique() == ['🇺🇸', '🇦🇺']
+----
+
+We have shown just one of our queries, but we could cover additional
+queries in a similar way.
+
 == Static typing
 
 Another interesting topic is improving type checking for graph database code.
@@ -1310,4 +1823,5 @@ ideas yourself!
 *18/Sep/2024*: Updated for: latest Groovy 5 version, TuGraph 4.5.0 with thanks to Florian (GitHub: fanzhidongyzby) and Richard Bian (x: @RichSFO), TinkerPop tweaks with thanks to Stephen Mallette (ASF: spmallette). +
 *11/Dec/2024*: Updated for: latest Groovy 5 version, TuGraph 4.5.1, HugeGraph 1.5.0, ArcadeDB 24.11.2, Gremlin 3.7.3, Neo4J 5.26.0, OrientDB 3.2.36. +
 *08/Mar/2025*: Updated for: latest Groovy 5 version, H2 2.3.232, TuGraph 4.5.1, ArcadeDB 25.3.1, Neo4J 2025.02.0, OrientDB 3.2.38. +
+*14/Mar/2025*: Updated for GraphQL: graphql-java, GQL, neo4j-graphql-java. +
 ****
