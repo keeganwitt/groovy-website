@@ -1,19 +1,21 @@
 = Using Gatherers with Groovy
 Paul King
 :revdate: 2023-12-09T15:30:00+00:00
-:updated: 2024-01-18T22:00:00+00:00
-:keywords: gatherers, jdk22, chop, collate, inject, ginq, streams, jep461, fold, scan
+:updated: 2025-03-19T14:00:00+00:00
+:keywords: gatherers, jdk24, chop, collate, inject, ginq, streams, jep461, fold, scan
 :description: This post looks at using Gatherers (JEP 461) with Groovy.
 
-An interesting feature being previewed in JDK22 is _Gatherers_
-(https://openjdk.org/jeps/461[JEP 461]).
+An interesting feature in recent JDK verions is _Gatherers_:
+
+* https://openjdk.org/jeps/461[JEP 461: Stream Gatherers (Preview in JDK 22)]
+* https://openjdk.org/jeps/473[JEP 473: Stream Gatherers (Second Preview in JDK 23)]
+* https://openjdk.org/jeps/485[JEP 485: Stream Gatherers (JDK 24)]
+
 This blog looks at using that feature with Groovy.
-The examples in this blog were tested with Groovy 4.0.16 using JDK version 22-ea+27-2262.
-As the JDK version we used is still in early access status,
-you should read the disclaimers to understand that this JDK feature
-is subject to change before final release. If and when the feature becomes
-final, it looks like Groovy will automatically support it without needing
-any additional tweaks.
+Like many JDK enhancements, Groovy provides automatic gatherer support without needing
+any changes.
+
+The examples in this blog were tested with Groovy 4.0.26. The Gatherer examples used JDK version 24.0.0, other examples are tested with JDKs 8, 17 and 24.
 
 == Understanding Gatherers
 
@@ -608,7 +610,9 @@ assert search.stream().gather(inits()).toList() ==
 
 == Further information
 
-* https://openjdk.org/jeps/461[JEP 461: Stream Gatherers (Preview)]
+* https://openjdk.org/jeps/461[JEP 461: Stream Gatherers (Preview in JDK 22)]
+* https://openjdk.org/jeps/473[JEP 473: Stream Gatherers (Second Preview in JDK 23)]
+* https://openjdk.org/jeps/485[JEP 485: Stream Gatherers (JDK 24)]
 * https://nipafx.dev/inside-java-newscast-57/[Better Java Streams with Gatherers - Inside Java Newscast #57]
 * https://nipafx.dev/implementing-gatherers/[Implementing New Java Stream Operations]
 * https://github.com/paulk-asert/groovy-gatherers[Source code on GitHub]
@@ -623,11 +627,9 @@ Not all algorithms need or benefit from using streams,
 but it's great to know that with gatherers, we can
 likely pick whichever style makes sense.
 
-We are still in the early days of gatherers being available,
-so expect much more to emerge as this feature becomes more mainstream.
-We look forward to it advancing past preview status.
-
 .Update history
 ****
-*18/Jan/2024*: Updated with a scan/cumulative sum example.
+*09/Dec/2023*: Initial version +
+*18/Jan/2024*: Updated with a scan/cumulative sum example. +
+*19/Mar/2025*: Updated for JDK24.
 ****
