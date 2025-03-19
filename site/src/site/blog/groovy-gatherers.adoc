@@ -5,6 +5,17 @@ Paul King
 :keywords: gatherers, jdk24, chop, collate, inject, ginq, streams, jep461, fold, scan
 :description: This post looks at using Gatherers (JEP 461) with Groovy.
 
+++++
+<table><tr><td style="padding: 0px; padding-left: 20px; padding-right: 20px; font-size: 18pt; line-height: 1.5; margin: 0px">
+++++
+[blue]#_JDK 24's Gatherer enhancements support
+the creation of more flexible and efficient stream pipelines for a number of scenarios. Let's explore some of those scenarios with Groovy, and also
+explore Groovy's built-in collection functionality
+which handles some of those same scenarios for JDK 8+ users!_#
+++++
+</td></tr></table>
+++++
+
 An interesting feature in recent JDK verions is _Gatherers_:
 
 * https://openjdk.org/jeps/461[JEP 461: Stream Gatherers (Preview in JDK 22)]
