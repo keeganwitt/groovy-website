@@ -442,8 +442,8 @@ assert abc.stream()
 ----
 
 Since the whole stream is examined before outputting elements,
-there is no significant benefit to using streams here and it isn't suitable
-for processing infinite streams.
+there is no significant benefit to using streams here, and `reverse` isn't suitable
+for use when processing infinite streams.
 
 The same applies for Groovy's iterator implementation,
 but Groovy, like Gatherers4j, offers a `reverse` extension method anyway:
