@@ -617,7 +617,7 @@ Groovy provides `zip`:
 {start-blue}
 assert abc.iterator()
     .zip(nums.iterator())
-    .collectLazy{ s, n -> s + n }
+    .collectLazy { s, n -> s + n }
     .toList() == ['A1', 'B2', 'C3']
 {end}
 ----
@@ -627,11 +627,16 @@ Groovy-stream, offers the same:
 [source,groovy,subs="+macros,+attributes"]
 ----
 {start-orange}
-assert Stream.from(abc).zip(nums){ s, i -> s + i }.toList() == ['A1', 'B2', 'C3']
+assert Stream.from(abc)
+    .zip(nums) { s, i -> s + i }
+    .toList() == ['A1', 'B2', 'C3']
 {end}
 ----
 
 === distinctBy, toUnique
+
+Gatherers4j has a `distinctBy` gatherer that finds unique elements
+using a predicate to determine equality:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -642,28 +647,20 @@ assert Stream.of('A', 'BB', 'CC', 'D')
 {end}
 ----
 
-[source,groovy,subs="+macros,+attributes"]
-----
-{start-blue}
-int idx = abc.size()
-assert Stream.generate {
-    idx %= abc.size()
-    abc[idx++]
-}
-.limit(5)
-.toList() == ['A', 'B', 'C', 'A', 'B']
-{end}
-----
+Groovy provides `toUnique` for this:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
-{start-orange}
-assert Stream.from(abc).repeat().take(5).toList()
-  == ['A', 'B', 'C', 'A', 'B']
+{start-blue}
+assert ['A', 'BB', 'CC', 'D'].iterator()
+    .toUnique(String::size)
+    .toList() == ['A', 'BB']
 {end}
 ----
 
 === dropEveryNth/takeEveryNth
+
+Gatherers4j has special gatherers to take or drop every nth element:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
