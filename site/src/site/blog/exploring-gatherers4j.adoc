@@ -158,7 +158,7 @@ For collections, Groovy provides `combinations` or `eachCombination`, but for it
 ----
 {start-blue}
 assert Iterators.combine(letter: abc.iterator(), number: nums.iterator())
-    .collect(map -> map.letter + map.number)
+    .collectLazy(map -> map.letter + map.number)
     .toList() == ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
 {end}
 ----
@@ -219,7 +219,7 @@ assert abc.iterator()
 {end}
 ----
 
-=== mapIndexed, collect+withIndex, mapWithIndex
+=== mapIndexed, collectLazy+withIndex, mapWithIndex
 
 The `mapIndexed` gatherer in Gatherers4j provides access to each element and its index:
 
@@ -234,14 +234,14 @@ assert abc.stream()
 {end}
 ----
 
-In Groovy, you'd typically use `withIndex` and `collect` for this functionality:
+In Groovy, you'd typically use `withIndex` and `collectLazy` for this functionality:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
 {start-blue}
 assert abc.iterator()
     .withIndex()
-    .collect {  s, i -> s + i }
+    .collectLazy {  s, i -> s + i }
     .toList() == ['A0', 'B1', 'C2']
 {end}
 ----
@@ -627,7 +627,7 @@ Groovy-stream, offers the same:
 [source,groovy,subs="+macros,+attributes"]
 ----
 {start-orange}
-assert Stream.from(abc).zip(nums){ s, i -> s + i }.collect() == ['A1', 'B2', 'C3']
+assert Stream.from(abc).zip(nums){ s, i -> s + i }.toList() == ['A1', 'B2', 'C3']
 {end}
 ----
 
@@ -658,7 +658,7 @@ assert Stream.generate {
 [source,groovy,subs="+macros,+attributes"]
 ----
 {start-orange}
-assert Stream.from(abc).repeat().take(5).collect()
+assert Stream.from(abc).repeat().take(5).toList()
   == ['A', 'B', 'C', 'A', 'B']
 {end}
 ----
@@ -698,7 +698,7 @@ assert ('A'..'G').iterator().withIndex()
 
 // also take every 3rd
 var result = []
-('A'..'G').iterator().tapEvery(3) { result << it }.collect()
+('A'..'G').iterator().tapEvery(3) { result << it }.toList()
 assert result == ['A', 'D', 'G']
 {end}
 ----
@@ -722,7 +722,7 @@ assert Stream.from('A'..'G')
 
 // also take every 3rd (starting from 3rd)
 var result = []
-Stream.from('A'..'G').tapEvery(3) { result << it }.collect()
+Stream.from('A'..'G').tapEvery(3) { result << it }.toList()
 assert result == ['C', 'F']
 result = []
 ----
