@@ -1,0 +1,934 @@
+= Exploring Gatherers4j with Groovy
+Paul King
+:revdate: 2025-04-10T15:30:00+00:00
+:draft: true
+:keywords: gatherers, jdk24, chop, collate, inject, ginq, streams, fold, scan
+:description: This post looks at using Gatherers4J (relies on JDK24 stream gatherer API) with Groovy.
+
+:start-green: pass:[<div style="background-color: #ddeedd">]
+:start-blue: pass:[<div style="background-color: #ddddee">]
+:start-orange: pass:[<div style="background-color: #ffeecc">]
+:end: pass:[<br/></div>]
+
+++++
+<table><tr><td style="padding: 0px; padding-left: 20px; padding-right: 20px; font-size: 18pt; line-height: 1.5; margin: 0px">
+++++
+[blue]#_Let's explore using Groovy with the Gatherers4j library (relies on the gatherer stream enhancements in JFK24) plus we'll look iterator variants for JDK 8/11+ users!_#
+++++
+</td></tr></table>
+++++
+
+An interesting feature in recent JDK versions is _Gatherers_.
+JDK 24 includes a bunch of built-in gatherers, but their main goal
+was to provide an API that allowed custom intermediate operations
+to be developed rather than provide a huge range of in-built
+gatherers.
+
+We looked in an
+https://groovy.apache.org/blog/groovy-gatherers[earlier blog post] at how to write
+your own gatherer equivalents for chop, collate and other built-in Groovy functionality.
+
+Other folks have also been looking at useful gatherers and libraries
+are starting to emerge.
+https://tginsberg.github.io/gatherers4j/[Gatherers4j]
+is one such library. We'll use 0.11.0 (pre-release) and Groovy 5 snapshot (pre-release).
+
+Let's now look at numerous other gatherers (and their Groovy iterator equivalents)
+in the https://tginsberg.github.io/gatherers4j/[Gatherers4j] library.
+
+== Revisiting Collate with Gatherers4J
+
+In an
+https://groovy.apache.org/blog/groovy-gatherers[earlier blog post] we showed how to emulate
+Groovy's `collate` extension method. Some of its functionality is supported by the
+built-in `windowFixed` and `windowSliding` gatherers, and
+we showed how to write some custom gatherers, `windowSlidingByStep` and `windowFixedTruncating`,
+to handle the remaining functionality.
+
+Let's look at instead using the `window` gatherer from Gatherers4j:
+
+[source,groovy]
+----
+assert (1..5).stream().gather(Gatherers4j.window(3, 1, true)).toList() ==
+    [[1, 2, 3], [2, 3, 4], [3, 4, 5], [4, 5], [5]]
+assert (1..8).stream().gather(Gatherers4j.window(3, 2, true)).toList() ==
+    [[1, 2, 3], [3, 4, 5], [5, 6, 7], [7, 8]]
+assert (1..8).stream().gather(Gatherers4j.window(3, 2, false)).toList() ==
+    [[1, 2, 3], [3, 4, 5], [5, 6, 7]]
+assert (1..8).stream().gather(Gatherers4j.window(3, 4, false)).toList() ==
+    [[1, 2, 3], [5, 6, 7]]
+assert (1..8).stream().gather(Gatherers4j.window(3, 3, true)).toList() ==
+    [[1, 2, 3], [4, 5, 6], [7, 8]]
+----
+
+For comparison, here was the output shown using Groovy's `collate` extension method on collections:
+
+[source,groovy]
+----
+assert (1..5).collate(3, 1) == [[1, 2, 3], [2, 3, 4], [3, 4, 5], [4, 5], [5]]
+assert (1..8).collate(3, 2) == [[1, 2, 3], [3, 4, 5], [5, 6, 7], [7, 8]]
+assert (1..8).collate(3, 2, false) == [[1, 2, 3], [3, 4, 5], [5, 6, 7]]
+assert (1..8).collate(3, 4, false) == [[1, 2, 3], [5, 6, 7]]
+assert (1..8).collate(3, 3) == [[1, 2, 3], [4, 5, 6], [7, 8]]
+----
+
+These aren't exact equivalents. The Groovy versions operate eagerly on collections, while the
+gatherer ones are stream-based. We can show a more "apples with apples" comparison by looking at some
+infinite stream variants.
+
+The gatherer version:
+
+[source,groovy]
+----
+assert Stream.iterate(0, n -> n + 1)
+    .gather(Gatherers4j.window(3, 3, true))
+    .limit(3)
+    .toList() == [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+----
+
+Because we weren't worried about remainders or different step sizes,
+we could have just used the built-in `Gatherers.windowFixed(3)` gatherer here.
+
+Now, let's look at Groovy's iterator equivalent:
+
+[source,groovy]
+----
+assert Iterators.iterate(0, n -> n + 1)
+    .collate(3)
+    .take(3)
+    .toList() == [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+----
+
+When we say equivalent, we aren't implying that Iterators offer
+the same power or flexibility as streams, but for many simple scenarios
+they will achieve the same results and can be more efficient.
+
+== Exploring Gatherers4J other functionality
+
+Let's now explore some of the other gatherers in Gatherers4j.
+For a somewhat "apples vs apples" comparison, we'll compare against the equivalent Groovy
+Iterator functionality, unless otherwise stated. There are some case
+where Groovy doesn't offer an iterator-based equivalent,
+so we'll look at collection-based solutions in those cases.
+
+Just recall that using the collection variants of these examples
+might be simpler and equally suitable depending on your scenario.
+Streaming solutions really shine for larger streams, but we need
+to keep the examples simple in a blog post like this.
+
+We'll use a
++++<span style="background-color:#ddeedd">light green</span>+++
+background for Gatherers4j
+examples and a
++++<span style="background-color:#ddddee">light blue</span>+++
+background for standard Groovy iterator functionality.
+For some of the examples, we'll also look at using the
+https://timyates.github.io/groovy-stream/[Groovy-stream] library where we'll use a
++++<span style="background-color:#ffeecc">light orange</span>+++
+background.
+
+Before, starting, let's create some variables we'll use in later examples:
+
+[source,groovy]
+----
+var abc = 'A'..'C'
+var abcde = 'A'..'E'
+var nums = 1..3
+----
+
+=== crossWith, combine
+
+Let's look at creating all pairs of combinations between two sources, the _cross product_.
+
+Gatherers4j provides the `crossWith` gatherer:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.crossWith(nums.stream()))
+    .map(pair -> pair.first + pair.second)
+    .toList() == ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
+{end}
+----
+
+For collections, Groovy provides `combinations` or `eachCombination`, but for iterators you can do the following:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert Iterators.combine(letter: abc.iterator(), number: nums.iterator())
+    .collect(map -> map.letter + map.number)
+    .toList() == ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
+{end}
+----
+
+=== foldIndexed, inject+withIndex
+
+Let's explore a variant of the _fold_ (aka _inject_ and _reduce_) operation
+that also provides the index of the item.
+
+Gatherers4j provides the `foldIndexed` gatherer:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.foldIndexed(
+        () -> '', // initialValue
+        (index, carry, next) -> carry + next + index
+    ))
+    .findFirst().get() == 'A0B1C2'
+{end}
+----
+
+Groovy uses the name `inject` for _fold_, but doesn't offer a special variant
+with index values. Instead, you use normal inject in combination with either `withIndex`
+or `indexed`:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator().withIndex().inject('') { carry, next ->
+    carry + next.first + next.last
+} == 'A0B1C2'
+{end}
+----
+
+=== interleaveWith, interleave
+
+The `interleaveWith` gatherer interleaves the elements from two streams:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.interleaveWith(nums.stream()))
+    .toList() == ['A', 1, 'B', 2, 'C', 3]
+{end}
+----
+
+Groovy supports `interleave`:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator()
+    .interleave(nums.iterator())
+    .toList() == ['A', 1, 'B', 2, 'C', 3]
+{end}
+----
+
+=== mapIndexed, collect+withIndex, mapWithIndex
+
+The `mapIndexed` gatherer in Gatherers4j provides access to each element and its index:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.mapIndexed (
+        (i, s) -> s + i
+    ))
+    .toList() == ['A0', 'B1', 'C2']
+{end}
+----
+
+In Groovy, you'd typically use `withIndex` and `collect` for this functionality:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator()
+    .withIndex()
+    .collect {  s, i -> s + i }
+    .toList() == ['A0', 'B1', 'C2']
+{end}
+----
+
+Groovy-stream has a `mapWithIndex` method for this scenario:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-orange}
+assert Stream.from(abc)
+    .mapWithIndex { s, i -> s + i }
+    .toList() == ['A0', 'B1', 'C2']
+{end}
+----
+
+=== orderByFrequency, countBy
+
+The `orderByFrequency` gatherer in Gatherers4j counts elements in a stream
+then, once the stream is complete, returns the unique values from the stream
+(and their frequency count) in frequency count order (ascending or descending).
+Given this behavior, it could be implemented as a collector.
+We'll look at using the built-in collectors, and then for completeness,
+show the ascending and descending variations from Gatherers4j:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+var letters = ['A', 'A', 'A', 'B', 'B', 'B', 'B', 'C', 'C']
+assert letters.stream()
+    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+    .toString() == '[A:3, B:4, C:2]'
+assert letters.stream()
+    .gather(Gatherers4j.orderByFrequency(Frequency.Ascending))
+    .map(withCount -> [withCount.value, withCount.count])
+    .toList()
+    .collectEntries()
+    .toString() == '[C:2, A:3, B:4]'
+assert letters.stream()
+    .gather(Gatherers4j.orderByFrequency(Frequency.Descending))
+    .map(withCount -> [withCount.value, withCount.count])
+    .toList()
+    .collectEntries()
+    .toString() == '[B:4, A:3, C:2]'
+{end}
+----
+
+Groovy's `countBy` method on collections does a similar thing but, by default,
+returns the unique items in order of first appearance. Since it is somewhat like a terminal
+operator, we'll just use the Groovy collection methods here.
+The ascending and descending behaviors can be achieved with sorting:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert letters.countBy().toString() == '[A:3, B:4, C:2]'
+assert letters.countBy()
+    .sort{ e -> e.value }
+    .toString() == '[C:2, A:3, B:4]'
+assert letters
+    .countBy()
+    .sort{ e -> -e.value }
+    .toString() == '[B:4, A:3, C:2]'
+{end}
+----
+
+=== peekIndexed, tapEvery+withIndex, tapWithIndex
+
+The `peekIndexed` gatherer in Gatherers4j is similar to the JDK Streams `peek`
+intermediate operation but also provides access to the index value:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.peekIndexed(
+        (index, element) -> println "Element $element at index $index"
+    ))
+    .toList() == abc
+{end}
+----
+
+Groovy's `eachWithIndex` provides similar functionality but exhausts the iterator. Instead, you can use `withIndex` with `tapEvery`:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator().withIndex().tapEvery { tuple ->
+    println "Element $tuple.first at index $tuple.last"
+}*.first() == abc
+{end}
+----
+
+Groovy-stream provides a `tapWithIndex` method:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-orange}
+assert Stream.from(abc)
+    .tapWithIndex { s, i -> println "Element $s at index $i" }
+    .toList() == abc
+{end}
+----
+
+All of the above produce the following output:
+
+----
+Element A at index 0
+Element B at index 1
+Element C at index 2
+----
+
+=== repeat
+
+Gatherers4j has a `repeat` gatherer that allows a source of elements to be repeated a given number of times:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.repeat(3))
+    .toList() == ['A', 'B', 'C', 'A', 'B', 'C', 'A', 'B', 'C']
+{end}
+----
+
+Groovy offers a `multiply` operator for this for collections, but also has a `repeat` method for iterators:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc * 3 == ['A', 'B', 'C', 'A', 'B', 'C', 'A', 'B', 'C']
+assert abc.iterator()
+    .repeat(3)
+    .toList() == ['A', 'B', 'C', 'A', 'B', 'C', 'A', 'B', 'C']
+{end}
+----
+
+Groovy-streams also has a `repeat` method:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-orange}
+assert Stream.from(abc)
+    .repeat(3)
+    .toList() == ['A', 'B', 'C', 'A', 'B', 'C', 'A', 'B', 'C']
+{end}
+----
+
+=== repeatInfinitely
+
+Gatherers4j has a `repeatInfinitely` gatherer that allows a source of elements to be repeated in a cycle indefinitely:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.repeatInfinitely())
+    .limit(5)
+    .toList() == ['A', 'B', 'C', 'A', 'B']
+{end}
+----
+
+Groovy provides a `repeat` method for this scenario:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator()
+    .repeat()
+    .take(5)
+    .toList() == ['A', 'B', 'C', 'A', 'B']
+{end}
+----
+
+Groovy-stream has a `repeat` method for this:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-orange}
+assert Stream.from(abc)
+    .repeat()
+    .take(5)
+    .toList() == ['A', 'B', 'C', 'A', 'B']
+{end}
+----
+
+=== reverse
+
+The `reverse` gatherer in Gatherers4j returns the elements from the stream,
+in reverse order, once all elements have been received:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.reverse())
+    .toList() == 'C'..'A'
+{end}
+----
+
+Since the whole stream is examined before outputting elements,
+there is no significant benefit to using streams here and it isn't suitable
+for processing infinite streams.
+
+The same applies for Groovy's iterator implementation,
+but Groovy, like Gatherers4j, offers a `reverse` extension method anyway:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator()
+    .reverse()
+    .toList() == 'C'..'A'
+{end}
+----
+
+=== rotate
+
+The `rotate` gatherer in Gatherers4j returns the elements from the stream,
+in rotated positions, once all elements have been received.
+Again, since the whole stream is processed, there is no significant benefit
+here compared to working with collections. We can rotate in either direction:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+var abcde = ['A', 'B', 'C', 'D', 'E']
+var shift = 2
+assert abcde.stream()
+    .gather(Gatherers4j.rotate(Rotate.Left, shift))
+    .toList() == ['C', 'D', 'E', 'A', 'B']
+assert abcde.stream()
+    .gather(Gatherers4j.rotate(Rotate.Right, shift))
+    .toList() == ['D', 'E', 'A', 'B', 'C']
+{end}
+----
+
+Groovy doesn't provide any iterator-based equivalent methods.
+For collections, users could piggyback on the JDK libraries using `Collections.rotate`
+if a mutating method is acceptable:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+var temp = abcde.clone() // unless mutating original is okay
+Collections.rotate(temp, -shift) // -ve for left
+assert temp == ['C', 'D', 'E', 'A', 'B']
+
+temp = abcde.clone()
+Collections.rotate(temp, shift) // +ve for right
+assert temp == ['D', 'E', 'A', 'B', 'C']
+{end}
+----
+
+Or otherwise Groovy's indexing allows for very flexible slicing of collections,
+so rotation can be achieved via such index mangling:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abcde[shift..-1] + abcde[0..<shift] == ['C', 'D', 'E', 'A', 'B'] // left
+assert abcde[shift<..-1] + abcde[0..shift] == ['D', 'E', 'A', 'B', 'C'] // right
+{end}
+----
+
+An iterator-based rotate extension method might be a possible future Groovy feature.
+For shifting to the left, it would seem possible to not store the whole list, like the
+current Gatherers4j implementation does, but only the "shift" distance number of elements.
+For shifting to the right, you'd need the stream size minus the "shift" distance, and
+you won't know the size ahead of time.
+
+=== scanIndexed, injectAll+withIndex
+
+Gatherers4j provides the `scanIndexed` gatherer. It's like the JDK's built-in `scan` gatherer
+but also provides access to the index:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(
+        Gatherers4j.scanIndexed(
+            () -> '',
+            (index, carry, next) -> carry + next + index
+        )
+    )
+    .toList() == ['A0', 'A0B1', 'A0B1C2']
+{end}
+----
+
+For Groovy, the `injectAll` method in combination with `withIndex` can be used:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator()
+    .withIndex()
+    .injectAll('') { carry, next ->
+        carry + next.first + next.last
+    }
+    .toList() == ['A0', 'A0B1', 'A0B1C2']
+{end}
+----
+
+=== shuffle
+
+Gatherers4j offers the `shuffle` gatherer:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+int seed = 42
+assert Stream.of(*'A'..'G')
+    .gather(Gatherers4j.shuffle(new Random(seed)))
+    .toList() == [ 'B', 'D', 'F', 'A', 'E', 'G', 'C' ]
+{end}
+----
+
+This is another gatherer which consumes the entire stream and holds it in memory
+before producing values.
+There is no significant advantage compared to using collections.
+Groovy only offers collection-based functionality for this feature using the `shuffled` extension method:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert ('A'..'G').shuffled(new Random(seed)) == ['C', 'G', 'E', 'A', 'F', 'D', 'B']
+{end}
+----
+
+=== withIndex
+
+Gatherers4j and Groovy both provide `withIndex`. Here is the gatherer version:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.withIndex())
+    .map(withIndex -> "$withIndex.value$withIndex.index")
+    .toList() == ['A0', 'B1', 'C2']
+{end}
+----
+
+Here is the iterator version:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator().withIndex()
+    .collectLazy(tuple -> "$tuple.v1$tuple.v2")
+    .toList() == ['A0', 'B1', 'C2']
+{end}
+----
+
+=== zipWith, zip
+
+Gatherers4j provides a `zipWith` gatherer:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abc.stream()
+    .gather(Gatherers4j.zipWith(nums.stream()))
+    .map(pair -> "$pair.first$pair.second")
+    .toList() == ['A1', 'B2', 'C3']
+{end}
+----
+
+Groovy provides `zip`:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator()
+    .zip(nums.iterator())
+    .collectLazy{ s, n -> s + n }
+    .toList() == ['A1', 'B2', 'C3']
+{end}
+----
+
+Groovy-stream, offers the same:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-orange}
+assert Stream.from(abc).zip(nums){ s, i -> s + i }.collect() == ['A1', 'B2', 'C3']
+{end}
+----
+
+=== distinctBy, toUnique
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert Stream.of('A', 'BB', 'CC', 'D')
+    .gather(Gatherers4j.distinctBy(String::size))
+    .toList() == ['A', 'BB']
+{end}
+----
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+int idx = abc.size()
+assert Stream.generate {
+    idx %= abc.size()
+    abc[idx++]
+}
+.limit(5)
+.toList() == ['A', 'B', 'C', 'A', 'B']
+{end}
+----
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-orange}
+assert Stream.from(abc).repeat().take(5).collect()
+  == ['A', 'B', 'C', 'A', 'B']
+{end}
+----
+
+=== dropEveryNth/takeEveryNth
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+// drop every 3rd
+assert ('A'..'G').stream()
+    .gather(Gatherers4j.dropEveryNth(3))
+    .toList() == ['B', 'C', 'E', 'F']
+
+// take every 3rd
+assert ('A'..'G').stream()
+    .gather(Gatherers4j.takeEveryNth(3))
+    .toList() == ['A', 'D', 'G']
+{end}
+----
+
+Groovy doesn't have a specific method for taking/dropping the nth element
+but you either use `findAllLazy` with `withIndex`, or `tapEvery`:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+// drop every 3rd
+assert ('A'..'G').iterator().withIndex()
+    .findAllLazy { mext, i -> i % 3 }
+    .toList()*.first == ['B', 'C', 'E', 'F']
+
+// take every 3rd
+assert ('A'..'G').iterator().withIndex()
+    .findAllLazy { mext, i -> i % 3 == 0 }
+    .toList()*.first == ['A', 'D', 'G']
+
+// also take every 3rd
+var result = []
+('A'..'G').iterator().tapEvery(3) { result << it }.collect()
+assert result == ['A', 'D', 'G']
+{end}
+----
+
+Groovy-stream doesn't have a specific method either,
+but you can achieve a similar thing using either `filterWithIndex` or `tapEvery`:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-orange}
+// drop every 3rd
+assert Stream.from('A'..'G')
+    .filterWithIndex { next, idx -> idx % 3 }
+    .toList() == ['B', 'C', 'E', 'F']
+{end}
+
+// take every 3rd
+assert Stream.from('A'..'G')
+    .filterWithIndex { next, idx -> idx % 3 == 0 }
+    .toList() == ['A', 'D', 'G']
+
+// also take every 3rd (starting from 3rd)
+var result = []
+Stream.from('A'..'G').tapEvery(3) { result << it }.collect()
+assert result == ['C', 'F']
+result = []
+----
+
+=== dropLast, dropRight
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abcde.stream()
+    .gather(Gatherers4j.dropLast(2))
+    .toList() == abc
+{end}
+----
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abcde.iterator().dropRight(2).toList() == abc
+{end}
+----
+
+=== filterIndexed
+
+The `filterWithIndex` gatherer allows filtering elements with access to the index:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abcde.stream()
+    .gather(Gatherers4j.filterIndexed{ n, s -> n % 2 == 0 })
+    .toList() == ['A', 'C', 'E']
+assert abcde.stream()
+    .gather(Gatherers4j.filterIndexed{ n, s -> n < 2 || s == 'E' })
+    .toList() == ['A', 'B', 'E']
+{end}
+----
+
+Groovy doesn't have an all-in-one equivalent, but you can use `withIndex` plus `findAllLazy`:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abcde.iterator().withIndex()
+    .findAllLazy { s, n -> n % 2 == 0 }*.first == ['A', 'C', 'E']
+assert abcde.iterator().withIndex()
+    .findAllLazy { s, n -> n < 2 || s == 'E' }*.first == ['A', 'B', 'E']
+{end}
+----
+
+Groovy-stream provides a `filterWithIndex` method:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-orange}
+assert Stream.from(abcde)
+    .filterWithIndex{ s, n -> n % 2 == 0 }
+    .toList() == ['A', 'C', 'E']
+assert Stream.from(abcde)
+    .filterWithIndex{ s, n -> n < 2 || s == 'E' }
+    .toList() == ['A', 'B', 'E']
+{end}
+----
+
+=== filterInstanceOf
+
+The `filterInstanceOf` gatherer combines `filter` with `instanceof`:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+var mixed = [(byte)1, (short)2, 3, (long)4, 5.0, 6.0d, '7', '42']
+assert mixed.stream()
+    .gather(Gatherers4j.filterInstanceOf(Integer))
+    .toList() == [3]
+assert mixed.stream()
+    .gather(Gatherers4j.filterInstanceOf(Number))
+    .toList() == [1, 2, 3, 4, 5.0, 6.0]
+assert mixed.stream()
+    .gather(Gatherers4j.filterInstanceOf(Integer, Short))
+    .toList() == [2, 3]
+{end}
+----
+
+Groovy doesn't have an exact equivalent but does have an eager `grep`
+which lets you do similar things, and other functionality like matching
+regex patterns. You can also use `findAllLazy` in combination with
+`getClass()` or `instanceof` as needed:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+var mixed = [(byte)1, (short)2, 3, (long)4, 5.0, 6.0d, '7', '42']
+assert mixed.iterator().grep(Integer) == [3]
+assert mixed.iterator().grep(Number) == [1, 2, 3, 4, 5.0, 6.0]
+assert mixed.iterator().grep(~/\d/).toString() == '[1, 2, 3, 4, 7]'
+assert mixed.iterator()
+    .findAllLazy{ it.getClass() in [Integer, Short] }
+    .toList() == [2, 3]
+{end}
+----
+
+=== takeLast/takeRight
+
+The `takeLast` gatherer returns the last n elements from a stream:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abcde.stream()
+    .gather(Gatherers4j.takeLast(3))
+    .toList() == ['C', 'D', 'E']
+{end}
+----
+
+It reads the entire stream before emitting elements.
+
+Groovy doesn't have an iterator equivalent but does have a `takeRight` collections method:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abcde.takeRight(3) == 'C'..'E'
+{end}
+----
+
+=== takeUntil, takeWhile, until
+
+The `takeUntil` gatherer takes elements until some condition is satisfied
+including the element that satisfied the condition:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert abcde.stream()
+    .gather(Gatherers4j.takeUntil{ it == 'C' })
+    .toList() == abc
+{end}
+----
+
+The `takeWhile` extension method takes elements while some condition is satisfied
+(so needs the reverse condition):
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abcde.iterator()
+    .takeWhile { it != 'D' }
+    .toList() == abc
+{end}
+----
+
+Groovy-stream's `until` method has a condition similar to gatherers4j,
+but doesn't include the element that triggers the condition:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-orange}
+assert Stream.from(abcde)
+    .until { it == 'D' }
+    .toList() == abc
+{end}
+----
+
+=== uniquelyOccurring
+
+The `uniquelyOccurring` gatherer reads the entire stream before returning the elements
+that occur only once:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-green}
+assert Stream.of('A', 'B', 'C', 'A')
+    .gather(Gatherers4j.uniquelyOccurring())
+    .toList() == ['B', 'C']
+{end}
+----
+
+Groovy doesn't have an equivalent, but `countBy` could be used to achieve similar functionality.
+Groovy's `countBy` method is an eager (think terminal) operator:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert ['A', 'B', 'C', 'A'].iterator()
+    .countBy()
+    .findAll{ it.value == 1 }*.key == ['B', 'C']
+{end}
+----
+
+== Further information
+
+* https://openjdk.org/jeps/461[JEP 461: Stream Gatherers (Preview in JDK 22)]
+* https://openjdk.org/jeps/473[JEP 473: Stream Gatherers (Second Preview in JDK 23)]
+* https://openjdk.org/jeps/485[JEP 485: Stream Gatherers (JDK 24)]
+* https://nipafx.dev/inside-java-newscast-57/[Better Java Streams with Gatherers - Inside Java Newscast #57]
+* https://nipafx.dev/implementing-gatherers/[Implementing New Java Stream Operations]
+* https://github.com/paulk-asert/groovy-gatherers[Source code on GitHub]
+* https://tginsberg.github.io/gatherers4j/[Gatherers4j GitHub site]
+* https://timyates.github.io/groovy-stream/[Groovy-stream GitHub site]
+
+== Conclusion
+
+We have looked at how to use gatherers, and how to achieve similar functionality using iterators.
+
+.Update history
+****
+*10/Apr/2025*: Initial version +
+****
