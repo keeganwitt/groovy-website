@@ -37,7 +37,7 @@ and JDK 24.
 Let's now look at numerous other gatherers (and their Groovy iterator equivalents)
 in the https://tginsberg.github.io/gatherers4j/[Gatherers4J] library.
 
-== Revisiting Collate with Gatherers4J
+image:img/collate.png[collate a list - produced by Dall-E 3,200,float='right']== Revisiting Collate with Gatherers4J
 
 In an
 https://groovy.apache.org/blog/groovy-gatherers[earlier blog post] we showed how to provide
@@ -955,5 +955,5 @@ We have looked at how to use gatherers, and how to achieve similar functionality
 
 .Update history
 ****
-*10/Apr/2025*: Initial version +
+*11/Apr/2025*: Initial version +
 ****
