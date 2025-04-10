@@ -13,7 +13,7 @@ Paul King
 ++++
 <table><tr><td style="padding: 0px; padding-left: 20px; padding-right: 20px; font-size: 18pt; line-height: 1.5; margin: 0px">
 ++++
-[blue]#_Let's explore using Groovy with the Gatherers4j library. It relies on the gatherer stream enhancements in JDK 24. We'll also look at iterator variants for JDK 8/11+ users!_#
+[blue]#_Let's explore using Groovy with the Gatherers4J library. It relies on the gatherer stream enhancements in JDK 24. We'll also look at iterator variants for JDK 8/11+ users!_#
 ++++
 </td></tr></table>
 ++++
@@ -30,11 +30,11 @@ your own gatherer equivalents for chop, collate and other built-in Groovy functi
 
 Other folks have also been looking at useful gatherers and libraries
 are starting to emerge.
-https://tginsberg.github.io/gatherers4j/[Gatherers4j]
+https://tginsberg.github.io/gatherers4j/[Gatherers4J]
 is one such library. We'll use 0.11.0 (pre-release) and Groovy 5 snapshot (pre-release).
 
 Let's now look at numerous other gatherers (and their Groovy iterator equivalents)
-in the https://tginsberg.github.io/gatherers4j/[Gatherers4j] library.
+in the https://tginsberg.github.io/gatherers4j/[Gatherers4J] library.
 
 == Revisiting Collate with Gatherers4J
 
@@ -46,7 +46,7 @@ built-in `windowFixed` and `windowSliding` gatherers, and
 we showed how to write some custom gatherers, `windowSlidingByStep` and `windowFixedTruncating`,
 to handle the remaining functionality.
 
-Let's look at instead using the `window` gatherer from Gatherers4j:
+Let's look at instead using the `window` gatherer from Gatherers4J:
 
 [source,groovy]
 ----
@@ -107,7 +107,7 @@ they will achieve the same results and can be more efficient.
 
 == Exploring Gatherers4J other functionality
 
-Let's now explore some of the other gatherers in Gatherers4j.
+Let's now explore some of the other gatherers in Gatherers4J.
 For a somewhat "apples vs apples" comparison, we'll compare against the equivalent Groovy
 Iterator functionality, unless otherwise stated. There are some case
 where Groovy doesn't offer an iterator-based equivalent,
@@ -120,7 +120,7 @@ to keep the examples simple in a blog post like this.
 
 We'll use a
 +++<span style="background-color:#ddeedd">light green</span>+++
-background for Gatherers4j
+background for Gatherers4J
 examples and a
 +++<span style="background-color:#ddddee">light blue</span>+++
 background for standard Groovy iterator functionality.
@@ -128,6 +128,25 @@ For some of the examples, we'll also look at using the
 https://timyates.github.io/groovy-stream/[Groovy-stream] library where we'll use a
 +++<span style="background-color:#ffeecc">light orange</span>+++
 background.
+
+Gatherers4J has over 50 gatherers organised into five different categories:
+
+* Sequence Operations - Reorder, combine, or manipulate the sequence of elements.
+* Filtering and Selection - Select or remove elements based on some criteria.
+* Grouping and Windowing - Collect elements into groups or windows.
+* Mathematical Operations - Perform calculations over the stream.
+* Validation and Constraints - Enforce conditions on the stream.
+
+We'll explore about half of them and subjectively pick what might be the more
+commonly occurring scenarios, but if you are using streams, the whole library
+is worth looking at. It is worth remembering that the JDK has built-in functionality
+that Gatherers4J doesn't try to replicate. In that sense, Gatherers4J
+does have some less-used gatherers, but many are still very useful.
+
+Our goal in performing these comparisons isn't to pitch gatherer solutions
+or iterator solutions as competitors. Streams and iterators each have their
+benefits. If using either one, it is good to recognise what the other
+might look like and what it might have to offer.
 
 Before, starting, let's create some variables we'll use in later examples:
 
@@ -142,7 +161,7 @@ var nums = 1..3
 
 Let's look at creating all pairs of combinations between two sources, the _cross product_.
 
-Gatherers4j provides the `crossWith` gatherer:
+Gatherers4J provides the `crossWith` gatherer:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -167,10 +186,10 @@ assert Iterators.combine(letter: abc.iterator(), number: nums.iterator())
 
 === foldIndexed, inject+withIndex
 
-Let's explore a variant of the _fold_ (aka _inject_ and _reduce_) operation
-that also provides the index of the item.
+The _fold_ (aka _inject_ and _reduce_) operation _folds_ a stream of items into a single value.
+Let's explore a variant of fold that also provides the index of the item.
 
-Gatherers4j provides the `foldIndexed` gatherer:
+Gatherers4J provides the `foldIndexed` gatherer:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -223,7 +242,9 @@ assert abc.iterator()
 
 === mapIndexed, collectLazy+withIndex, mapWithIndex
 
-The `mapIndexed` gatherer in Gatherers4j provides access to each element and its index:
+The _map_ (also called _transform_ or _collect_) operation transforms elements in a stream into a stream of new values.
+
+The `mapIndexed` gatherer in Gatherers4J provides access to each element and its index:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -261,12 +282,12 @@ assert Stream.from(abc)
 
 === orderByFrequency, countBy
 
-The `orderByFrequency` gatherer in Gatherers4j counts elements in a stream
+The `orderByFrequency` gatherer in Gatherers4J counts elements in a stream
 then, once the stream is complete, returns the unique values from the stream
 (and their frequency count) in frequency count order (ascending or descending).
 Given this behavior, it could be implemented as a collector.
 We'll look at using the built-in collectors, and then for completeness,
-show the ascending and descending variations from Gatherers4j:
+show the ascending and descending variations from Gatherers4J:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -311,7 +332,7 @@ assert letters
 
 === peekIndexed, tapEvery+withIndex, tapWithIndex
 
-The `peekIndexed` gatherer in Gatherers4j is similar to the JDK Streams `peek`
+The `peekIndexed` gatherer in Gatherers4J is similar to the JDK Streams `peek`
 intermediate operation but also provides access to the index value:
 
 [source,groovy,subs="+macros,+attributes"]
@@ -357,7 +378,7 @@ Element C at index 2
 
 === repeat
 
-Gatherers4j has a `repeat` gatherer that allows a source of elements to be repeated a given number of times:
+Gatherers4J has a `repeat` gatherer that allows a source of elements to be repeated a given number of times:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -393,7 +414,7 @@ assert Stream.from(abc)
 
 === repeatInfinitely
 
-Gatherers4j has a `repeatInfinitely` gatherer that allows a source of elements to be repeated in a cycle indefinitely:
+Gatherers4J has a `repeatInfinitely` gatherer that allows a source of elements to be repeated in a cycle indefinitely:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -431,7 +452,7 @@ assert Stream.from(abc)
 
 === reverse
 
-The `reverse` gatherer in Gatherers4j returns the elements from the stream,
+The `reverse` gatherer in Gatherers4J returns the elements from the stream,
 in reverse order, once all elements have been received:
 
 [source,groovy,subs="+macros,+attributes"]
@@ -448,7 +469,7 @@ there is no significant benefit to using streams here, and `reverse` isn't suita
 for use when processing infinite streams.
 
 The same applies for Groovy's iterator implementation,
-but Groovy, like Gatherers4j, offers a `reverse` extension method anyway:
+but Groovy, like Gatherers4J, offers a `reverse` extension method anyway:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -461,7 +482,7 @@ assert abc.iterator()
 
 === rotate
 
-The `rotate` gatherer in Gatherers4j returns the elements from the stream,
+The `rotate` gatherer in Gatherers4J returns the elements from the stream,
 in rotated positions, once all elements have been received.
 Again, since the whole stream is processed, there is no significant benefit
 here compared to working with collections. We can rotate in either direction:
@@ -510,13 +531,13 @@ assert abcde[shift<..-1] + abcde[0..shift] == ['D', 'E', 'A', 'B', 'C'] // right
 
 An iterator-based rotate extension method might be a possible future Groovy feature.
 For shifting to the left, it would seem possible to not store the whole list, like the
-current Gatherers4j implementation does, but only the "shift" distance number of elements.
+current Gatherers4J implementation does, but only the "shift" distance number of elements.
 For shifting to the right, you'd need the stream size minus the "shift" distance, and
 you won't know the size ahead of time.
 
 === scanIndexed, injectAll+withIndex
 
-Gatherers4j provides the `scanIndexed` gatherer. It's like the JDK's built-in `scan` gatherer
+Gatherers4J provides the `scanIndexed` gatherer. It's like the JDK's built-in `scan` gatherer
 but also provides access to the index:
 
 [source,groovy,subs="+macros,+attributes"]
@@ -549,7 +570,7 @@ assert abc.iterator()
 
 === shuffle
 
-Gatherers4j offers the `shuffle` gatherer:
+Gatherers4J offers the `shuffle` gatherer:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -575,7 +596,7 @@ assert ('A'..'G').shuffled(new Random(seed)) == ['C', 'G', 'E', 'A', 'F', 'D', '
 
 === withIndex
 
-Gatherers4j and Groovy both provide `withIndex`. Here is the gatherer version:
+Gatherers4J and Groovy both provide `withIndex`. Here is the gatherer version:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -600,7 +621,7 @@ assert abc.iterator().withIndex()
 
 === zipWith, zip
 
-Gatherers4j provides a `zipWith` gatherer:
+Gatherers4J provides a `zipWith` gatherer:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -637,7 +658,7 @@ assert Stream.from(abc)
 
 === distinctBy, toUnique
 
-Gatherers4j has a `distinctBy` gatherer that finds unique elements
+Gatherers4J has a `distinctBy` gatherer that finds unique elements
 using a predicate to determine equality:
 
 [source,groovy,subs="+macros,+attributes"]
@@ -662,7 +683,7 @@ assert ['A', 'BB', 'CC', 'D'].iterator()
 
 === dropEveryNth/takeEveryNth
 
-Gatherers4j has special gatherers to take or drop every nth element:
+Gatherers4J has special gatherers to take or drop every nth element:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -920,7 +941,7 @@ assert ['A', 'B', 'C', 'A'].iterator()
 * https://nipafx.dev/inside-java-newscast-57/[Better Java Streams with Gatherers - Inside Java Newscast #57]
 * https://nipafx.dev/implementing-gatherers/[Implementing New Java Stream Operations]
 * https://github.com/paulk-asert/groovy-gatherers[Source code on GitHub]
-* https://tginsberg.github.io/gatherers4j/[Gatherers4j GitHub site]
+* https://tginsberg.github.io/gatherers4j/[Gatherers4J GitHub site]
 * https://timyates.github.io/groovy-stream/[Groovy-stream GitHub site]
 
 == Conclusion
