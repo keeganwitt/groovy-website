@@ -354,7 +354,7 @@ Groovy's `eachWithIndex` provides similar functionality but exhausts the iterato
 {start-blue}
 assert abc.iterator().withIndex().tapEvery { tuple ->
     println "Element $tuple.first at index $tuple.last"
-}*.first() == abc
+}*.first == abc
 {end}
 ----
 
@@ -709,12 +709,12 @@ but you either use `findAllLazy` with `withIndex`, or `tapEvery`:
 {start-blue}
 // drop every 3rd
 assert ('A'..'G').iterator().withIndex()
-    .findAllLazy { mext, i -> i % 3 }
+    .findAllLazy { next, i -> i % 3 }
     .toList()*.first == ['B', 'C', 'E', 'F']
 
 // take every 3rd
 assert ('A'..'G').iterator().withIndex()
-    .findAllLazy { mext, i -> i % 3 == 0 }
+    .findAllLazy { next, i -> i % 3 == 0 }
     .toList()*.first == ['A', 'D', 'G']
 
 // also take every 3rd
