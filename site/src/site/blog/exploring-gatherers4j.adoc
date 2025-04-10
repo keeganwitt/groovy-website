@@ -734,7 +734,6 @@ but you can achieve a similar thing using either `filterWithIndex` or `tapEvery`
 assert Stream.from('A'..'G')
     .filterWithIndex { next, idx -> idx % 3 }
     .toList() == ['B', 'C', 'E', 'F']
-{end}
 
 // take every 3rd
 assert Stream.from('A'..'G')
@@ -746,9 +745,12 @@ var result = []
 Stream.from('A'..'G').tapEvery(3) { result << it }.toList()
 assert result == ['C', 'F']
 result = []
+{end}
 ----
 
 === dropLast, dropRight
+
+The `dropLast` gatherer removes the last n elements from the stream:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
@@ -758,6 +760,8 @@ assert abcde.stream()
     .toList() == abc
 {end}
 ----
+
+Groovy provides `dropRight` for this:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
