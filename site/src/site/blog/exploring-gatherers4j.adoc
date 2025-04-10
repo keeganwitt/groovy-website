@@ -13,14 +13,14 @@ Paul King
 ++++
 <table><tr><td style="padding: 0px; padding-left: 20px; padding-right: 20px; font-size: 18pt; line-height: 1.5; margin: 0px">
 ++++
-[blue]#_Let's explore using Groovy with the Gatherers4j library (relies on the gatherer stream enhancements in JFK24) plus we'll look iterator variants for JDK 8/11+ users!_#
+[blue]#_Let's explore using Groovy with the Gatherers4j library. It relies on the gatherer stream enhancements in JDK 24. We'll also look at iterator variants for JDK 8/11+ users!_#
 ++++
 </td></tr></table>
 ++++
 
 An interesting feature in recent JDK versions is _Gatherers_.
-JDK 24 includes a bunch of built-in gatherers, but their main goal
-was to provide an API that allowed custom intermediate operations
+JDK 24 includes a bunch of built-in gatherers, but the main goal
+of the gatherers API was to allow custom intermediate operations
 to be developed rather than provide a huge range of in-built
 gatherers.
 
@@ -39,8 +39,9 @@ in the https://tginsberg.github.io/gatherers4j/[Gatherers4j] library.
 == Revisiting Collate with Gatherers4J
 
 In an
-https://groovy.apache.org/blog/groovy-gatherers[earlier blog post] we showed how to emulate
-Groovy's `collate` extension method. Some of its functionality is supported by the
+https://groovy.apache.org/blog/groovy-gatherers[earlier blog post] we showed how to provide
+a streams equivalent of Groovy's `collate` extension method on collections and iterators.
+Some of its functionality is supported by the
 built-in `windowFixed` and `windowSliding` gatherers, and
 we showed how to write some custom gatherers, `windowSlidingByStep` and `windowFixedTruncating`,
 to handle the remaining functionality.
@@ -73,8 +74,9 @@ assert (1..8).collate(3, 3) == [[1, 2, 3], [4, 5, 6], [7, 8]]
 ----
 
 These aren't exact equivalents. The Groovy versions operate eagerly on collections, while the
-gatherer ones are stream-based. We can show a more "apples with apples" comparison by looking at some
-infinite stream variants.
+gatherer ones are stream-based. We can show a more "apples with apples" comparison by Groovy's
+iterator variants of the `collate` method. Let's look at some
+infinite stream examples.
 
 The gatherer version:
 
@@ -86,8 +88,8 @@ assert Stream.iterate(0, n -> n + 1)
     .toList() == [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
 ----
 
-Because we weren't worried about remainders or different step sizes,
-we could have just used the built-in `Gatherers.windowFixed(3)` gatherer here.
+NOTE: Because we aren't worried about remainders or different step sizes,
+we could have just used the JDK 24's built-in `Gatherers.windowFixed(3)` gatherer here.
 
 Now, let's look at Groovy's iterator equivalent:
 
