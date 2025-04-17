@@ -18,8 +18,8 @@ https://grooviter.github.io/underdog/[Underdog].
 Let's use it to explore Whiskey profiles.
 It has many Groovy-powered features delivering a very expressive developer experience.
 
-Underdog sits on top of some well-known data-science libraries like Smile and Tablesaw, so
-if you have used either of those libraries, you'll recognise parts of the functionality.
+Underdog sits on top of some well-known data-science libraries like Smile, Tablesaw, and Apache eCharts.
+If you have used any of those libraries, you'll recognise parts of the functionality.
 
 First, we'll load our CSV file:
 
