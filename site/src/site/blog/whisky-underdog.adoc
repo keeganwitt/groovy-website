@@ -87,7 +87,7 @@ plot.radar(
 
 Which has this output:
 
-image:img/underdogCorrelationPlot.png[radar plot,50%]
+image:img/underdogRadarPlot.png[radar plot,50%]
 
 Let's now cluster the distilleries using k-means:
 
