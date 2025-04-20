@@ -8,7 +8,7 @@ Paul King
 ++++
 <table><tr><td style="padding: 0px; padding-left: 20px; padding-right: 20px; font-size: 18pt; line-height: 1.5; margin: 0px">
 ++++
-[blue]#_Let's take a first look at Underdog and Matrix, two new Groovy powered dataframe libraries.
+[blue]#_Let's take a first look at Underdog and Matrix, two new Groovy-powered dataframe libraries.
 We'll explore Whisky flavor profiles!_#
 ++++
 </td></tr></table>
@@ -21,25 +21,14 @@ In previous blog posts, we have looked at clustering whisky profiles using:
 
 The https://github.com/paulk-asert/groovy-data-science[groovy-data-science] repo also has examples of this case study using other technologies including:
 
-[cols="1,4"]
-|===
-| Data manipulation
-| Tablesaw, Datumbox, Apache Commons CSV, Tribuo
+* *Data manipulation*: Tablesaw, Datumbox, Apache Commons CSV, Tribuo
+* *Clustering*: Smile, Apache Commons Math, Datumbox, Weka, Encog, Elki, Tribuo
+* *Visualization*: XChart, Tablesaw Plot.ly, Smile visualization, JFreeChart
+* *Scaling clustering*: Apache Ignite, Apache Spark, Apache Wayang, Apache Flink, Apache Beam
 
-| Clustering
-| Smile, Apache Commons Math, Datumbox, Weka, Encog, Elki, Tribuo
-
-| Visualization
-| XChart, Tablesaw Plot.ly, Smile visualization, JFreeChart
-
-| Scaling clustering
-| Apache Ignite, Apache Spark, Apache Wayang, Apache Flink, Apache Beam
-|===
-
-Let's take a first look at two new Groovy powered dataframe libraries,
+Let's explore the same case study, but this time, taking a first look at two new Groovy-powered dataframe libraries:
 https://grooviter.github.io/underdog/[Underdog] and
-https://github.com/Alipsa/matrix[Matrix],
-to explore the same case study.
+https://github.com/Alipsa/matrix[Matrix].
 
 == The Case Study
 
@@ -59,12 +48,14 @@ https://grooviter.github.io/underdog/[Underdog].
 Let's use it to explore Whisky profiles.
 It has many Groovy-powered features delivering a very expressive developer experience.
 
+Underdog has the following modules: underdog-dataframe, underdog-graphs, underdog-plots, underdog-ml, and underdog-ta. We'll use all but the last of these.
+
 Underdog sits on top of some well-known data-science libraries in the JVM ecosystem
 like Smile, Tablesaw, and https://echarts.apache.org/[Apache ECharts].
 If you have used any of those libraries, you'll recognise parts of the functionality
 shining through.
 
-First, we'll load our CSV file into an Underdog dataframe:
+First, we'll load our CSV file into an Underdog dataframe (removing a column we don't need):
 
 [source,groovy]
 ----
@@ -102,7 +93,13 @@ It gives this output:
     12  |       Floral  |      INTEGER  |
 ----
 
-Let's look at a correlation matrix plot of the data:
+When data has many dimensions, understanding the relationship between the columns can be hard.
+We can look at a correlation matrix to help us understand whether there is any redundant data,
+e.g. are _Sweetness_ and _Honey_, or _Tobacco_ and _Smoky_, two measure of the same thing
+or different things.
+
+Underdog has a built-in plot for this, so let's
+gather the numeric features and plot the correlation matrix:
 
 [source,groovy]
 ----
@@ -114,6 +111,10 @@ plot.correlationMatrix(df[features]).show()
 Which has this output:
 
 image:img/underdogCorrelationPlot.png[correlation plot,50%]
+
+We can see that the different flavor measures are quite distinct.
+The highest correlations are between _Smoky_ and _Medicinal_, and _Smoky_ and _Body_.
+Some, like _Floral_ and _Medicinal_, are very unrelated.
 
 Let's now explore searching for whiskies of a particular flavor,
 in this case profiles that are somewhat _fruity_ and somewhat _sweet_ in flavor.
@@ -204,6 +205,17 @@ println df.agg([Distillery:'count'])
     .rename('Whisky Cluster Sizes')
 ----
 
+Which has this output:
+
+----
+       Whisky Cluster Sizes
+ Cluster  |  Count [Distillery]  |
+----------------------------------
+       0  |                  25  |
+       2  |                  44  |
+       1  |                  17  |
+----
+
 Or, we can easily print out the distilleries in each cluster:
 
 [source,groovy]
@@ -271,8 +283,15 @@ image:img/underdogClustersAgglomerative.png[scatter plot agglomerative,50%]
 The
 https://github.com/Alipsa/matrix/tree/main[Matrix]
 library makes it easy to work with a matrix of tabular data.
+The Matrix project consists of the following modules: matrix-core, matrix-stats, matrix-datasets, matrix-spreadsheet, matrix-csv, matrix-json, matrix-xcharts, matrix-sql, matrix-parquet, matrix-bigquery, matrix-charts, and matrix-tablesaw.
 
-Let's read in our data and explore its size:
+While new, Matrix does build upon common JVM data science libraries, like Tablesaw and Apache Commons Math.
+For certain functionality, like clustering and dimension reduction, Matrix works well with libraries like Smile.
+
+For a first intro, we'll look at the
+matrix-core, matrix-stats, matrix-csv, and matrix-xchart modules.
+
+Let's read in our data, remove a column we don't need, and explore its size:
 
 [source,groovy]
 ----
@@ -288,24 +307,22 @@ This outputs:
 ----
 
 Currently, the data is all strings. Matrix provides a `convert` option for getting data
-into the right type including handling missing values. It also has powerful normalization
-functionality. We'll want to normalize our data because some of the algorithms and certainly
-the radar plot assume normalized data (values between 0 and 1).
+into the right type. It also has various normalization
+methods. We want our data as numbers, and some of the functionality we'll use, e.g.
+the radar plot, assumes our data is normalized (values between 0 and 1).
 
-But, here we'll show off the `apply` functionality which will convert and normalize all-in-one
-by hand:
+Rather than using `convert` or the normalization methods, here we'll show off the `apply`
+functionality which will achieve the same thing for our example:
 
 [source,groovy]
 ----
 def features = m.columnNames() - 'Distillery'
 def size = features.size()
-features.each { feature ->
-    m.apply(feature) { it.toDouble() / 4 }
-}
+features.each(feature -> m.apply(feature) { it.toDouble() / 4 })
 ----
 
-Now, like we did with Underdog, we want to perform a query to find the
-whiskies which are somewhat _fruity_ and somewhat _sweet_ in flavor:
+Now, like we did with Underdog, we want to perform a query to find and display
+the whiskies which are somewhat _fruity_ and somewhat _sweet_ in flavor:
 
 [source,groovy]
 ----
@@ -337,11 +354,15 @@ def rc = RadarChart.create(aberlour).addSeries('Distillery', transparency)
 new SwingWrapper(rc.exportSwing().chart).displayChart()
 ----
 
+NOTE: If `matrix-xchart` doesn't have the functionality you are after, considering
+looking at the `matrix-chart` library. They offer many similar charts but there
+are some differences too.
+
 The output looks like this:
 
 image:img/matrixAberlourRadar.png[aberlour profile,50%]
 
-Or, for all selected whiskies:
+The same chart also works to display all selected whiskies:
 
 [source,groovy]
 ----
@@ -353,7 +374,9 @@ Which looks like this:
 
 image:img/matrixWhiskySelectionsRadar.png[selected whisky profiles,50%]
 
-Let's now apply K-Means, placing the allocated clusters back into the matrix:
+Let's now cluster our whiskies. We'll use the K-Means functionality from
+https://haifengl.github.io/clustering.html[Smile].
+Let's apply K-Means, and place the allocated clusters back into the matrix:
 
 [source,groovy]
 ----
@@ -363,7 +386,60 @@ def model = KMeans.fit(data,3, iterations)
 m['Cluster'] = model.group().toList()
 ----
 
-We can also project onto two dimensions using PCA:
+We can examine the cluster allocation using groovy-ginq functionality, which works well with Matrix:
+
+[source,groovy]
+----
+def result = GQ {
+    from w in m
+    groupby w.Cluster
+    orderby w.Cluster
+    select w.Cluster, count(w.Cluster) as Count
+}
+println result
+----
+
+Which has this output:
+
+----
++---------+-------+
+| Cluster | Count |
++---------+-------+
+| 0       | 51    |
+| 1       | 23    |
+| 2       | 12    |
++---------+-------+
+----
+
+We can convert the ginq result back into a matrix like this:
+
+[source,groovy]
+----
+println Matrix.builder('Cluster allocation').ginqResult(result).build().content()
+----
+
+Which has this output:
+
+----
+Cluster allocation: 3 obs * 2 variables
+Cluster	Count
+      0	   51
+      1	   23
+      2	   12
+----
+
+For the particular problem of checking cluster allocation, we can also
+use the normal Groovy extension methods:
+
+[source,groovy]
+----
+assert m.rows().countBy{ it.Cluster } == [0:51, 1:23, 2:12]
+----
+
+We can also project onto two dimensions using Principal Component Analysis (PCA).
+We'll again use the
+https://haifengl.github.io/feature.html#dimension-reduction[Smile] functionality for this.
+Let's project onto 2 dimensions and place the projected coordinates back into the matrix:
 
 [source,groovy]
 ----
@@ -373,9 +449,9 @@ m['X'] = projected*.getAt(0)
 m['Y'] = projected*.getAt(1)
 ----
 
-We've placed the projected coordinates back into the matrix.
-Let's now create a scatter plot with the distilleries for each cluster
-added in distinct series:
+Let's now create a scatter plot showing the distilleries mapped according
+to the projected coordinates. The most compact form of the `ScatterPlot#create`
+method assumes one series, but it's not hard to add each series ourselves:
 
 [source,groovy]
 ----
@@ -393,7 +469,7 @@ When run, we get the following output:
 
 image:img/matrixWhiskyScatterPlot.png[scatter plot,50%]
 
-Matrix doesn't have a correlation heatmap out of the box, but it does have heatmap plots,
+Matrix doesn't have a correlation heatmap plot out of the box, but it does have heatmap plots,
 and it does have correlation functionality.
 It's easy enough to roll our own:
 
@@ -411,8 +487,7 @@ def corrMatrix = Matrix.builder().data(X: 0..<corr.size(), Heat: corr)
 def hc = HeatmapChart.create(corrMatrix)
     .addSeries('Heat Series', features.reverse(), features,
         corrMatrix.column('Heat').collate(size))
-hc.exportPng('matrixWhiskyCorrHeatmap.png' as File)
-new SwingWrapper(hc.exportSwing().chart).displayChart()
+
 ----
 
 Which has this output:
