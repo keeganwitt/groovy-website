@@ -116,7 +116,9 @@ We can see that the different flavor measures are quite distinct.
 The highest correlations are between _Smoky_ and _Medicinal_, and _Smoky_ and _Body_.
 Some, like _Floral_ and _Medicinal_, are very unrelated.
 
-Let's now explore searching for whiskies of a particular flavor,
+Groovy has a flexible syntax. Underdog has used this to piggyback on Groovy's list notation
+allowing column expressions for filtering data within a dataframe.
+Let's use column expressions to find whiskies of a particular flavor,
 in this case profiles that are somewhat _fruity_ and somewhat _sweet_ in flavor.
 
 [source,groovy]
@@ -235,8 +237,46 @@ Clusters
 2:AnCnoc, Ardmore, ArranIsleOf, Auchentoshan, Aultmore, Benriach, Bladnoch, Bunnahabhain, Cardhu, Craigallechie, Craigganmore, Dalwhinnie, Deanston, Dufftown, GlenDeveronMacduff, GlenElgin, GlenGrant, GlenKeith, GlenMoray, GlenSpey, Glenallachie, Glenfiddich, Glengoyne, Glenkinchie, Glenlossie, Glenmorangie, Inchgower, Linkwood, Loch Lomond, Mannochmore, Miltonduff, OldFettercairn, RoyalBrackla, Scapa, Speyburn, Speyside, Strathmill, Tamdhu, Tamnavulin, Tobermory, Tomatin, Tomintoul, Tomore, Tullibardine
 ----
 
-It's very hard to visualize 12 dimensional data,
-so let's project our data onto 2 dimensions using PCA and store those projections back into the dataframe:
+We might also be interested in the cluster centroids, i.e. the average flavor profiles
+for each cluster. Currently, Underdog uses Smile, under the covers,
+for clustering via K-Means. The Smile K-Means model already calculates the centroids
+but currently, that information is behind Underdog's simplified K-Means abstraction.
+
+Nevertheless, it isn't hard to recalculate the centroids ourselves:
+
+[source,groovy]
+----
+def summary = df
+    .agg(features.collectEntries{ f -> [f, 'mean']})
+    .by('Cluster')
+    .sort_values(false, 'Cluster')
+    .rename('Flavour Centroids')
+----
+
+We'll take the results and do some minor formatting changes:
+
+[source,groovy]
+----
+(summary.columns - 'Cluster').each { c ->
+    summary[c] = summary[c](Double, Double) {it.round(3) }
+}
+println summary
+----
+
+Which has this output:
+
+----
+                                                                                                      Mean flavor by Cluster
+ Cluster  |  Mean [Body]  |  Mean [Sweetness]  |  Mean [Smoky]  |  Mean [Medicinal]  |  Mean [Tobacco]  |  Mean [Honey]  |  Mean [Spicy]  |  Mean [Winey]  |  Mean [Nutty]  |  Mean [Malty]  |  Mean [Fruity]  |  Mean [Floral]  |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+       0  |         2.76  |              2.44  |          1.44  |              0.04  |               0  |          1.88  |          1.68  |          1.92  |          1.92  |          2.04  |           2.16  |           1.72  |
+       1  |        2.529  |             1.647  |         2.765  |             2.118  |           0.294  |         0.647  |         1.647  |         0.588  |         1.353  |         1.412  |          1.353  |          0.941  |
+       2  |          1.5  |             2.455  |         1.114  |             0.227  |           0.114  |         1.114  |         1.114  |         0.591  |          1.25  |         1.818  |          1.773  |          1.977  |
+----
+
+Looking at the centroids is one way to understand how the whiskies have been grouped.
+But, it's very hard to visualize 12 dimensional data, so instead,
+let's project our data onto 2 dimensions using PCA and store those projections back into the dataframe:
 
 [source,groovy]
 ----
@@ -434,6 +474,27 @@ use the normal Groovy extension methods:
 [source,groovy]
 ----
 assert m.rows().countBy{ it.Cluster } == [0:51, 1:23, 2:12]
+----
+
+The cluster centroids, i.e. the average flavor profiles
+for each cluster. These are available from the Smile model (we'll denormalize the values
+by multiplying by 4, and then pretty print them to 3 decimal places):
+
+[source,groovy]
+----
+println 'Cluster ' + features.join(' ')
+model.centers().eachWithIndex { c, i ->
+    println "   $i:   ${c*.multiply(4).collect('%.3f'::formatted).join('  ')}"
+}
+----
+
+Which has this output:
+
+----
+Cluster Body Sweetness Smoky Medicinal Tobacco Honey Spicy Winey Nutty Malty Fruity Floral
+   0:   1.569  2.392  1.235  0.294  0.098  1.098  1.255  0.608  1.235  1.745  1.784  1.961
+   1:   2.783  2.435  1.478  0.043  0.000  1.913  1.652  2.000  1.957  2.087  2.174  1.696
+   2:   2.833  1.583  2.917  2.583  0.417  0.583  1.417  0.583  1.500  1.500  1.167  0.583
 ----
 
 We can also project onto two dimensions using Principal Component Analysis (PCA).
