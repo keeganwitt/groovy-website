@@ -1,7 +1,6 @@
 = Whisky flavor profiles revisited
 Paul King
 :revdate: 2025-04-17T22:30:00+00:00
-:draft: true
 :keywords: whisky, whiskey, groovy, kmeans, clustering, apache echarts
 :description: This post looks at using the Underdog data science library.
 
@@ -258,7 +257,7 @@ We'll take the results and do some minor formatting changes:
 [source,groovy]
 ----
 (summary.columns - 'Cluster').each { c ->
-    summary[c] = summary[c](Double, Double) {it.round(3) }
+    summary[c] = summary[c](Double, Double) { it.round(3) }
 }
 println summary
 ----
@@ -274,7 +273,7 @@ Which has this output:
        2  |          1.5  |             2.455  |         1.114  |             0.227  |           0.114  |         1.114  |         1.114  |         0.591  |          1.25  |         1.818  |          1.773  |          1.977  |
 ----
 
-Looking at the centroids is one way to understand how the whiskies have been grouped.
+Looking at the centroids is one way to try to understand how the whiskies have been grouped.
 But, it's very hard to visualize 12 dimensional data, so instead,
 let's project our data onto 2 dimensions using PCA and store those projections back into the dataframe:
 
@@ -537,7 +536,7 @@ It's easy enough to roll our own:
 [source,groovy]
 ----
 def corr = [size<..0, 0..<size].combinations().collect { i, j ->
-    Correlation.cor(data*.getAt(j), data*.getAt(i)) * 100 as int
+    Correlation.cor(data*.getAt(j), data*.getAt(i)).round(2)
 }
 
 def corrMatrix = Matrix.builder().data(X: 0..<corr.size(), Heat: corr)
@@ -564,9 +563,9 @@ image:img/matrixWhiskyCorrHeatmap.png[heatmap,50%]
 
 == Conclusion
 
-We have looked at how to use Underdog and Matrix.
+We have looked at how to use Underdog and Matrix to classify whisky flavor profiles.
 
 .Update history
 ****
-*19/Apr/2025*: Initial version +
+*02/May/2025*: Initial version +
 ****
