@@ -192,8 +192,8 @@ Let's now cluster the distilleries using k-means, and place the cluster allocati
 [source,groovy]
 ----
 def ml = Underdog.ml()
-def d = df[features] as double[][]
-def clusters = ml.clustering.kMeans(d, nClusters: 3)
+def data = df[features] as double[][]
+def clusters = ml.clustering.kMeans(data, nClusters: 3)
 df['Cluster'] = clusters.toList()
 ----
 
@@ -279,8 +279,8 @@ let's project our data onto 2 dimensions using PCA and store those projections b
 
 [source,groovy]
 ----
-def pca = ml.features.pca(d, 2)
-def projected = pca.apply(d)
+def pca = ml.features.pca(data, 2)
+def projected = pca.apply(data)
 df['X'] = projected*.getAt(0)
 df['Y'] = projected*.getAt(1)
 ----
@@ -301,7 +301,7 @@ The output looks like this:
 
 image:img/underdogClusterKmeans.png[scatter plot kmeans,50%]
 
-We can go and change our clustering algorithm, e.g. `ml.clustering.agglomerative(d, nClusters: 3)`,
+We can go and change our clustering algorithm, e.g. `ml.clustering.agglomerative(data, nClusters: 3)`,
 in which case the cluster allocation counts will look like this:
 
 ----
@@ -365,7 +365,7 @@ the whiskies which are somewhat _fruity_ and somewhat _sweet_ in flavor:
 
 [source,groovy]
 ----
-def selected= m.subset{ it.Fruity > 0.5 && it.Sweetness > 0.5 }
+def selected = m.subset { it.Fruity > 0.5 && it.Sweetness > 0.5 }
 println selected.dimensions()
 println selected.head(10)
 ----
@@ -421,7 +421,7 @@ Let's apply K-Means, and place the allocated clusters back into the matrix:
 ----
 def iterations = 20
 def data = m.selectColumns(*features) as double[][]
-def model = KMeans.fit(data,3, iterations)
+def model = KMeans.fit(data, 3, iterations)
 m['Cluster'] = model.group().toList()
 ----
 
