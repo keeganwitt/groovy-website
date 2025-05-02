@@ -1,8 +1,8 @@
 = Whisky flavor profiles revisited
 Paul King
-:revdate: 2025-04-17T22:30:00+00:00
+:revdate: 2025-05-02T11:30:00+00:00
 :keywords: whisky, whiskey, groovy, kmeans, clustering, apache echarts
-:description: This post looks at using the Underdog data science library.
+:description: This post takes a first look at the Underdog and Matrix Groovy-powered dataframe libraries.
 
 ++++
 <table><tr><td style="padding: 0px; padding-left: 20px; padding-right: 20px; font-size: 18pt; line-height: 1.5; margin: 0px">
