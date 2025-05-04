@@ -175,16 +175,22 @@ assert abc.stream()
 {end}
 ----
 
-For collections, Groovy provides `combinations` or `eachCombination`, but for iterators you can do the following:
+For collections, Groovy provides `combinations` or `eachCombination`,
+but for iterators you can do the following:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
 {start-blue}
 assert Iterators.combine(letter: abc.iterator(), number: nums.iterator())
-    .collectLazy(map -> map.letter + map.number)
+    .collecting(map -> map.letter + map.number)
     .toList() == ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
 {end}
 ----
+
+Groovy has the `collect` family of methods corresponding to Java's `map` method in streams.
+Groovy followed Smalltalk's naming conventions at the time when naming that method.
+Groovy offers both eager, `collect`, and lazy, `collecting`, variants, so we could have
+used `collect` here and not needed the `toList()`.
 
 === foldIndexed, inject+withIndex
 
@@ -242,7 +248,7 @@ assert abc.iterator()
 {end}
 ----
 
-=== mapIndexed, collectLazy+withIndex, mapWithIndex
+=== mapIndexed, collect+withIndex, mapWithIndex
 
 The _map_ (also called _transform_ or _collect_) operation transforms elements in a stream into a stream of new values.
 
@@ -259,14 +265,25 @@ assert abc.stream()
 {end}
 ----
 
-In Groovy, you'd typically use `withIndex` and `collectLazy` for this functionality:
+In Groovy, you'd typically use `withIndex` and `collect` for this functionality:
 
 [source,groovy,subs="+macros,+attributes"]
 ----
 {start-blue}
 assert abc.iterator()
     .withIndex()
-    .collectLazy {  s, i -> s + i }
+    .collect { s, i -> s + i } == ['A0', 'B1', 'C2']
+{end}
+----
+
+Or we could use the `collecting` variant as shown here:
+
+[source,groovy,subs="+macros,+attributes"]
+----
+{start-blue}
+assert abc.iterator()
+    .withIndex()
+    .collecting { s, i -> s + i }
     .toList() == ['A0', 'B1', 'C2']
 {end}
 ----
@@ -615,9 +632,7 @@ Here is the iterator version:
 [source,groovy,subs="+macros,+attributes"]
 ----
 {start-blue}
-assert abc.iterator().withIndex()
-    .collectLazy(tuple -> "$tuple.v1$tuple.v2")
-    .toList() == ['A0', 'B1', 'C2']
+assert abc.iterator().withIndex().collect { s, i -> s + i } == ['A0', 'B1', 'C2']
 {end}
 ----
 
@@ -642,8 +657,7 @@ Groovy provides `zip`:
 {start-blue}
 assert abc.iterator()
     .zip(nums.iterator())
-    .collectLazy { s, n -> s + n }
-    .toList() == ['A1', 'B2', 'C3']
+    .collect { s, n -> s + n } == ['A1', 'B2', 'C3']
 {end}
 ----
 
@@ -710,13 +724,13 @@ but you either use `findAllLazy` with `withIndex`, or `tapEvery`:
 {start-blue}
 // drop every 3rd
 assert ('A'..'G').iterator().withIndex()
-    .findAllLazy { next, i -> i % 3 }
-    .toList()*.first == ['B', 'C', 'E', 'F']
+    .findAll { next, i -> i % 3 }
+    *.first == ['B', 'C', 'E', 'F']
 
 // take every 3rd
 assert ('A'..'G').iterator().withIndex()
-    .findAllLazy { next, i -> i % 3 == 0 }
-    .toList()*.first == ['A', 'D', 'G']
+    .findAll { next, i -> i % 3 == 0 }
+    *.first == ['A', 'D', 'G']
 
 // also take every 3rd
 var result = []
@@ -793,9 +807,9 @@ Groovy doesn't have an all-in-one equivalent, but you can use `withIndex` plus `
 ----
 {start-blue}
 assert abcde.iterator().withIndex()
-    .findAllLazy { s, n -> n % 2 == 0 }*.first == ['A', 'C', 'E']
+    .findAll { s, n -> n % 2 == 0 }*.first == ['A', 'C', 'E']
 assert abcde.iterator().withIndex()
-    .findAllLazy { s, n -> n < 2 || s == 'E' }*.first == ['A', 'B', 'E']
+    .findAll { s, n -> n < 2 || s == 'E' }*.first == ['A', 'B', 'E']
 {end}
 ----
 
