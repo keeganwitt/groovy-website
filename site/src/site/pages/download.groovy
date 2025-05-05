@@ -3,7 +3,7 @@ import generator.SiteGenerator
 def userSiteBase = 'http://groovy-lang.org/'
 
 layout 'layouts/main.groovy', true,
-        pageTitle: 'The Apache Groovy programming language - Download',
+        pageTitle: 'The Apache Groovy™ programming language - Download',
         mainContent: contents {
             div(id: 'content', class: 'page-1') {
                 div(class: 'row') {
@@ -11,7 +11,7 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-3') {
                             ul(class: 'nav-sidebar') {
                                 li(class: 'active') {
-                                    a(href: 'download.html') { strong('Download Groovy') }
+                                    a(href: 'download.html') { strong('Download Groovy™') }
                                 }
                                 li {
                                     a(href: '#distro', class: 'anchor-link', 'Distributions')
@@ -45,13 +45,13 @@ layout 'layouts/main.groovy', true,
                             }
                             def linkVersionToDownload = distributions.collect { it.packages }.flatten().find { it.stable }.version
                             button(id: 'big-download-button', type: 'button', class: 'btn btn-default',
-                                    title: "Download Apache Groovy ${linkVersionToDownload} binary zip\nSee below for verification information",
+                                    title: "Download Apache Groovy™ ${linkVersionToDownload} binary zip\nSee below for verification information",
                                     onclick: "window.location.href=\"https://groovy.jfrog.io/artifactory/dist-release-local/groovy-zips/apache-groovy-sdk-${linkVersionToDownload}.zip\"") {
                                 i(class: 'fa fa-download') {}
                                 yield " Download ${linkVersionToDownload}"
                             }
                             article {
-                                p 'Ways to get Apache Groovy:'
+                                p 'Ways to get Apache Groovy™:'
                                 ul {
                                     li {
                                         yield 'Download a source or binary '

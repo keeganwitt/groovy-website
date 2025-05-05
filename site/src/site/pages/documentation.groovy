@@ -1,5 +1,5 @@
 layout 'layouts/main.groovy', true,
-        pageTitle: 'The Apache Groovy programming language - Documentation',
+        pageTitle: 'The Apache Groovy™ programming language - Documentation',
         mainContent: contents {
             div(id: 'content', class: 'page-1') {
                 div(class: 'row') {
@@ -28,7 +28,7 @@ layout 'layouts/main.groovy', true,
                                 yield ' Documentation'
                             }
                             p {
-                                yield 'The documentation is available as a '
+                                yield 'The Apache Groovy™ documentation is available as a '
                                 a(href: "single-page-documentation.html", 'single-page document')
                                 yield ', or a '
                                 a(href: "https://docs.groovy-lang.org/docs/latest/html/documentation/index.pdf", 'PDF')
