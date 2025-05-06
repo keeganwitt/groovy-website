@@ -965,9 +965,10 @@ assert ['A', 'B', 'C', 'A'].iterator()
 
 == Conclusion
 
-We have looked at how to use gatherers, and how to achieve similar functionality using iterators.
+We have looked at some of the functionality of the Gatherers4j library, and how to achieve similar functionality using iterators.
+Gatherers4j works well with Groovy, offering additional stream functionality not built into the JDK. If you frequently use streams, explore Gatherers4j for pre-built gatherers that might meet your needs.
 
 .Update history
 ****
-*11/Apr/2025*: Initial version +
+*06/May/2025*: Initial version +
 ****
