@@ -1,9 +1,8 @@
 = Exploring Gatherers4J with Groovy
 Paul King
 :revdate: 2025-04-11T10:30:00+00:00
-:draft: true
 :keywords: gatherers, jdk24, chop, collate, inject, streams, fold, scan
-:description: This post looks at using Gatherers4J (relies on JDK24 stream gatherer API) with Groovy.
+:description: This post looks at using Gatherers4J (relies on JDK24 stream gatherer API) with Groovy as well as similar Iterator extension methods.
 
 :start-green: pass:[<div style="background-color: #ddeedd">]
 :start-blue: pass:[<div style="background-color: #ddddee">]
@@ -31,7 +30,7 @@ your own gatherer equivalents for chop, collate and other built-in Groovy functi
 Other folks have also been looking at useful gatherers and libraries
 are starting to emerge.
 https://tginsberg.github.io/gatherers4j/[Gatherers4J]
-is one such library. We'll use 0.11.0 (pre-release) and Groovy 5 snapshot (pre-release)
+is one such library. We'll use 0.11.0, Groovy 5 snapshot (pre-release),
 and JDK 24.
 
 Let's now look at numerous other gatherers (and their Groovy iterator equivalents)
