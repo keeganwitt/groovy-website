@@ -1,4 +1,4 @@
-= Solving the Knapsack Problem with Groovy
+= Solving the Knapsack Problem with Groovy™
 Paul King
 :revdate: 2024-02-09T15:00:00+00:00
 :keywords: knapsack, optimisation, choco, genetic algorithms, dynamic programming

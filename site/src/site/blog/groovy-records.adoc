@@ -1,4 +1,4 @@
-= Groovy Records
+= Groovy™ Records
 Paul King
 :revdate: 2023-04-02T20:22:57+00:00
 :keywords: groovy, records, AST transforms
