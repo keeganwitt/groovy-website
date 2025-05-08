@@ -413,14 +413,72 @@ names << 'mary' // ok
 names << 35     // boom! fails early
 ----
 
-[[Groovy5.0-other]]
-== Other improvements
+[[Groovy5.0-javasyntax]]
+== Java compatibility improvements
+
+=== Multi-dimensional array notation
+
+Groovy uses the curly braces `{ }` syntax when defining closures.
+Early versions of Groovy excluded the use of any array literals to avoid conflict with the closure syntax,
+and instead piggy-backed on the list literal notation. Recent Groovy versions have allowed
+single dimension array literals in contexts which are unambiguous. Groovy 5 extends
+this to support multi-dimensional arrays using the Java syntax
+(https://issues.apache.org/jira/browse/GROOVY-8551[GROOVY-8551]).
+The existing forms using list notation remain supported.
+
+[source,groovy]
+----
+int[] nums1 = [1, 2, 3]
+def nums2 = [1, 2, 3] as int[]
+def nums3 = new int[] {1, 2, 3}
+
+int[][] numsA = [[1,2,3] as int[],[4,5,6] as int[]]
+int[][] numsB = [[1,2,3],[4,5,6]]         // also with static type checking for Groovy 5
+def numsC = [[1,2,3],[4,5,6]] as int[][]
+def numsD = new int[][] {{1,2,3},{4,5,6}}        // added for Groovy 5
+----
+
+=== Pattern Matching for instanceof
+
+JDK16 added support for https://openjdk.org/jeps/394[Pattern Matching for instanceof (JEP 394)].
+It is intended to allow simplification for code where there is an `instanceof` test followed by a cast, like this:
+
+[source,java]
+----
+if (obj instanceof String) {              // Java
+    String s = (String) obj;
+    // use s, e.g.
+    System.out.println(s.toUpperCase());
+}
+----
+
+Such code can be replaced with the shortened form:
+
+[source,java]
+----
+if (obj instanceof String s) {            // Java
+    System.out.println(s.toUpperCase());
+}
+----
+
+In Groovy, this syntax isn't needed since the following will work just fine (via duck typing for dynamic Groovy, and type inference when using the static nature):
+
+[source,groovy]
+----
+if (obj instanceof String) {
+    println obj.toUpperCase()
+}
+----
+
+But, for improved compatibility with Java, Groovy 5 supports the JEP-394 syntax (https://issues.apache.org/jira/browse/GROOVY-10943[GROOVY-10943]).
 
 === Underscore as a placeholder
 
 The use of "_" (underscore) as a placeholder for unused parameters is earmarked
 for inclusion in future Java versions (see "Treatment of underscores" in https://openjdk.org/jeps/302[JEP 302: Lambda Leftovers]).
-This is available in Groovy 5. Some examples:
+This is available in Groovy 5 (https://issues.apache.org/jira/browse/GROOVY-10943[GROOVY-10943]).
+
+Some examples:
 
 [source,groovy]
 ----
@@ -445,7 +503,16 @@ assert g(1000, 100, 10, 1) == 1010
 assert h(1000, 100, 10, 1) == 1100
 ----
 
-=== Miscellaneous enhancements
+=== Native support for default, private and static methods in interfaces
+
+Earlier versions of Groovy supported the syntax of default methods in interfaces,
+but implemented them using traits. In Groovy 5, default, private and static methods
+in interfaces are now supported natively
+https://issues.apache.org/jira/browse/GROOVY-8299([GROOVY-8299]).
+This improves various integration scenarios with mixed Groovy and Java codebases.
+
+[[Groovy5.0-other]]
+== Other improvements
 
 There is now a utility method to produce simple ascii-art barcharts. The following code:
 
