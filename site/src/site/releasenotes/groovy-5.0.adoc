@@ -233,16 +233,19 @@ For instance, you might like to rename:
 * `add` to `plus` if using Commons Math matrices
 * `sub` to `minus` if using Nd4j matrices
 
-=== Extension method additions and improvements
+== Extension method additions and improvements
 
-==== Additional primitive array extensions
+Groovy provides over 2000 extension methods to 150+ JDK classes to enhance JDK functionality, with *350 new methods added in Groovy 5*. These methods reduce dependency on third-party libraries for common tasks, and make code more intuitive. Let's explore some highlights from those 350 new methods.
 
-There are over 160 additional extension methods on primitive arrays.
-Methods like `any`, `chop`, `each`, `eachWithIndex`, `equals`, `every`,
-`first`, `head`, `init`, `join`, `last`, `max`, `maxBy`, `maxComparing`,
-`min`, `minBy`, `minComparing`, `reverse`, `reverseEach`, `tail`, and `transpose`
-now have variants for primitive arrays like `int[]`, `long[]`, `double[]`, etc.
-And methods like `flatten` are added for `int[][]`,`long[][]`, etc.
+=== Additional primitive array extensions
+
+There are over 220 additional extension methods on primitive arrays.
+The following methods are added or enhanced: `any`, `chop`, `collectEntries`, `countBy`,
+`each`, `eachWithIndex`, `equals`, `every`, `first`, `flattenMany`, `head`, `indexOf`,
+`indexed`, `init`, `injectAll`, `join`, `last`, `lastIndexOf`, `max`, `maxComparing`,
+`min`, `minBy`, `minComparing`, `partitionPoint`, `putAt`, `reverse`, `reverseEach`, `sort`,
+`sum`, `tail`, `toSet`, `withCollectedKeys`, `withCollectedValues`, and `withIndex`.
+And methods like `flatten`, `transpose` are added for `int[][]`,`long[][]`, etc.
 
 Some examples:
 
@@ -254,25 +257,48 @@ assert nums.any{ it > 1 }
        && nums.join(' ') == '-3 -2 -1 0 1 2'
        && nums.head() == -3
        && nums.tail() == -2..2
+       && nums.withIndex().take(2)*.join(' ') == ['-3 0', '-2 1']
+       && nums.chop(3, 3) == [[-3, -2, -1], [0, 1, 2]]
        && nums.max() == 2
-       && nums.min{ it.abs() } == 0
-       && nums.maxComparing(Comparator.reverseOrder()) == -3
+       && nums.partitionPoint{ it <= 1 } == 5
+       && nums.max{ it.abs() } == -3
        && nums.reverse() == 2..-3
+
+String[] letters = 'a'..'d'
+assert letters.last() == 'd'
+       && letters.countBy{ it < 'b' } == [(true):1, (false):3]
+       && letters.withIndex()*.join()
+           == ['a0', 'b1', 'c2', 'd3']
+       && letters.indexed().entrySet().join(' ')
+           == '0=a 1=b 2=c 3=d'
+       && letters.withCollectedValues(String::toUpperCase)
+           == ['a':'A', 'b':'B', 'c':'C', 'd':'D']
+       && letters.withCollectedKeys(String::toUpperCase)
+           == ['A':'a', 'B':'b', 'C':'c', 'D':'d']
+       && letters.injectAll('') { carry, next -> carry + next }
+           == ['a', 'ab', 'abc', 'abcd']
+
+letters[1..2] = 'YZ'.split('')
+assert letters == ['a', 'Y', 'Z', 'd']
 
 int[][] matrix = [[1,   2],
                   [10,  20],
                   [100, 200]]
 assert matrix.transpose() == [[1, 10, 100],
                               [2, 20, 200]]
+assert matrix.flatten() == [1, 2, 10, 20, 100, 200]
 ----
 
 In some cases, the methods existed for a few of the primitive types but now work with more primitive types.
 In numerous cases, the functionality was only available by converting the array to a list first - which was easy but increased memory usage and decreased performance.
 For other cases, implementations now avoid un/boxing where possible.
 All up this means that Groovy now works better in data science scenarios
-allowing more streamlined and performant code.
+allowing more streamlined and performant code. Here is one microbenchmark showing
+the performance of the new array extension methods compared to equivalent Java and Groovy stream operations:
 
-==== Additional File and Path extensions
+image:img/arrayMaxPerformance.png[Array performance, width=600]
+
+=== Additional File and Path extensions
 
 There are some additional extension methods for `File` objects:
 
@@ -294,7 +320,20 @@ assert mypic.extension == 'png'
 assert mypic.baseName == 'MyFigure'
 ----
 
-==== Additional Collection extensions
+=== Additional String extensions
+
+Additional `next` and `previous` methods and a `codePoints` method were added for Strings.
+A `getLength` method was added for `StringBuilder` and `StringBuffer`.
+These help with simpler String processing in a number of scenarios:
+
+[source,groovy]
+----
+assert (1..3).collect('💙'::next) == ['💚', '💛', '💜']
+assert '❤️'.codePoints.size() == 2
+assert new StringBuilder('FooBar').tap{ length -= 3 }.toString() == 'Foo'
+----
+
+=== Additional Collection extensions
 
 We have added a `flattenMany` method which is a close cousin to the
 `collectMany` method. These are Groovy's `flatMap` like methods.
@@ -508,7 +547,7 @@ assert h(1000, 100, 10, 1) == 1100
 Earlier versions of Groovy supported the syntax of default methods in interfaces,
 but implemented them using traits. In Groovy 5, default, private and static methods
 in interfaces are now supported natively
-https://issues.apache.org/jira/browse/GROOVY-8299([GROOVY-8299]).
+(https://issues.apache.org/jira/browse/GROOVY-8299([GROOVY-8299]).
 This improves various integration scenarios with mixed Groovy and Java codebases.
 
 [[Groovy5.0-other]]
@@ -526,117 +565,6 @@ There is now a utility method to produce simple ascii-art barcharts. The followi
 produces this image:
 
 image:img/ascii_barchart.png[image]
-
-[[Groovy5.0-ongoing]]
-== Ongoing work
-
-=== Enhanced switch (under investigation)
-
-Groovy has always had a very powerful switch statement.
-The statement could be made more powerful, e.g. support destructuring,
-and could be supported in contexts where expressions are expected.
-
-As inspiration, Java has made, or is investigating future enhancements
-including switch expressions and other related enhancements:
-link:https://openjdk.org/jeps/354[JEP 354: Switch Expressions (Second Preview)]
-link:https://openjdk.org/jeps/361[JEP 361: Switch Expressions]
-link:https://openjdk.org/jeps/405[JEP 405: Record Patterns & Array Patterns (Preview)]
-link:https://openjdk.org/jeps/406[JEP 406: Pattern Matching for switch (Preview)]
-We should investigate these proposals both in terms of enhancing the existing Groovy switch
-but also in terms of deciding which syntax from Java we might like to support in the future.
-
-Other languages like Python are also improving their switch statements:
-https://www.python.org/dev/peps/pep-0622/[PEP 622 -- Structural Pattern Matching].
-We should investigate whether any features of their design make sense for Groovy's dynamic nature.
-
-As an example of destructuring, instead of the following existing code:
-
-[source,groovy]
---------------------------------------
-def make3D(pt) {
-    switch(pt) {
-        case Point3D:
-            return pt
-        case Point2D:
-            return new Point3D(pt.x, pt.y, 0)
-        case List:
-            def (x, y, z) = pt
-            if (x == 0 && y == 0 && z == 0)
-                throw new IllegalArgumentException("Origin not allowed")
-            return new Point3D(x, y, z)
-            ...
-    }
-}
---------------------------------------
-
-You could potentially use something like:
-
-[source,groovy]
---------------------------------------
-def make3D(pt) {
-    switch(pt) {
-        case Point3D:
-            return pt
-        case Point2D(x, y):
-            return new Point3D(x, y, 0)
-        case [0, 0, 0]:
-            throw new IllegalArgumentException("Origin not allowed")
-        case [x, y, z]:
-            return new Point3D(x, y, z)
-            ...
-    }
-}
---------------------------------------
-
-An example of guarded patterns being considered for Java:
-
-[source,java]
---------------------------------------
-static void testTriangle(Shape s) {
-    switch (s) {
-        case null ->
-            System.out.println("Null!");
-        case Triangle t when t.calculateArea() > 100 ->
-            System.out.println("Large triangle");
-        case Triangle t ->
-            System.out.println("Small triangle");
-        default ->
-            System.out.println("Non-triangle");
-    }
-}
---------------------------------------
-
-Another destructuring example:
-
-[source,java]
---------------------------------------
-int eval(Expr n) {
-     return switch(n) {
-         case IntExpr(int i) -> i;
-         case NegExpr(Expr n) -> -eval(n);
-         case AddExpr(Expr left, Expr right) -> eval(left) + eval(right);
-         case MulExpr(Expr left, Expr right) -> eval(left) * eval(right);
-         default -> throw new IllegalStateException();
-     };
-}
---------------------------------------
-
-We should consider the currently proposed nested record pattern when exploring our
-destructuring options, e.g.:
-
-[source,java]
---------------------------------------
-static void printColorOfUpperLeftPoint(Rectangle r) {
-    if (r instanceof Rectangle(ColoredPoint(Point p, Color c), ColoredPoint lr)) {
-        System.out.println(c);
-    }
-}
---------------------------------------
-
-=== Other Java-inspired enhancements
-
-* Module definitions written in Groovy (i.e. module-info.groovy)
-link:https://issues.apache.org/jira/browse/GROOVY-9273[GROOVY-9273]
 
 [[Groovy5.0-breaking]]
 == Other breaking changes
