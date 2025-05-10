@@ -239,15 +239,15 @@ Groovy provides over 2000 extension methods to 150+ JDK classes to enhance JDK f
 
 === Additional primitive array extensions
 
-There are over 220 additional extension methods on primitive arrays.
-The following methods are added or enhanced: `any`, `chop`, `collectEntries`, `countBy`,
+There are over 220 added or enhanced extension methods on primitive arrays.
+For single dimension arrays, we have: `any`, `chop`, `collectEntries`, `countBy`,
 `each`, `eachWithIndex`, `equals`, `every`, `first`, `flattenMany`, `head`, `indexOf`,
 `indexed`, `init`, `injectAll`, `join`, `last`, `lastIndexOf`, `max`, `maxComparing`,
-`min`, `minBy`, `minComparing`, `partitionPoint`, `putAt`, `reverse`, `reverseEach`, `sort`,
+`min`, `minComparing`, `partitionPoint`, `putAt`, `reverse`, `reverseEach`, `sort`,
 `sum`, `tail`, `toSet`, `withCollectedKeys`, `withCollectedValues`, and `withIndex`.
-And methods like `flatten`, `transpose` are added for `int[][]`,`long[][]`, etc.
+For multidimensional arrays we have: `flatten`, and `transpose`.
 
-Some examples:
+Here are some examples:
 
 [source,groovy]
 ----
@@ -260,17 +260,19 @@ assert nums.any{ it > 1 }
        && nums.withIndex().take(2)*.join(' ') == ['-3 0', '-2 1']
        && nums.chop(3, 3) == [[-3, -2, -1], [0, 1, 2]]
        && nums.max() == 2
-       && nums.partitionPoint{ it <= 1 } == 5
        && nums.max{ it.abs() } == -3
        && nums.reverse() == 2..-3
+       && nums.partitionPoint{ it <= 1 } == 5
 
 String[] letters = 'a'..'d'
 assert letters.last() == 'd'
        && letters.countBy{ it < 'b' } == [(true):1, (false):3]
        && letters.withIndex()*.join()
            == ['a0', 'b1', 'c2', 'd3']
-       && letters.indexed().entrySet().join(' ')
-           == '0=a 1=b 2=c 3=d'
+       && letters.indexed().collectEntries{ k, v -> [k, v * k] }
+           == [0:'', 1:'b', 2:'cc', 3:'ddd']
+       && letters.indexed().collectMany{ k, v -> [v] * k }
+           == ['b', 'c', 'c', 'd', 'd', 'd']
        && letters.withCollectedValues(String::toUpperCase)
            == ['a':'A', 'b':'B', 'c':'C', 'd':'D']
        && letters.withCollectedKeys(String::toUpperCase)
@@ -289,7 +291,7 @@ assert matrix.transpose() == [[1, 10, 100],
 assert matrix.flatten() == [1, 2, 10, 20, 100, 200]
 ----
 
-In some cases, the methods existed for a few of the primitive types but now work with more primitive types.
+In some cases, the methods existed for a few of the primitive array types but now work with more.
 In numerous cases, the functionality was only available by converting the array to a list first - which was easy but increased memory usage and decreased performance.
 For other cases, implementations now avoid un/boxing where possible.
 All up this means that Groovy now works better in data science scenarios
@@ -667,9 +669,9 @@ https://issues.apache.org/jira/browse/GROOVY-11367[GROOVY-11367])
 [[Groovy5.0-requirements]]
 == JDK requirements
 
-Groovy 5 requires JDK16+ to build and JDK11 is the
+Groovy 5 requires JDK17+ to build and JDK11 is the
 minimum version of the JRE that we support.
-Groovy 5 has been tested on JDK versions 11 through 20.
+Groovy 5 has been tested on JDK versions 11 through 25.
 
 [[Groovy5.0-more-info]]
 == More information
