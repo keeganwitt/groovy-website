@@ -9,69 +9,61 @@ In addition, it incorporates numerous new features and streamlines various legac
 |===
 a| NOTE: _WARNING:_
 Material on this page is still under development!
-We are currently working on alpha versions of Groovy 5.0 with a goal of gathering
-feedback on the language changes from our community. In addition, early versions
-assist other projects and tool vendors within the Groovy ecosystem to begin assessing
-the impact of moving to/supporting Groovy 5.0. Caution should be exercised if using
-new features as the details may change before final release. +
-&nbsp; +
-We don’t recommend using alpha versions or incubating features for production systems.
-We don't regard alpha versions as being feature-complete, so caution should be exercised
+We are currently working on beta versions of Groovy 5.0 with a goal of gathering
+feedback on the language changes from our community.
+Be careful using beta versions or incubating features for production systems.
+We don't regard beta versions as being feature-complete, so caution should be exercised
 before undertaking any large scale ports to Groovy 5. Having said that, we don't
 expect porting to Groovy 5 from Groovy 4 should involve much effort.
 |===
 
 [[Groovy5.0-new]]
-== New features
+== Additional Scripting Variations
 
-=== Support for `var` with multi-assignment
-
-The `var` keyword can be used in combination with multi-assignment:
-
-[source,groovy]
-----
-var (x, y) = [1, 2]
-assert x == 1 && y == 2
-----
-
-=== Scripting alternate forms
-
-https://openjdk.org/jeps/445[JEP 445] (a preview feature for JDK 21) allows certain
-Java executable classes to have a shortened form, potentially leaving out the class
-declaration and having  a simplified `main` method declaration.
-Such classes are still more verbose than Groovy scripts,
-but we have provided support for JEP 445 compatible classes in
-Groovy 5 to ease support for Java developers using Groovy and provide
-a few nice benefits to Groovy developers along the way.
+https://openjdk.org/jeps/512[JEP 512], targeted for JDK25
+(and previewed in earlier JDKs:
+https://openjdk.org/jeps/445[JEP 445]
+https://openjdk.org/jeps/463[JEP 463]
+https://openjdk.org/jeps/477[JEP 477]
+https://openjdk.org/jeps/495[JEP 495]
+),
+introduces a new `main` method signature and compact source notation for Java classes.
+Groovy 5 supports this new notation, as well as Groovy's traditional scripts,
+and an alternative abbreviated form.
 
 Let's recap the story so far. First, a traditional Java class:
 
 [source,java]
 ----
-public class HelloWorld {                       // Java
+public class HelloWorld {                       // Java (also Groovy)
     public static void main(String[] args) {
         System.out.println("Hello, World!");
     }
 }
 ----
 
-Next, the Groovy equivalent:
+Second, a traditional Groovy script:
 
 [source,groovy]
 ----
 println 'Hello, World!'
 ----
 
-What is being proposed for JEP 445 in Java:
+Groovy scripts are given an implicit main method and implicit class definition. Variable declarations in scripts
+are local variable declarations in the implicit main method unless annotated with `@Field`, in which case they become field definitions of the implicit class.
+
+Third, the "instance main" method proposed for JEP 512 in Java with an implicit class definition:
 
 [source,java]
 ----
-void main() {                                   // Java future
-    System.out.println("Hello, World!");
+void main() {                                   // Java JDK25 (also Groovy 5+)
+    IO.println("Hello, World!");
 }
 ----
 
-What Groovy will also support:
+Variants with arguments are also supported as are "static main" methods.
+
+Groovy supports such methods on JDK11+ and supports some slight simplifications:
 
 [source,groovy]
 ----
@@ -80,15 +72,25 @@ void main() {
 }
 ----
 
-Obviously, this is longer than the traditional Groovy one-liner script
-but has the advantage that we can place annotations on the `main` method.
-`TYPE` targeted annotations on the `main` method will be moved to the generated
+Finally, Groovy also provides an "instance run" method as an alternative form:
+
+[source,groovy]
+----
+void run() {
+    println 'Hello, World!'
+}
+----
+
+You may wonder why Groovy supports the JEP 512 notation when the traditional Groovy script
+is shorter? Firstly, there is Java compatibility, but also there are scenarios where we might like
+to use method or class annotations, and that is hard to do for an implicit method or an implicit class.
+
+`TYPE` targeted annotations on the `main`, or `run`, method will be moved to the generated
 script class. `METHOD` targeted annotations remain on the method.
 
-Classes created with an instance `main` method (like above) are JEP 445 compatible
-classes and will need to be invoked from the JDK with JEP 445 capability enabled
-(currently requires enabling preview in JDK21) or using the Groovy runner which
-now supports such classes from JDK11+.
+Classes created with an "instance main" method (like above) are JEP 512 compatible
+classes and will need to be invoked from the JDK with JEP 512 capability enabled
+or using the Groovy runner which now supports such classes from JDK11+.
 
 For backwards compatibility, classes created with a static `main` method are
 _promoted_ to have the normal public static void main signature. They can be run
@@ -104,7 +106,7 @@ static main(args) {
 }
 ----
 
-JEP 445 compatible classes may also contain other field and method definitions as shown here:
+JEP 512 compatible classes may also contain other field and method definitions as shown here:
 
 [source,groovy]
 ----
@@ -119,13 +121,13 @@ def (foo, bar) = ['Foo', 'Bar']
 ----
 
 But they can't contain any other "uncontained" statements, otherwise they
-are treated like a normal Groovy script. Another important distinction for JEP 445
+are treated like a normal Groovy script. Another important distinction for JEP 512
 compatible classes is that fields (like `lower`, `foo`, and `bar` in the above example)
 don't need to be annotated with `@Field`.
 
 An additional form is also supported which involves overwriting the `run` method
 in a script. This provides an alternate form to the earlier shown `main` variants.
-The difference is that rather than producing a JEP 445 compatible class, Groovy
+The difference is that rather than producing a JEP 512 compatible class, Groovy
 produces a script class which extends the `Script` class in the normal way and has
 access to the normal script binding and context. The use case is again where you
 might want to supply annotations, e.g.:
@@ -140,6 +142,17 @@ def run() {
 
 public pets = ['cat', 'dog']
 ----
+
+To summarise:
+
+* If you need access to the script binding or context, write a traditional class that extends the `Script` class,
+or a traditional Groovy script, or use the `run` method.
+* If you use the supported `main` or `run` method variants, you can have field definitions and other methods,
+and you don't need `@Field`. Consider these if you don't like `@Field` or you want to use annotations.
+* If you source file has any statements outside methods that aren't field declarations,
+it will be treated as a traditional script.
+* Use the "instance main" method variant if you want the generated bytecode to follow JEP 512 conventions.
+You will need JDK25+ to run from Java, or JDK11+ to run from Groovy.
 
 === Jakarta EE support
 
@@ -236,104 +249,6 @@ For instance, you might like to rename:
 == Extension method additions and improvements
 
 Groovy provides over 2000 extension methods to 150+ JDK classes to enhance JDK functionality, with *350 new methods added in Groovy 5*. These methods reduce dependency on third-party libraries for common tasks, and make code more intuitive. Let's explore some highlights from those 350 new methods.
-
-=== Additional primitive array extensions
-
-There are over 220 added or enhanced extension methods on primitive arrays.
-For single dimension arrays, we have: `any`, `chop`, `collectEntries`, `countBy`,
-`each`, `eachWithIndex`, `equals`, `every`, `first`, `flattenMany`, `head`, `indexOf`,
-`indexed`, `init`, `injectAll`, `join`, `last`, `lastIndexOf`, `max`, `maxComparing`,
-`min`, `minComparing`, `partitionPoint`, `putAt`, `reverse`, `reverseEach`, `sort`,
-`sum`, `tail`, `toSet`, `withCollectedKeys`, `withCollectedValues`, and `withIndex`.
-For multidimensional arrays we have: `flatten`, and `transpose`.
-
-Here are some examples:
-
-[source,groovy]
-----
-int[] nums = -3..2
-assert nums.any{ it > 1 }
-       && nums.every(n -> n < 4)
-       && nums.join(' ') == '-3 -2 -1 0 1 2'
-       && nums.head() == -3
-       && nums.tail() == -2..2
-       && nums.withIndex().take(2)*.join(' ') == ['-3 0', '-2 1']
-       && nums.chop(3, 3) == [[-3, -2, -1], [0, 1, 2]]
-       && nums.max() == 2
-       && nums.max{ it.abs() } == -3
-       && nums.reverse() == 2..-3
-       && nums.partitionPoint{ it <= 1 } == 5
-
-String[] letters = 'a'..'d'
-assert letters.last() == 'd'
-       && letters.countBy{ it < 'b' } == [(true):1, (false):3]
-       && letters.withIndex()*.join()
-           == ['a0', 'b1', 'c2', 'd3']
-       && letters.indexed().collectEntries{ k, v -> [k, v * k] }
-           == [0:'', 1:'b', 2:'cc', 3:'ddd']
-       && letters.indexed().collectMany{ k, v -> [v] * k }
-           == ['b', 'c', 'c', 'd', 'd', 'd']
-       && letters.withCollectedValues(String::toUpperCase)
-           == ['a':'A', 'b':'B', 'c':'C', 'd':'D']
-       && letters.withCollectedKeys(String::toUpperCase)
-           == ['A':'a', 'B':'b', 'C':'c', 'D':'d']
-       && letters.injectAll('') { carry, next -> carry + next }
-           == ['a', 'ab', 'abc', 'abcd']
-
-letters[1..2] = 'YZ'.split('')
-assert letters == ['a', 'Y', 'Z', 'd']
-
-int[][] matrix = [[1,   2],
-                  [10,  20],
-                  [100, 200]]
-assert matrix.transpose() == [[1, 10, 100],
-                              [2, 20, 200]]
-assert matrix.flatten() == [1, 2, 10, 20, 100, 200]
-----
-
-In some cases, the methods existed for a few of the primitive array types but now work with more.
-In numerous cases, the functionality was only available by converting the array to a list first - which was easy but increased memory usage and decreased performance.
-For other cases, implementations now avoid un/boxing where possible.
-All up this means that Groovy now works better in data science scenarios
-allowing more streamlined and performant code. Here is one microbenchmark showing
-the performance of the new array extension methods compared to equivalent Java and Groovy stream operations:
-
-image:img/arrayMaxPerformance.png[Array performance, width=600]
-
-=== Additional File and Path extensions
-
-There are some additional extension methods for `File` objects:
-
-[source,groovy]
-----
-def myscript = new File('MyScript.groovy')
-assert myscript     // Groovy truth: true if the file exists
-assert myscript.extension == 'groovy'
-assert myscript.baseName == 'MyScript'
-----
-
-And similar methods for `Path` objects:
-
-[source,groovy]
-----
-def mypic = path.resolve('MyFigure.png')
-assert mypic       // Groovy truth: true if the file exists
-assert mypic.extension == 'png'
-assert mypic.baseName == 'MyFigure'
-----
-
-=== Additional String extensions
-
-Additional `next` and `previous` methods and a `codePoints` method were added for Strings.
-A `getLength` method was added for `StringBuilder` and `StringBuffer`.
-These help with simpler String processing in a number of scenarios:
-
-[source,groovy]
-----
-assert (1..3).collect('💙'::next) == ['💚', '💛', '💜']
-assert '❤️'.codePoints.size() == 2
-assert new StringBuilder('FooBar').tap{ length -= 3 }.toString() == 'Foo'
-----
 
 === Additional Collection extensions
 
@@ -454,6 +369,198 @@ names << 'mary' // ok
 names << 35     // boom! fails early
 ----
 
+The `asChecked` methods add to the existing `asImmutable`, `asUnmodifiable`, and `asSynchronized` methods.
+
+==== Iterator extension method improvements
+
+The JDK stream API provides excellent functionality for working with streams of data.
+It works really nicely with Groovy, but Groovy also offers a rich set of extension
+methods on Iterators as an alternative approach for processing streams of data.
+The following Iterator extension methods were added or improved for Groovy 5:
+
+`chop`, `collate`, `collect`, `collecting`, `collectEntries`, `collectingEntries`, `collectMany`, `collectingMany`, `countBy`, `findingAll`, `findIndexValues`, `findingResults`,  `flatten`, `flattenMany`, `injectAll`,
+`interleave`, `join`, `plus`, `repeat`, `tapEvery`, `withCollectedKeys`, `withCollectedValues`, `zip`, and `zipAll`.
+
+We have seen some of these before, but the variants ending in "ing"
+might look slightly different and some explanation is useful.
+The streams API makes the distinction between intermediate and terminal operations.
+The rough equivalent for Iterator methods is that methods with an Iterator return type are a little
+like intermediate operations, and methods with a non-Iterator return type are a little like terminal operations.
+There are many of both types in the iterator extension methods.
+Methods like `drop`, `takeWhile`, `withIndex`, and `unique` all return Iterators (i.e. a stream of data).
+Whereas `count`, `inject`, `max`, `every`, `any`, `find`, and `findIndexOf` all return simple numbers or booleans.
+
+For historical reasons, there are some methods which return a List. There are times when you want the whole
+list and other times when lazy Iterator processing is more appropriate. For most methods on Iterators,
+we return Iterators, and you can call `toList()` to get the whole list if you want it.
+But for backwards-compatibility of a handful of long-standing methods,
+Groovy provides both eager and lazy variants:
+
+[cols="1,1"]
+|===
+|Eager |Lazy
+
+|collect
+|collecting
+
+|collectEntries
+|collectingEntries
+
+|collectMany
+|collectingMany
+
+|findAll
+|findingAll
+
+|findResults
+|findingResults
+|===
+
+The lazy variants are necessary when working with infinite streams of data and, like streams,
+will be more efficient in scenarios where lots of processing might be needed but an early return is possible.
+
+As an example, here is an eager example which uses a few hundred Mb of memory and takes a couple of minutes to run:
+
+[source,groovy]
+----
+assert (0..1000000)
+    .collect(n -> 1..n)        // [1..1, 1..2, 1..3, ...]
+    .collect(r -> r.sum())     // [1, 3, 6, 10, ...]
+    .collate(2)                // [[1, 3], [6, 10], ...]
+    .collect{ a, b -> a * b }  // [3, 60, 315, ...]
+    .findAll{ it % 2 }         // [3, 315, ...]
+    .take(3) == [3, 315, 2475]
+----
+
+On the same machine, the lazy version uses a few hundred Kb of memory and takes a few 10s of milliseconds to run:
+
+[source,groovy]
+----
+assert (1..100000).iterator()
+    .collecting(n -> 1..n)        // [1..1, 1..2, 1..3, ...]
+    .collecting(r -> r.sum())     // [1, 3, 6, 10, ...]
+    .collate(2)                   // [[1, 3], [6, 10], ...]
+    .collecting{ a, b -> a * b }  // [3, 60, 315, ...]
+    .findingAll{ it % 2 }         // [3, 315, ...]
+    .take(3)
+    .toList() == [3, 315, 2475]
+----
+
+You can also switch readily between the stream and iterator APIs:
+
+[source,groovy]
+----
+assert (1..100000).iterator()
+    .collecting(n -> 1..n)
+    .stream()
+    .map(r -> r.sum())
+    .iterator()
+    .collate(2)
+    .collecting{ a, b -> a * b }
+    .stream()
+    .filter{ it % 2 }
+    .limit(3)
+    .toList() == [3, 315, 2475]
+----
+
+=== Additional primitive array extensions
+
+There are over 220 added or enhanced extension methods on primitive arrays.
+For single dimension arrays, we have: `any`, `chop`, `collectEntries`, `countBy`,
+`each`, `eachWithIndex`, `equals`, `every`, `first`, `flattenMany`, `head`, `indexOf`,
+`indexed`, `init`, `injectAll`, `join`, `last`, `lastIndexOf`, `max`, `maxComparing`,
+`min`, `minComparing`, `partitionPoint`, `putAt`, `reverse`, `reverseEach`, `sort`,
+`sum`, `tail`, `toSet`, `withCollectedKeys`, `withCollectedValues`, and `withIndex`.
+For multidimensional arrays we have: `flatten`, and `transpose`.
+
+Here are some examples:
+
+[source,groovy]
+----
+int[] nums = -3..2
+assert nums.any{ it > 1 }
+       && nums.every(n -> n < 4)
+       && nums.join(' ') == '-3 -2 -1 0 1 2'
+       && nums.head() == -3
+       && nums.tail() == -2..2
+       && nums.withIndex().take(2)*.join(' ') == ['-3 0', '-2 1']
+       && nums.chop(3, 3) == [[-3, -2, -1], [0, 1, 2]]
+       && nums.max() == 2
+       && nums.max{ it.abs() } == -3
+       && nums.reverse() == 2..-3
+       && nums.partitionPoint{ it <= 1 } == 5
+
+String[] letters = 'a'..'d'
+assert letters.last() == 'd'
+       && letters.countBy{ it < 'b' } == [(true):1, (false):3]
+       && letters.withIndex()*.join()
+           == ['a0', 'b1', 'c2', 'd3']
+       && letters.indexed().collectEntries{ k, v -> [k, v * k] }
+           == [0:'', 1:'b', 2:'cc', 3:'ddd']
+       && letters.indexed().collectMany{ k, v -> [v] * k }
+           == ['b', 'c', 'c', 'd', 'd', 'd']
+       && letters.withCollectedValues(String::toUpperCase)
+           == ['a':'A', 'b':'B', 'c':'C', 'd':'D']
+       && letters.withCollectedKeys(String::toUpperCase)
+           == ['A':'a', 'B':'b', 'C':'c', 'D':'d']
+       && letters.injectAll('') { carry, next -> carry + next }
+           == ['a', 'ab', 'abc', 'abcd']
+
+letters[1..2] = 'YZ'.split('')
+assert letters == ['a', 'Y', 'Z', 'd']
+
+int[][] matrix = [[1,   2],
+                  [10,  20],
+                  [100, 200]]
+assert matrix.transpose() == [[1, 10, 100],
+                              [2, 20, 200]]
+assert matrix.flatten() == [1, 2, 10, 20, 100, 200]
+----
+
+In some cases, the methods existed for a few of the primitive array types but now work with more.
+In numerous cases, the functionality was only available by converting the array to a list first - which was easy but increased memory usage and decreased performance.
+For other cases, implementations now avoid un/boxing where possible.
+All up this means that Groovy now works better in data science scenarios
+allowing more streamlined and performant code. Here is one microbenchmark showing
+the performance of the new array extension methods compared to equivalent Java and Groovy stream operations:
+
+image:img/arrayMaxPerformance.png[Array performance, width=600]
+
+=== Additional File and Path extensions
+
+There are some additional extension methods for `File` objects:
+
+[source,groovy]
+----
+def myscript = new File('MyScript.groovy')
+assert myscript     // Groovy truth: true if the file exists
+assert myscript.extension == 'groovy'
+assert myscript.baseName == 'MyScript'
+----
+
+And similar methods for `Path` objects:
+
+[source,groovy]
+----
+def mypic = path.resolve('MyFigure.png')
+assert mypic       // Groovy truth: true if the file exists
+assert mypic.extension == 'png'
+assert mypic.baseName == 'MyFigure'
+----
+
+=== Additional String extensions
+
+Additional `next` and `previous` methods and a `codePoints` method were added for Strings.
+A `getLength` method was added for `StringBuilder` and `StringBuffer`.
+These help with simpler String processing in a number of scenarios:
+
+[source,groovy]
+----
+assert (1..3).collect('💙'::next) == ['💚', '💛', '💜']
+assert '❤️'.codePoints.size() == 2
+assert new StringBuilder('FooBar').tap{ length -= 3 }.toString() == 'Foo'
+----
+
 [[Groovy5.0-javasyntax]]
 == Java compatibility improvements
 
@@ -555,16 +662,34 @@ This improves various integration scenarios with mixed Groovy and Java codebases
 [[Groovy5.0-other]]
 == Other improvements
 
+=== Support for `var` with multi-assignment
+
+The `var` keyword can be used in combination with multi-assignment:
+
+[source,groovy]
+----
+var (x, y) = [1, 2]
+assert x == 1 && y == 2
+----
+
+=== String utility method
+
 There is now a utility method to produce simple ascii-art barcharts. The following code:
 
 [source,groovy]
 ----
-['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].each {
-    println "\n${it.padRight(12)}${bar(it.size(), 0, 10, 10)}"
+[
+    'Sunday', 'Monday', 'Tuesday',
+    'Wednesday', 'Thursday',
+    'Friday', 'Saturday'
+].each { day ->
+    def label = day.padRight(12)
+    def bar = bar(day.size(), 0, 10, 10)
+    println "\n$label$bar"
 }
 ----
 
-produces this image:
+produces this output:
 
 image:img/ascii_barchart.png[image]
 
