@@ -195,7 +195,10 @@ class SiteGenerator {
             }
         })
         new File(sourcesDir, 'releasenotes').eachFile(FileType.FILES) { File file ->
-            def name = file.name.substring(0, file.name.lastIndexOf('.adoc'))
+            if (file.name.startsWith('.DS')) return
+            def pos = file.name.lastIndexOf('.adoc')
+            assert pos > 0, "File name $file.name does not end with .adoc"
+            def name = file.name.substring(0, pos)
             def version = name - 'groovy-'
             releaseNotesVersions << version
             println "Rendering release notes for Groovy $version"
@@ -210,15 +213,14 @@ class SiteGenerator {
 
         def wikiDir = new File(sourcesDir, "wiki")
         def gepList = [:]
+        def options = Options.builder().build()
         wikiDir.eachFileRecurse { f ->
             if (f.name.endsWith('.adoc')) {
-                def header = asciidoctor.readDocumentHeader(f)
+
+                def doc = asciidoctor.loadFile(f, options)
                 def bn = f.name.substring(0, f.name.lastIndexOf('.adoc'))
-                def author = header.author?.fullName
-                if (!author) {
-                    author = header.authors*.fullName.join(', ')
-                }
-                println "Rendering $header.documentTitle.combined${author ? ' by ' + author : ''}"
+                def author = doc.authors*.fullName.join(', ')
+                println "Rendering $doc.structuredDoctitle.combined${author ? ' by ' + author : ''}"
                 def relativePath = []
                 def p = f.parentFile
                 while (p != wikiDir) {
@@ -226,9 +228,9 @@ class SiteGenerator {
                     p = p.parentFile
                 }
                 String baseDir = relativePath ? "wiki${File.separator}${relativePath.join(File.separator)}" : 'wiki'
-                render 'wiki', bn, [notes: f.getText('utf-8'), header: header], baseDir
+                render 'wiki', bn, [notes: f.getText('utf-8'), header: doc], baseDir
                 if (f.name.startsWith('GEP-')) {
-                    gepList[bn] = header.documentTitle.subtitle
+                    gepList[bn] = doc.structuredDoctitle.subtitle
                 }
             }
         }
@@ -244,10 +246,10 @@ class SiteGenerator {
         Map<String, Document> blogList = [:]
         Map<String, String> contents = [:]
         Map<String, String> baseDirs = [:]
+        def options = Options.builder().build()
         blogDir.eachFileRecurse { f ->
             if (f.name.endsWith('.adoc')) {
                 def bn = f.name.substring(0, f.name.lastIndexOf('.adoc'))
-                def options = Options.builder().build()
                 def doc = asciidoctor.loadFile(f, options)
                 println "Rendering $bn"
                 def relativePath = []
