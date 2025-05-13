@@ -783,6 +783,20 @@ var (x, y) = [1, 2]
 assert x == 1 && y == 2
 ----
 
+=== Support for an index variable in loops
+
+You can now declare an index variable in a for loop definition:
+
+[source,groovy]
+----
+var list = []
+var hearts = ['💙', '💚', '💛', '💜']
+for (int idx, var heart in hearts) {
+    idx.times { list << heart }
+}
+assert list.join() == '💚💛💛💜💜💜'
+----
+
 === String utility method
 
 There is now a utility method to produce simple ascii-art barcharts. The following code:
