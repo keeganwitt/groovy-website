@@ -439,6 +439,7 @@ def letters = new PriorityQueue(String.CASE_INSENSITIVE_ORDER)
 letters.addAll(['Z', 'y', 'X', 'a', 'B', 'c'])
 assert letters.toList() == ['a', 'B', 'c', 'Z', 'X', 'y'] // uses iterator()
 assert letters.drain() == ['a', 'B', 'c', 'X', 'y', 'Z']
+assert letters.empty
 ----
 
 ==== Checked collections
