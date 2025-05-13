@@ -805,7 +805,7 @@ produces this output:
 image:img/ascii_barchart.png[image]
 
 [[Groovy5.0-breaking]]
-== Other breaking changes
+== Breaking changes
 
 * Scripts containing a static `main` method and no statements outside that method have changed slightly
 for improved JEP 445 compatibility. The script class for such methods no longer extends `Script` and
