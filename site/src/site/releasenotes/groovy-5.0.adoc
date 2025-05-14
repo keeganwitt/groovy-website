@@ -2,6 +2,10 @@
 :pygments-style: emacs
 :icons: font
 
+:orange: pass:[<span style="background-color: #ffeecc">]
+:yellow: pass:[<span style="background-color: #ffffcc">]
+:end: pass:[</span>]
+
 Groovy 5 builds upon existing features of earlier versions of Groovy.
 In addition, it incorporates numerous new features and streamlines various legacy aspects of the Groovy codebase.
 
@@ -528,7 +532,8 @@ Groovy provides both eager and lazy variants:
 |===
 
 The lazy variants are necessary when working with infinite streams of data and, like streams,
-will be more efficient in scenarios where lots of processing might be needed but an early return is possible.
+will be more efficient in scenarios where lots of processing _might_
+be needed, but an early return is also possible.
 
 As an example, here is an eager example which uses a few hundred Mb of memory and takes a couple of minutes to run:
 
@@ -557,32 +562,32 @@ assert (1..100000).iterator()
     .toList() == [3, 315, 2475]
 ----
 
-You can also switch readily between the stream and iterator APIs:
+You can also switch readily between the {orange}stream{end} and {yellow}iterator{end} APIs:
 
-[source,groovy]
+[source,groovy,subs="+macros,+attributes"]
 ----
-assert (1..100000).iterator()
-    .collecting(n -> 1..n)
-    .stream()
-    .map(r -> r.sum())
-    .iterator()
-    .collate(2)
-    .collecting{ a, b -> a * b }
-    .stream()
-    .filter{ it % 2 }
-    .limit(3)
-    .toList() == [3, 315, 2475]
+{yellow}assert (1..100000).iterator(){end}
+{yellow}    .collecting(n -> 1..n){end}
+{yellow}    .stream(){end}
+{orange}    .map(r -> r.sum()){end}
+{orange}    .iterator(){end}
+{yellow}    .collate(2){end}
+{yellow}    .collecting{ a, b -> a * b }{end}
+{yellow}    .stream(){end}
+{orange}    .filter{ it % 2 }{end}
+{orange}    .limit(3){end}
+{orange}    .toList() == [3, 315, 2475]{end}
 ----
 
 === Additional array extensions
 
 There are over 220 added or enhanced extension methods on Object and primitive arrays.
-For single dimension arrays, we have: `any`, `chop`, `collectEntries`, `countBy`,
-`each`, `eachWithIndex`, `equals`, `every`, `first`, `flattenMany`, `head`, `indexOf`,
+For single dimension arrays, we have: `any`, `chop`, `collectEntries`, `column`, `countBy`,
+`each`, `eachColumn`, `eachWithIndex`, `equals`, `every`, `first`, `flattenMany`, `head`, `indexOf`,
 `indexed`, `init`, `injectAll`, `join`, `last`, `lastIndexOf`, `max`, `maxComparing`,
 `min`, `minComparing`, `partitionPoint`, `putAt`, `reverse`, `reverseEach`, `sort`,
-`sum`, `tail`, `toSet`, `withCollectedKeys`, `withCollectedValues`, and `withIndex`.
-For multidimensional arrays we have: `flatten`, and `transpose`.
+`sum`, `tail`, `toSet`, `withCollectedKeys`, `withCollectedValues`, `withIndex`, `zip`, and `zipping`.
+For multidimensional arrays we have: `flatten`, `transpose`, and `transposing`.
 
 Here are some examples:
 
