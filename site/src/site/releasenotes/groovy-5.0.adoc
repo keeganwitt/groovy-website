@@ -579,6 +579,18 @@ You can also switch readily between the {orange}stream{end} and {yellow}iterator
 {orange}    .toList() == [3, 315, 2475]{end}
 ----
 
+NOTE: A desirable property of Groovy's extension methods is that
+the series of calls needed for performing a series of operations
+is the same regardless of whether arrays, iterable or iterators
+are being used. That currently isn't the case for the 5 methods
+mentioned above for the case where you want iterator return types
+for subsequent calls. +
+A future release of Groovy may improve this
+situation. It might provide aliases, like `map` for `collect`,
+`filter` for `findAll`, etc. Alternatively, it might provide methods like
+`collecting` for iterables and arrays. We are assessing usage of the current
+changes before offering those alternatives.
+
 === Additional array extensions
 
 There are over 220 added or enhanced extension methods on Object and primitive arrays.
@@ -828,8 +840,14 @@ image:img/ascii_barchart.png[image]
 
 * The return type for the `findIndexValues` extension method for an `Iterator`
 was changed to `Iterator` from `List`. This facilitates calling a series of iterator extension methods in sequence and retaining the inherent lazy nature of the iterator. If you need all index values calculated eagerly, simply add `.toList()`. If a subsequent extension method is called, no change may be needed. (https://issues.apache.org/jira/browse/GROOVY-11647[GROOVY-11647])
+* The `chop` extension method accepts a sequence of numbers representing sizes of chopped chunks to return. Previous behavior was to return a list for each asked for size including when the chopped collection was fully used,
+giving one or more empty lists in that case. For other language and libraries offering similar functionality, the common behavior is to stop once the chopped collection is fully used. Groovy 5 now defaults to the common behavior but has an optional boolean to obtain the previous behavior. (https://issues.apache.org/jira/browse/GROOVY-11604[GROOVY-11604])
 * The return type for the `chop` extension method for an `Iterator`
 was changed to `Iterator<List>` from `List<List>`. This facilitates calling a series of iterator extension methods in sequence and retaining the inherent lazy nature of the iterator. If you need all chopped lists calculated eagerly, simply add `.toList()`. If a subsequent extension method is called, no change may be needed. (https://issues.apache.org/jira/browse/GROOVY-11599[GROOVY-11599])
+* Anonymous inner class visibility was made package-private instead of public to align with Java semantics (https://issues.apache.org/jira/browse/GROOVY-11481[GROOVY-11481])
+* There was a breaking change for an edge case involving nulls and the "spread-dot" operator that shouldn't affect most users (https://issues.apache.org/jira/browse/GROOVY-11453[GROOVY-11453])
+* Consistency was improved for Map-based property access with respect to visibility (https://issues.apache.org/jira/browse/GROOVY-11403[GROOVY-11403] and
+https://issues.apache.org/jira/browse/GROOVY-11367[GROOVY-11367])
 * Scripts containing a static `main` method and no statements outside that method have changed slightly
 for improved JEP 512 compatibility. The script class for such methods no longer extends `Script` and
 hence no longer has access to the script context or bindings. For many such scripts, access to the
@@ -918,10 +936,6 @@ with the old import being discarded (link:https://issues.apache.org/jira/browse/
 * Improvements have been made to improve consistency when accessing fields within Map-like classes.
 (link:https://issues.apache.org/jira/browse/GROOVY-6144[GROOVY-6144],
 link:https://issues.apache.org/jira/browse/GROOVY-5001[GROOVY-5001])
-* Anonymous inner class visibility was made package-private instead of public to align with Java semantics (https://issues.apache.org/jira/browse/GROOVY-11481[GROOVY-11481])
-* There was a breaking change for an edge case involving nulls and the "spread-dot" operator that shouldn't affect most users (https://issues.apache.org/jira/browse/GROOVY-11453[GROOVY-11453])
-* Consistency was improved for Map-based property access with respect to visibility (https://issues.apache.org/jira/browse/GROOVY-11403[GROOVY-11403] and
-https://issues.apache.org/jira/browse/GROOVY-11367[GROOVY-11367])
 * Visibility was tightened/aligned for package-private fields, properties and methods (https://issues.apache.org/jira/browse/GROOVY-11357[GROOVY-11357])
 
 [[Groovy5.0-requirements]]
