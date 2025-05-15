@@ -826,11 +826,14 @@ image:img/ascii_barchart.png[image]
 [[Groovy5.0-breaking]]
 == Breaking changes
 
+* The return type for the `findIndexValues` extension method for an `Iterator`
+was changed to `Iterator` from `List`. This facilitates calling a series of iterator extension methods in sequence and retaining the inherent lazy nature of the iterator. If you need all index values calculated eagerly, simply add `.toList()`. If a subsequent extension method is called, no change may be needed. (https://issues.apache.org/jira/browse/GROOVY-11647[GROOVY-11647])
+* The return type for the `chop` extension method for an `Iterator`
+was changed to `Iterator<List>` from `List<List>`. This facilitates calling a series of iterator extension methods in sequence and retaining the inherent lazy nature of the iterator. If you need all chopped lists calculated eagerly, simply add `.toList()`. If a subsequent extension method is called, no change may be needed. (https://issues.apache.org/jira/browse/GROOVY-11599[GROOVY-11599])
 * Scripts containing a static `main` method and no statements outside that method have changed slightly
-for improved JEP 445 compatibility. The script class for such methods no longer extends `Script` and
+for improved JEP 512 compatibility. The script class for such methods no longer extends `Script` and
 hence no longer has access to the script context or bindings. For many such scripts, access to the
-binding isn't needed and there is now a simpler structure for those scripts. Scripts which need access
-to the binding should instead use a no-arg instance `run` method.
+binding isn't needed and there is now a simpler structure for those scripts. If you have a script with such a method, convert it to a normal Groovy script, or change it to instead use a no-arg instance `run` method.
 (link:https://issues.apache.org/jira/browse/GROOVY-11118[GROOVY-11118])
 * The `getProperty` method allows for getting properties that don't exist within a class.
 Previously, static properties from an outer class were given priority over overrides
