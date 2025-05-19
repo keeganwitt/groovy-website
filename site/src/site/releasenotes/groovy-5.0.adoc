@@ -581,11 +581,14 @@ You can also switch readily between the {orange}stream{end} and {yellow}iterator
 
 NOTE: A desirable property of Groovy's extension methods is that
 the series of calls needed for performing a series of operations
-is the same regardless of whether arrays, iterable or iterators
+is the same regardless of whether arrays, iterables, or iterators
 are being used. That currently isn't the case for the 5 methods
 mentioned above for the case where you want iterator return types
-for subsequent calls. +
-A future release of Groovy may improve this
+for subsequent calls. This might sound like a flaw, but it's more like
+the case where for Java streams, some custom functionality could be
+implemented using either intermediate (Gatherer) or terminal (Collector) operators. +
+ +
+Having said that, a future release of Groovy may improve this
 situation. It might provide aliases, like `map` for `collect`,
 `filter` for `findAll`, etc. Alternatively, it might provide methods like
 `collecting` for iterables and arrays. We are assessing usage of the current
@@ -696,9 +699,9 @@ assert new StringBuilder('FooBar').tap{ length -= 3 }.toString() == 'Foo'
 
 Groovy uses the curly braces `{ }` syntax when defining closures.
 Early versions of Groovy excluded the use of any array literals to avoid conflict with the closure syntax,
-and instead piggy-backed on the list literal notation. Recent Groovy versions have allowed
+and instead piggybacked on the list literal notation. Recent Groovy versions have allowed
 single dimension array literals in contexts which are unambiguous. Groovy 5 extends
-this to support multi-dimensional arrays using the Java syntax
+this to support multidimensional arrays using the Java syntax
 (https://issues.apache.org/jira/browse/GROOVY-8551[GROOVY-8551]).
 The existing forms using list notation remain supported.
 
