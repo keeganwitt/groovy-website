@@ -432,6 +432,18 @@ nums.indices.every {
 }
 ----
 
+The JDK's `List#subList` method is very handy for working with mutating methods from the JDK Collections API
+on part of a list. Groovy 5, now offers a version of that method taking a range.
+
+[source,groovy]
+----
+def fruit = ['🍏', '🍎', '🍉', '🍋', '🍇']
+def apples = fruit.subList(0..<2)
+assert apples == ['🍏', '🍎']
+apples.clear()
+assert fruit == ['🍉', '🍋', '🍇']
+----
+
 A known feature of some queues within the JDK Collections API,
 is that the standard iterator for queues like `PriorityQueue` don't return elements in priority order.
 Instead, the `poll()` method is used to return the next highest priority element.
