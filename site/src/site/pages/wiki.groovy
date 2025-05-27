@@ -1,13 +1,7 @@
 import generator.DocUtils
 import org.asciidoctor.ast.DocumentHeader
 
-modelTypes = {
-    DocumentHeader header
-    String title
-    String notes
-}
-
-title = header.documentTitle.main
+title = doc.structuredDoctitle.main
 
 layout 'layouts/main.groovy', true,
         pageTitle: "The Apache Groovy programming language - Developer docs - $title",
@@ -44,20 +38,20 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-8 col-lg-pull-0') {
                             a(name:"doc"){}
                             h1(title)
-                            if (header.author) {
+                            def authors = doc.authors*.fullName
+                            if (authors.size() == 1) {
                                 p {
                                     yield 'Author: '
-                                    i(header.author.fullName)
+                                    i(authors[0])
                                 }
-                            } else if (header.authors) {
+                            } else if (authors) {
                                 p {
                                     yield 'Authors: '
-                                    i(header.authors*.fullName.join(', '))
+                                    i(authors.join(', '))
                                 }
-
                             }
-                            if (header.revisionInfo?.date) {
-                                p("Last update: ${header.revisionInfo.date} (${header.revisionInfo.remark?:'no comment'})")
+                            if (doc.attributes.revisionInfo?.date) {
+                                p("Last update: ${doc.attributes.revisionInfo.date} (${doc.attributes.revisionInfo.remark?:'no comment'})")
                             }
                             hr()
                             yieldUnescaped notesAsHTML

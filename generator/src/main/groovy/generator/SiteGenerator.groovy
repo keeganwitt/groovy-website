@@ -228,7 +228,7 @@ class SiteGenerator {
                     p = p.parentFile
                 }
                 String baseDir = relativePath ? "wiki${File.separator}${relativePath.join(File.separator)}" : 'wiki'
-                render 'wiki', bn, [notes: f.getText('utf-8'), header: doc], baseDir
+                render 'wiki', bn, [notes: f.getText('utf-8'), doc: doc], baseDir
                 if (f.name.startsWith('GEP-')) {
                     gepList[bn] = doc.structuredDoctitle.subtitle
                 }
