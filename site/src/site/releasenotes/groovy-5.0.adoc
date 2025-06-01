@@ -268,6 +268,44 @@ For instance, you might like to rename:
 Groovy has excellent support for writing Domain Specific Languages (DSLs),
 but using the `@OperatorRename` transform means we can skip constructing our own DSL in simple cases.
 
+=== Additional type safety for generated map constructors and copyWith methods
+
+Groovy provides named parameter support through a convention of using a Map as the first parameter
+for a Groovy or Java method. Such methods annotated with `@NamedParam` allow
+Groovy's static compiler to provide full compile-time type safety including detecting unknown arguments.
+Good IDEs will also provide auto-completion and checking for such methods.
+
+Groovy has a couple of dozen methods annotated in this way and also automatically generates
+such annotations already when using the `@NamedVariant` annotation or for records.
+With Groovy 5, the `@NamedParam` annotation is now also added automatically when using
+`@MapConstructor` (used by `@Immutable` and `@Canonical`) and the `copyWith` option for `@Immutable`.
+
+[source,groovy]
+----
+@Immutable(copyWith = true)
+class DoctorWho {
+    String first, last
+    Integer number
+}
+----
+
+If we try to create a `DoctorWho` object with an unknown parameter, or use the `copyWith` method
+with incorrect types, we will get runtime errors for dynamic Groovy and compile-time errors
+for static Groovy (shown below):
+
+----
+[Static type checking] - unexpected named arg: born
+ @ line 11, column 65.
+def dr4 = new DoctorWho(first: 'Tom', last: 'Baker', number: 4, born: 1934)
+                                                                ^
+
+[Static type checking] - argument for named param 'number' has type 'java.lang.String' but expected 'java.lang.Integer'.
+ @ line 12, column 40.
+def dr6 = dr4.copyWith(first: 'Colin', number: 'six')
+                                       ^
+2 errors
+----
+
 == Extension method additions and improvements
 
 Groovy provides over 2000 extension methods to 150+ JDK classes to enhance JDK functionality, with *350 new methods added in Groovy 5*. These methods reduce dependency on third-party libraries for common tasks, and make code more intuitive. Let's explore some highlights from those 350 new methods.
