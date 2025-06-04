@@ -869,6 +869,72 @@ This improves various integration scenarios with mixed Groovy and Java codebases
 [[Groovy5.0-other]]
 == Other improvements
 
+=== Infinite Iterator generation
+
+The JDK Streams API provides methods like `Stream.iterate` and `Stream.generate` to
+create infinite streams of data (and there are variants in other classes like the `IntStream` class).
+Groovy 5 provides equivalent methods for infinite Iterators.
+
+Creating and using an iterator of infinite odd numbers might look like this:
+
+[source,groovy]
+----
+assert Iterators.iterate(1, n -> n + 2).take(5).toList() == [1, 3, 5, 7, 9]
+----
+
+Creating and using an iterator of infinite consonants could look like this:
+
+[source,groovy]
+----
+def consonants = ('a'..'z') - ['a', 'e', 'i', 'o', 'u']
+def count = 0
+def consonantSupplier = { consonants[count++ % consonants.size()] } as Supplier
+assert Iterators.generate(consonantSupplier).take(5).toList() == ['b', 'c', 'd', 'f', 'g']
+----
+
+=== Additional methods for generating combinations
+
+Groovy already provides various methods for working with combinations and permutations of elements.
+Groovy 5 adds some extra options with `Iterators.combine` and `Iterables.combine` methods for generating combinations of elements from named sources including infinite sources.
+
+If we have some Iterable sources of numbers and letters, we can combine them as follows:
+
+[source,groovy]
+----
+assert Iterables.combine(num: 1..2, letter: 'a'..'c').toList() == [
+    [num:1, letter:'a'], [num:1, letter:'b'], [num:1, letter:'c'],
+    [num:2, letter:'a'], [num:2, letter:'b'], [num:2, letter:'c']
+]
+----
+
+There is an equivalent method where the sources are Iterators.
+If more than one source is infinite, you might want to set the optional
+`fairOrdering` boolean parameter to `true`. Otherwise, you'd get
+an infinite number of combinations with the _even_ value always being `0` and the _odd_ value
+iterating through all odd numbers, or vice versa.
+
+Generating combinations of odds and evens with fair ordering could look like this:
+
+[source,groovy]
+----
+assert Iterators.combine(
+    even: Iterators.iterate(0, n -> n + 2),
+    odd: Iterators.iterate(1, n -> n + 2),
+    true
+).take(10).toList() == [
+  [even:0, odd:1],
+  [even:0, odd:3],
+  [even:2, odd:1],
+  [even:2, odd:3],
+  [even:0, odd:5],
+  [even:2, odd:5],
+  [even:4, odd:1],
+  [even:4, odd:3],
+  [even:4, odd:5],
+  [even:0, odd:7]
+]
+----
+
 === A new "logical implication" operator
 
 Groovy 5 introduces a new operator, `=\=>`, which is the _logical implication_ operator.
