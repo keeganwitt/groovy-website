@@ -742,6 +742,32 @@ assert '❤️'.codePoints.size() == 2
 assert new StringBuilder('FooBar').tap{ length -= 3 }.toString() == 'Foo'
 ----
 
+=== Additional Stream extensions
+
+Many of Groovy's shortcut notations (like the _plus_ and _spread-dot_ operators) are already supported for streams.
+Groovy 5 adds support for the `getAt(int)` and `getAt(IntRange)` index operators
+as short-circuiting terminal stream operations:
+
+[source,groovy]
+----
+def nums = (10..20).stream()
+assert nums[5] == 15
+def letters = ('a'..'d').stream()
+assert letters[1..2] == 'b'..'c'
+----
+
+=== Additional BitSet extensions
+
+Groovy already supports numerous shortcut notations for the JDK's `BitSet` class (like the `and` ("&"), `or` ("|"), `xor` ("^"), `bitwiseNegate` ("~"), and index operators).
+Groovy 5 adds support for the `leftShift` ("<<"), `rightShift` (">>"), and `rightShiftUnsigned` (">>>") operators:
+
+[source,groovy]
+----
+def fortyTwo = BitSet.valueOf(42)
+assert BitSet.valueOf(84) == fortyTwo << 1
+assert BitSet.valueOf(21) == fortyTwo >> 1
+----
+
 [[Groovy5.0-javasyntax]]
 == Java compatibility improvements
 
@@ -842,6 +868,27 @@ This improves various integration scenarios with mixed Groovy and Java codebases
 
 [[Groovy5.0-other]]
 == Other improvements
+
+=== A new "logical implication" operator
+
+Groovy 5 introduces a new operator, `=\=>`, which is the _logical implication_ operator.
+This follows languages like Racket, Eiffel, and Dafny. We chose the "=\=>" syntax
+to match what Dafny uses (and what has been proposed for Scala). It is short-circuiting,
+like the existing equivalent, `!A || B`, but is often clearer in
+preconditions, postconditions, invariants and some other logical expressions:
+
+[source,groovy]
+----
+assert false ==> false
+assert false ==> true
+assert false ==> new RuntimeException()
+assert true ==> true
+assert !(true ==> false)
+----
+
+This operator corresponds to the `implies` extension method for `Boolean` values, but
+is a not an overrideable operator, instead being expanded to its equivalent form `!A || B`.
+Bear this in mind if using this operator in your Domain Specific Language (DSL) code.
 
 === Support for `var` with multi-assignment
 
