@@ -768,6 +768,13 @@ assert BitSet.valueOf(84) == fortyTwo << 1
 assert BitSet.valueOf(21) == fortyTwo >> 1
 ----
 
+[[Groovy5.0-groovysh]]
+== New and improved Groovysh Repl
+
+The `groovysh` command-line repl has been migrated to JLine3 and has many improvements.
+
+image:img/NewRepl.png[New Groovysh Repl, width=800]
+
 [[Groovy5.0-javasyntax]]
 == Java compatibility improvements
 
