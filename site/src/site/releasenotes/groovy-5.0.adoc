@@ -773,7 +773,55 @@ assert BitSet.valueOf(21) == fortyTwo >> 1
 
 The `groovysh` command-line repl has been migrated to JLine3 and has many improvements.
 
+Here is an example showing /slurp and /prnt while processing data involving Whiskey flavors:
+
 image:img/NewRepl.png[New Groovysh Repl, width=800]
+
+The available commands are:
+
+[source,properties]
+----
+groovy> /help
+    /!           execute shell command
+    /alias       create command alias
+    /classloader display/manage Groovy classLoader data
+    /clear       clear terminal
+    /colors      view 256-color table and ANSI-styles
+    /console     launch Groovy console
+    /del         delete console variables, methods, classes and imports
+    /doc         open document on browser
+    /echo        echos a value
+    /grab        add maven repository dependencies to classpath
+    /highlighter manage nanorc theme system
+    /history     list history of commands
+    /imports     show/delete import statements
+    /inspect     display/browse object info on terminal/object browser
+    /keymap      manipulate keymaps
+    /less        file pager
+    /load        load state/a file into the buffer
+    /methods     show/delete methods
+    /nano        edit files
+    /pipe        create/delete pipe operator
+    /prnt        print object
+    /reset       clear the buffer
+    /save        save state/the buffer to a file
+    /setopt      set options
+    /setvar      set lineReader variable value
+    /show        list console variables
+    /slurp       slurp file or string variable context to object
+    /ttop        display and update sorted information about threads
+    /types       show/delete types
+    /unalias     remove command alias
+    /unsetopt    unset options
+    /vars        show/delete variable declarations
+    /widget      manipulate widgets
+    exit         exit from app/script
+    help         command help
+----
+
+Here is an example of a mini RPG game showing types, methods and variable definitions:
+
+image:img/NewReplGame.png[New Groovysh Repl, width=800]
 
 [[Groovy5.0-javasyntax]]
 == Java compatibility improvements
