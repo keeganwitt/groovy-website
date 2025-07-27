@@ -773,9 +773,13 @@ assert BitSet.valueOf(21) == fortyTwo >> 1
 
 The `groovysh` command-line repl has been migrated to JLine3 and has many improvements.
 
-Here is an example showing /slurp and /prnt while processing data involving Whiskey flavors:
+Here is an example showing completion when using the `/grab` command:
 
-image:img/NewRepl.png[New Groovysh Repl, width=800]
+image:img/NewRepl.png[New Groovysh Repl completion, width=800]
+
+Here is an example showing `/slurp` and `/prnt` while processing data involving Whiskey flavors, we'll make an Ollama API call and use GQ queries to show a few more features:
+
+image:img/NewRepl2.png[New Groovysh Repl, width=800]
 
 The available commands are:
 
