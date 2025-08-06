@@ -9,19 +9,25 @@
 Groovy 5 builds upon existing features of earlier versions of Groovy.
 In addition, it incorporates numerous new features and streamlines various legacy aspects of the Groovy codebase.
 
-[width="80%",align="center"]
-|===
-a| NOTE: _WARNING:_
-Material on this page is still under development!
-We are currently working on beta versions of Groovy 5.0 with a goal of gathering
-feedback on the language changes from our community.
-Be careful using beta versions or incubating features for production systems.
-We don't regard beta versions as being feature-complete, so caution should be exercised
-before undertaking any large scale ports to Groovy 5. Having said that, we don't
-expect porting to Groovy 5 from Groovy 4 should involve much effort.
-|===
+NOTE: Material on this page is still under development!
+We are currently working on release candidates for Groovy 5.0 with a goal of gathering
+final feedback on the language changes from our community.
+Groovy 5 is feature complete and largely locked down but be warned there might
+still be some changes before final release that could impact early adopters.
 
-[[Groovy5.0-new]]
+== Highlights
+
+Key highlights of Groovy 5.0 include:
+
+* Support for JDK 11-25
+* Over 350 new _extension method_ additions and improvements including highly performant array operations
+* _AST Transform_ additions and improvements
+* New and improved _groovysh_ Repl based on JLine 3
+* _Java compatibility_ improvements including pattern matching for `instanceof`
+* Additional _scripting variations_ to support JEP-512 compact source files and instance main methods in addition to Groovy's shorter scripts
+* Improved Web Content Creation supporting Jakarta standards
+* Other improvements like infinite iterator generation, and index variables in loops
+
 == Additional Scripting Variations
 
 https://openjdk.org/jeps/512[JEP 512], targeted for JDK25
