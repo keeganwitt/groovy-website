@@ -928,6 +928,18 @@ This improves various integration scenarios with mixed Groovy and Java codebases
 [[Groovy5.0-other]]
 == Other improvements
 
+=== Automatic java.time.* import
+
+Groovy automatically imports several commons packages, like `java.lang`, `java.util`, and `java.io`.
+Groovy 5 adds `java.time` to this list, so you can use classes like `LocalDate`, `LocalTime`, and `LocalDateTime`
+without needing to import them explicitly. This puts the `java.time` classes on equal footing with the `java.util.Date` and `java.util.Calendar` classes, which have always been automatically imported.
+This makes scripts and domain classes much simpler to read and write.
+
+Only the classes in the `java.time` package are automatically imported, so you still need to import
+classes in the `java.time` subpackages if you need them.
+
+See also the note in breaking changes if you have been using classes in the default (no) package having the same names as `java.time` classes.
+
 === Infinite Iterator generation
 
 The JDK Streams API provides methods like `Stream.iterate` and `Stream.generate` to
@@ -1202,6 +1214,11 @@ is performed between the dynamic Groovy runtime and with static compilation.
 * Improvements have been made to improve consistency when accessing fields within Map-like classes.
 (link:https://issues.apache.org/jira/browse/GROOVY-6144[GROOVY-6144],
 link:https://issues.apache.org/jira/browse/GROOVY-5001[GROOVY-5001])
+* The `java.time` packages are an additional default import in Groovy 5.
+If you have classes in the default (no) package with the same names as classes in the `java.time` package,
+you will need to rename those classes, or place them in a package, or use an import alias, to avoid conflicts.
+The most common classes that might conflict are `Year`, `Month`, and `Duration`.
+(link:https://issues.apache.org/jira/browse/GROOVY-11513[GROOVY-11513])
 
 [[Groovy5.0-requirements]]
 == JDK requirements
