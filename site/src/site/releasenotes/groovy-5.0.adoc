@@ -777,13 +777,29 @@ assert BitSet.valueOf(21) == fortyTwo >> 1
 [[Groovy5.0-groovysh]]
 == New and improved Groovysh Repl
 
-The `groovysh` command-line repl has been migrated to JLine3 and has many improvements.
+The `groovysh` command-line repl has been migrated to
+https://github.com/jline/jline3[JLine3]
+and has many improvements including:
+
+* Cross-platform line editing, history and completion
+* Rich set of commands giving a shell-like experience including:
+  ** `/grab` to add Maven dependencies to the classpath
+  ** `/prnt` to print objects in a human-readable format
+  ** `/inspect` to browse object information
+  ** `/slurp` to shortcut data ingestion
+  ** `/nano` to edit files in the terminal
+* ANSI colors (syntax highlighting, prompt, exception traces, etc)
+* Online help, user alias support and more
 
 Here is an example showing completion when using the `/grab` command:
 
-image:img/NewRepl.png[New Groovysh Repl completion, width=800]
+image:img/NewRepl.png[New Groovysh Repl completion, width=600]
 
-Here is an example showing `/slurp` and `/prnt` while processing data involving Whiskey flavors, we'll make an Ollama API call and use GQ queries to show a few more features:
+Here is an example showing completion for some code:
+
+image:img/NewRepl1.png[New Groovysh Repl code completion, width=800]
+
+Here is an example showing `/slurp` and `/prnt` while processing data involving Whiskey flavors; we'll make an Ollama API call and use GQ queries to show a few more features:
 
 image:img/NewRepl2.png[New Groovysh Repl, width=800]
 
@@ -794,14 +810,21 @@ The available commands are:
 groovy> /help
     /!           execute shell command
     /alias       create command alias
+    /cat         concatenate and print FILES
+    /cd          change directory
     /classloader display/manage Groovy classLoader data
     /clear       clear terminal
     /colors      view 256-color table and ANSI-styles
     /console     launch Groovy console
+    /date        display date
     /del         delete console variables, methods, classes and imports
     /doc         open document on browser
     /echo        echos a value
+    /exit        exit from app/script
     /grab        add maven repository dependencies to classpath
+    /grep        search for PATTERN in each FILE or standard input.
+    /head        display first lines of files
+    /help        command help
     /highlighter manage nanorc theme system
     /history     list history of commands
     /imports     show/delete import statements
@@ -809,24 +832,27 @@ groovy> /help
     /keymap      manipulate keymaps
     /less        file pager
     /load        load state/a file into the buffer
+    /ls          list files
     /methods     show/delete methods
     /nano        edit files
     /pipe        create/delete pipe operator
     /prnt        print object
+    /pwd         print working directory
     /reset       clear the buffer
     /save        save state/the buffer to a file
     /setopt      set options
     /setvar      set lineReader variable value
     /show        list console variables
     /slurp       slurp file or string variable context to object
+    /sort        writes sorted standard input to standard output.
+    /tail        display last lines of files
     /ttop        display and update sorted information about threads
     /types       show/delete types
     /unalias     remove command alias
     /unsetopt    unset options
     /vars        show/delete variable declarations
+    /wc          word, line, character, and byte count
     /widget      manipulate widgets
-    exit         exit from app/script
-    help         command help
 ----
 
 Here is an example of a mini RPG game showing types, methods and variable definitions:
