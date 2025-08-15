@@ -859,6 +859,10 @@ Here is an example of a mini RPG game showing types, methods and variable defini
 
 image:img/NewReplGame.png[New Groovysh Repl, width=800]
 
+Here is an example showing the `/pipe` and `/classloader` commands:
+
+image:img/NewRepl3.png[New Groovysh Repl, width=800]
+
 [[Groovy5.0-javasyntax]]
 == Java compatibility improvements
 
