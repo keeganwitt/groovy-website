@@ -11,32 +11,44 @@ In addition, it incorporates numerous new features and streamlines various legac
 
 == Highlights
 
-Key highlights of Groovy 5.0 include:
+*Broader JDK Support*
 
-* Support for JDK 11-25, including:
-** Support for many JDK 17-25 features on earlier JDK versions including JDK11
-* Over 350 new _extension method_ additions and improvements to increase developer productivity and offer greater performance, including:
-** highly performant array operations offering an order of magnitude greater speed
-** stream equivalent lazy iterator methods without stream overheads
-** a range of methods not available in the JDK for greater out-of-the box functionality
-* _AST Transform_ additions and improvements, including:
-** `@OperatorRename` to allow third-party libraries to maximally use Groovy's operator overloading
-without changing the libraries or needing to write glue code
-* New and improved _groovysh_ Repl based on JLine 3 with many features, including:
-** Cross-platform terminal support with rich shell-like commands
-** Colorized syntax highlighting and intelligent output formatting
-** Command history and completion
-* _Java compatibility_ improvements, including:
-** pattern matching for `instanceof`
-* Additional _scripting variations_
-** To support JEP-512 compact source files and instance main methods in addition to Groovy's shorter scripts
-* Improved web content creation
-** Supporting Jakarta as well as legacy Javax standards
-* Type checking improvements, including:
-** "Stronger than Java" type checking for format strings
-* Other improvements like:
-** Infinite iterator generation
-** Index variables in loops
+* Full compatibility with JDK 11–25.
+* Many JDK 17–25 language features backported for use on earlier JDKs.
+
+*Massive Extension Method Expansion*
+
+- 350+ new and improved methods to boost productivity.
+- Up to *10× faster* array operations.
+- Lazy iterator methods offering stream-like behavior *without the overhead*.
+- New utilities beyond the standard JDK for richer out-of-the-box functionality.
+
+*Enhanced AST Transforms*
+
+- New `@OperatorRename` transform for seamless operator overloading in third-party libraries.
+
+*Revamped REPL (groovysh)*
+
+- Built on JLine 3 with cross-platform terminal support.
+- Colorized syntax highlighting, intelligent output, history, and completion.
+
+*Improved Java Interoperability*
+
+- Pattern matching for `instanceof`.
+- Support for JEP-512 compact source files and instance main methods.
+
+*Modern Web Standards*
+
+- Enhanced web content creation with both Jakarta and legacy Javax support.
+
+*Type Checking Enhancements*
+
+- Stronger-than-Java format string checking.
+
+*Additional Language Goodies*
+
+- Infinite iterator generation.
+- Index variables in loops.
 
 == Extension method additions and improvements
 
