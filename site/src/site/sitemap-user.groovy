@@ -216,6 +216,17 @@ ecosystem {
 
 allEvents {
     // Note that the event image should be 257x180 to look nice
+    event('JavaZone 2025') {
+        location 'NOVA Spektrum, Lillestrøm'
+        date 'September 3-4, 2025'
+        url 'https://2025.javazone.no/en'
+        logo 'img/confs/javazone2025.png'
+        description '''
+            <p>
+            JavaZone is the biggest community-driven Java conference that has been organized in Oslo, Norway since 2001.
+            </p>
+        '''
+    }
     event('Community over Code NA') {
         location 'Minneapolis, Minnesota'
         date 'September 11-14, 2025'
