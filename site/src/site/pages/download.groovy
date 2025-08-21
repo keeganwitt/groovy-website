@@ -11,7 +11,7 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-3') {
                             ul(class: 'nav-sidebar') {
                                 li(class: 'active') {
-                                    a(href: 'download.html') { strong('Download Groovy&trade;') }
+                                    a(href: 'download.html') { strong('Download Groovy™') }
                                 }
                                 li {
                                     a(href: '#distro', class: 'anchor-link', 'Distributions')
