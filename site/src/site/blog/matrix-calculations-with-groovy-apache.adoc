@@ -1,4 +1,4 @@
-= Matrix calculations with Groovy™, Apache Commons Math, ojAlgo, Nd4j and EJML
+= Matrix calculations with Groovy&trade;, Apache Commons Math, ojAlgo, Nd4j and EJML
 Paul King
 :revdate: 2022-08-18T13:41:03+00:00
 :keywords: data science, groovy, matrices, ojalgo, commons math, nd4j, ejml, vector api, eclipse deeplearning4j

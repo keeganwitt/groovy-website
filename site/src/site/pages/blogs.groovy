@@ -65,9 +65,9 @@ layout 'layouts/main.groovy', true,
                         }
 
                         div(class: 'col-lg-8 col-lg-pull-0') {
-                            h1('Blogs for Groovy™')
+                            h1('Blogs for Groovy&trade;')
                             div(id: 'chartdiv') { }
-                            p 'Here you can find blog posts related to the Apache Groovy™ programming language:'
+                            p 'Here you can find blog posts related to the Apache Groovy&trade; programming language:'
                             div(id: 'blog-list') {
                                 div {
                                     span('Search: ')

@@ -15,7 +15,7 @@ We'll explore Whisky flavor profiles!_#
 
 In previous blog posts, we have looked at clustering whisky profiles using:
 
-* https://groovy.apache.org/blog/using-groovy-with-apache-wayang[Apache Wayang's cross-platform machine learning] supporting native and Apache Spark™ data processing platforms
+* https://groovy.apache.org/blog/using-groovy-with-apache-wayang[Apache Wayang's cross-platform machine learning] supporting native and Apache Spark&trade; data processing platforms
 * https://groovy.apache.org/blog/whiskey-clustering-with-groovy-and[Apache Ignite's distributed machine learning]
 
 The https://github.com/paulk-asert/groovy-data-science[groovy-data-science] repo also has examples of this case study using other technologies including:
