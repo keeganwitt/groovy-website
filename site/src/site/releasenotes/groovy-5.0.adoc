@@ -11,41 +11,41 @@ In addition, it incorporates numerous new features and streamlines various legac
 
 == Highlights
 
-*Broader JDK Support*
+*_Broader JDK Support_*
 
 * Full compatibility with JDK 11–25.
-* Many JDK 17–25 language features backported for use on earlier JDKs.
+* Many JDK 17–25 language features available for use on earlier JDKs.
 
-*Massive Extension Method Expansion*
+*_Substantial Extension Method Expansion_*
 
 - 350+ new and improved methods to boost productivity.
 - Up to *10× faster* array operations.
 - Lazy iterator methods offering stream-like behavior *without the overhead*.
 - New utilities beyond the standard JDK for richer out-of-the-box functionality.
 
-*Enhanced AST Transforms*
+*_Enhanced AST Transforms_*
 
 - New `@OperatorRename` transform for seamless operator overloading in third-party libraries.
 
-*Revamped REPL (groovysh)*
+*_Revamped REPL (groovysh)_*
 
 - Built on JLine 3 with cross-platform terminal support.
 - Colorized syntax highlighting, intelligent output, history, and completion.
 
-*Improved Java Interoperability*
+*_Improved Java Interoperability_*
 
 - Pattern matching for `instanceof`.
 - Support for JEP-512 compact source files and instance main methods.
 
-*Modern Web Standards*
+*_Modern Web Standards_*
 
 - Enhanced web content creation with both Jakarta and legacy Javax support.
 
-*Type Checking Enhancements*
+*_Type Checking Enhancements_*
 
 - Stronger-than-Java format string checking.
 
-*Additional Language Goodies*
+*_Additional Language Goodies_*
 
 - Infinite iterator generation.
 - Index variables in loops.
