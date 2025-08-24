@@ -80,19 +80,24 @@ downloads {
     distribution('Groovy 5.0') {
         description {
             a(href: "${userSiteBase}releasenotes/groovy-5.0.html", 'Groovy 5.0')
-            yield ' is the next major '
+            yield ' is the latest stable '
             a(href: 'versioning.html', 'version')
             yield ' of Groovy designed for JDK11+.'
         }
+        version('5.0.0') {
+            stable true
+//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.0.0/'
+        }
         version('5.0.0-rc-1') {
             stable false
+            archive true
             windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.0.0-rc-1/'
         }
     }
     distribution('Groovy 4.0') {
         description {
             a(href: "${userSiteBase}releasenotes/groovy-4.0.html", 'Groovy 4.0')
-            yield ' is the latest stable '
+            yield ' is the previous stable '
             a(href: 'versioning.html', 'version')
             yield ' of Groovy designed for JDK8+ with much improved JPMS support.'
         }
@@ -104,9 +109,9 @@ downloads {
     distribution('Groovy 3.0') {
         description {
             a(href: "${userSiteBase}releasenotes/groovy-3.0.html", 'Groovy 3.0')
-            yield ' is the previous stable '
+            yield ' is an earlier '
             a(href: 'versioning.html', 'version')
-            yield ' of Groovy designed for JDK8+ with a new more flexible parser (aka Parrot parser).'
+            yield ' of Groovy still in widespread use and designed for JDK8+ with a new more flexible parser.'
         }
         version('3.0.25') {
             stable true
@@ -118,7 +123,7 @@ downloads {
             a(href: "${userSiteBase}releasenotes/groovy-2.5.html", 'Groovy 2.5')
             yield ' is an earlier '
             a(href: 'versioning.html', 'version')
-            yield ' of Groovy still in widespread use.'
+            yield ' of Groovy still in use.'
         }
         version('2.5.23') {
             stable true
