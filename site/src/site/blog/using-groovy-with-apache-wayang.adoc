@@ -4,7 +4,7 @@ Paul King <paulk-asert|PMC_Member>
 :pygments-style: emacs
 :icons: font
 :revdate: 2022-06-19T13:01:07+00:00
-:updated: 2025-02-20T14:10:00+00:00
+:updated: 2025-08-25T14:11:00+00:00
 :keywords: centroids, data science, groovy, kmeans, records, whisky, whiskey, wayang, apache spark, apache wayang
 :description: This post looks at using Apache Wayang and Apache Spark with Apache Groovy to cluster various Whiskies.
 
@@ -61,7 +61,10 @@ in that cluster.
 
 We'll start by using Wayang's data processing capabilities
 to write our own distributed KMeans algorithm.
-We'll circle back to look at the new built-in KMeans
+This shows what is involved in writing a distributed
+algorithm using Wayang if a pre-built version isn't available.
+Later in this article,
+we'll circle back to look at the new built-in KMeans
 that is part of Wayang's ML4all module.
 
 To build a distributed KMeans algorithm, we'll need to
@@ -249,10 +252,10 @@ the script is run, but here is one output:
 ----
 > Task :WhiskeyWayang:run
 Centroids:
-Cluster0: 2.55, 2.42, 1.61, 0.19, 0.10, 1.87, 1.74, 1.77, 1.68, 1.93, 1.81, 1.61
-Cluster2: 1.46, 2.68, 1.18, 0.32, 0.07, 0.79, 1.43, 0.43, 0.96, 1.64, 1.93, 2.18
-Cluster3: 3.25, 1.50, 3.25, 3.00, 0.50, 0.25, 1.62, 0.37, 1.37, 1.37, 1.25, 0.25
-Cluster4: 1.68, 1.84, 1.21, 0.42, 0.05, 1.32, 0.63, 0.74, 1.89, 2.00, 1.84, 1.74
+Cluster 0: 2.53, 1.65, 2.76, 2.12, 0.29, 0.65, 1.65, 0.59, 1.35, 1.41, 1.35, 0.94
+Cluster 2: 3.33, 2.56, 1.67, 0.11, 0.00, 1.89, 1.89, 2.78, 2.00, 1.89, 2.33, 1.33
+Cluster 3: 1.42, 2.47, 1.03, 0.22, 0.06, 1.00, 1.03, 0.47, 1.19, 1.72, 1.92, 2.08
+Cluster 4: 2.25, 2.38, 1.38, 0.08, 0.13, 1.79, 1.54, 1.33, 1.75, 2.17, 1.75, 1.79
 ...
 ----
 
@@ -264,6 +267,15 @@ If you are interested, check out the examples in the repo links
 at the end of this article to see the code for producing this
 centroid spider plot or the Jupyter/BeakerX notebook in this
 project's GitHub repo.
+
+If printing out the cluster allocations, the output would be like this:
+
+----
+Cluster 0 (17 members): Ardbeg, Balblair, Bowmore, Bruichladdich, Caol Ila, Clynelish, GlenGarioch, GlenScotia, Highland Park, Isle of Jura, Lagavulin, Laphroig, Oban, OldPulteney, Springbank, Talisker, Teaninich
+Cluster 2 (9 members): Aberlour, Balmenach, Dailuaine, Dalmore, Glendronach, Glenfarclas, Macallan, Mortlach, RoyalLochnagar
+Cluster 3 (36 members): AnCnoc, ArranIsleOf, Auchentoshan, Aultmore, Benriach, Bladnoch, Bunnahabhain, Cardhu, Craigganmore, Dalwhinnie, Dufftown, GlenElgin, GlenGrant, GlenMoray, GlenSpey, Glenallachie, Glenfiddich, Glengoyne, Glenkinchie, Glenlossie, Glenmorangie, Inchgower, Linkwood, Loch Lomond, Mannochmore, Miltonduff, RoyalBrackla, Speyburn, Speyside, Strathmill, Tamdhu, Tamnavulin, Tobermory, Tomintoul, Tomore, Tullibardine
+Cluster 4 (24 members): Aberfeldy, Ardmore, Auchroisk, Belvenie, BenNevis, Benrinnes, Benromach, BlairAthol, Craigallechie, Deanston, Edradour, GlenDeveronMacduff, GlenKeith, GlenOrd, Glendullan, Glenlivet, Glenrothes, Glenturret, Knochando, Longmorn, OldFettercairn, Scapa, Strathisla, Tomatin
+----
 
 == Running with Apache Spark
 
@@ -290,8 +302,11 @@ this (a solution similar to before but with 1000+ extra lines of
 Spark and Wayang log information - truncated for presentation purposes):
 
 ----
-[main] INFO org.apache.spark.SparkContext - Running Spark version 3.5.4
-[main] INFO org.apache.spark.util.Utils - Successfully started service 'sparkDriver' on port 62081.
+[main] INFO org.apache.spark.SparkContext - Running Spark version 3.5.6
+...
+[dag-scheduler-event-loop] INFO org.apache.spark.scheduler.DAGScheduler - Got job 0 (foreachPartition at SparkCacheOperator.java:62) with 4 output partitions
+...
+[dag-scheduler-event-loop] INFO org.apache.spark.scheduler.DAGScheduler - Job 14 is finished.
 ...
 Centroids:
 Cluster 4: 1.63, 2.26, 1.68, 0.63, 0.16, 1.47, 1.42, 0.89, 1.16, 1.95, 0.89, 1.58
@@ -300,7 +315,6 @@ Cluster 1: 3.11, 1.44, 3.11, 2.89, 0.56, 0.22, 1.56, 0.44, 1.44, 1.44, 1.33, 0.4
 Cluster 2: 1.52, 2.42, 1.09, 0.24, 0.06, 0.91, 1.09, 0.45, 1.30, 1.64, 2.18, 2.09
 ...
 [shutdown-hook-0] INFO org.apache.spark.SparkContext - Successfully stopped SparkContext
-[shutdown-hook-0] INFO org.apache.spark.util.ShutdownHookManager - Shutdown hook called
 ----
 
 == Using ML4all
@@ -430,6 +444,7 @@ https://github.com/paulk-asert/groovy-data-science/tree/master/subprojects/Whisk
 .Update history
 ****
 *19/Jun/2022*: Initial version. +
-*20/Feb/2025*: Updated for Apache Wayang 1.0.0.
+*20/Feb/2025*: Updated for Apache Wayang 1.0.0. +
+*25/Aug/2025*: Updated for Apache Wayang 1.1.0 and Groovy 5.0.0.
 ****
 
