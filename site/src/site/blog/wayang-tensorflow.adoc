@@ -1,6 +1,7 @@
 = Using TensorFlow from Apache Wayang
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2025-02-28T09:30:00+00:00
+:updated: 2025-08-28T14:22:00+00:00
 :keywords: groovy, wayang, iris, classification, apache wayang, tensorflow
 :description: This post looks at using TensorFlow and Apache Wayang with Apache Groovy.
 
@@ -98,6 +99,15 @@ The nodes can be activated by linear or non-linear functions.
 
 image:img/deep_node.png[Neural net node,width=600]
 
+Let's first define our inputs:
+
+[source,groovy]
+----
+int[] noShape = null
+var features = new Input(noShape, Input.Type.FEATURES)
+var labels = new Input(noShape, Input.Type.LABEL, Op.DType.INT32)
+----
+
 We'll have 4 inputs going to 32 hidden nodes to 3 outputs
 with Sigmoid activation. These classes are all platform-agnostic.
 Nowhere here do we mention TensorFlow or use any TensorFlow
@@ -106,7 +116,7 @@ classes.
 [source,groovy]
 ----
 Op l1 = new Linear(4, 32, true)
-Op s1 = new Sigmoid().with(l1.with(new Input(Input.Type.FEATURES)))
+Op s1 = new Sigmoid().with(l1.with(features))
 Op l2 = new Linear(32, 3, true).with(s1)
 DLModel model = new DLModel(l2)
 ----
@@ -116,20 +126,15 @@ providing some needed options, that will do our training.
 
 [source,groovy]
 ----
-Op criterion = new CrossEntropyLoss(3).with(
-    new Input(Input.Type.PREDICTED, Op.DType.FLOAT32),
-    new Input(Input.Type.LABEL, Op.DType.INT32)
-)
+Op criterion = new CrossEntropyLoss(3).with(model.out, labels)
 Optimizer optimizer = new Adam(0.1f) // optimizer with learning rate
 int batchSize = 45
 int epoch = 10
 var option = new DLTrainingOperator.Option(criterion, optimizer, batchSize, epoch)
 option.setAccuracyCalculation(new Mean(0).with(
     new Cast(Op.DType.FLOAT32).with(
-        new Eq().with(new ArgMax(1).with(
-            new Input(Input.Type.PREDICTED, Op.DType.FLOAT32)),
-            new Input(Input.Type.LABEL, Op.DType.INT32)
-))))
+        new Eq().with(new ArgMax(1).with(model.out), labels)
+)))
 var trainingOp = new DLTrainingOperator<>(model, option, float[], Integer)
 ----
 
@@ -174,6 +179,7 @@ new WayangContext().with {
     execute(wayangPlan)
 }
 
+println "labels:       $LABEL_MAP"
 println "predicted:    $predicted"
 println "ground truth: $groundTruth"
 
@@ -217,6 +223,7 @@ Start training:
 [epoch 10, batch 3] loss: 0.318649 accuracy: 0.911111
 Finish training.
 
+labels:       [Iris-setosa:0, Iris-versicolor:1, Iris-virginica:2]
 predicted:    [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
 ground truth: [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]
 test accuracy: 1
@@ -230,3 +237,14 @@ https://groovy.apache.org/[Apache Groovy]
 and
 https://wayang.apache.org/[Apache Wayang]!
 Why not get involved!
+
+== More Information
+
+* Repo containing the source code: +
+https://github.com/paulk-asert/groovy-wayang-tensorflow
+
+.Update history
+****
+*28/Feb/2025*: Initial version. +
+*28/Aug/2025*: Updated for Apache Wayang 1.1.0 and Groovy 5.0.0.
+****
