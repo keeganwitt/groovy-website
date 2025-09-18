@@ -66,7 +66,6 @@ pages {
     page 'reporting-issues', 'reporting-issues', [category: 'Support']
     page 'support', 'support', [category: 'Support']
     page 'usergroups', 'usergroups', [category: 'Support', userGroups: usergroups]
-    page 'groovy-weekly', 'groovy-weekly', [category: 'Support']
     page 'mailing-lists', 'mailing-lists', [category: 'Support']
     page 'contribute', 'contribute', [category: 'Develop']
     page 'thanks', 'thanks', [category: 'Support']
