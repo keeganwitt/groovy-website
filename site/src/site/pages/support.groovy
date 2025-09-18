@@ -26,14 +26,8 @@ layout 'layouts/main.groovy', true,
                                 }
                                 p '''
                                     If you click on the socialize link in the menu, you will also find other ways to interact
-                                    with the Groovy community, and follow the news around the ecosystem:
+                                    with the Groovy community, and follow the news around the ecosystem.
                                 '''
-                                ul {
-                                    li {
-                                        a(href: 'groovy-weekly.html', 'Groovy newsletter')
-                                        yieldUnescaped ' &mdash; links to articles, presentations, tweets, podcasts, etc.'
-                                    }
-                                }
                             }
                             hr(class: 'divider')
                         }
