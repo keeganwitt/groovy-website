@@ -138,6 +138,7 @@ documentation {
         item 'Template engines',                    'templating',       'template-engines'
         item 'Servlet support',                     'servlet',          'servlet-userguide'
         item 'Working with JMX',                    'jmx',              'jmx'
+        item 'Design by contract support',          'contracts',        'contracts-userguide'
     }
 
     section ('API documentation', 'fa-code') {
