@@ -18,7 +18,7 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-8 col-lg-pull-0') {
                             include template: 'includes/contribute-button.groovy'
                             h1 {
-                                i(class: 'fa-classic fa-regular fa-calendar') {}
+                                i(class: 'fa-classic fa-solid fa-calendar-days') {}
                                 yield ' Events'
                             }
                             article {
@@ -39,9 +39,9 @@ layout 'layouts/main.groovy', true,
                                     }
 
                                     h3 {
-                                        i(class: 'fa-classic fa-regular fa-globe') {}
+                                        i(class: 'fa-classic fa-solid fa-globe') {}
                                         yieldUnescaped " &nbsp;${event.location} &nbsp; &mdash; &nbsp; "
-                                        i(class: 'fa-classic fa-regular fa-calendar') {}
+                                        i(class: 'fa-classic fa-solid fa-calendar-days') {}
                                         yieldUnescaped " &nbsp;"
                                         em event.date
                                     }

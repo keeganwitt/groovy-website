@@ -8,7 +8,7 @@ div(class: 'navbar navbar-default navbar-static-top', role: 'navigation') {
                 span(class: 'icon-bar') {}
             }
             a(class: 'navbar-brand', href: relative('index.html')) {
-                i(class: 'fa-classic fa-regular fa-star') {}
+                i(class: 'fa-classic fa-solid fa-star') {}
                 yield ' Apache Groovy'
                 yieldUnescaped '&trade;'
             }

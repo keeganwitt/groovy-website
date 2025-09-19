@@ -35,7 +35,7 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-8 col-lg-pull-0') {
                             include template: 'includes/contribute-button.groovy'
                             h1 {
-                                i(class: 'fa-classic fa-regular fa-gear') {}
+                                i(class: 'fa-classic fa-solid fa-gear') {}
                                 yield ' Invoke dynamic support'
                             }
                             article {
