@@ -48,7 +48,8 @@ layout 'layouts/main.groovy', true,
                                             div(class: 'col-md-6') {
                                                 a(name: section.anchor) {}
                                                 h2 {
-                                                    i(class: "fa-classic fa-solid ${section.icon}", " $section.name")
+                                                    i(class: "fa-classic fa-solid ${section.icon}") {}
+                                                    yield " ${section.name}"
                                                 }
                                                 ul {
                                                     section.getItems().each { item ->
