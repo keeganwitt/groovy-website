@@ -24,7 +24,7 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-8 col-lg-pull-0') {
                             include template: 'includes/contribute-button.groovy'
                             h1 {
-                                i(class: 'fa fa-university') {}
+                                i(class: 'fa-classic fa-solid fa-book') {}
                                 yield ' Documentation'
                             }
                             p {
@@ -48,7 +48,7 @@ layout 'layouts/main.groovy', true,
                                             div(class: 'col-md-6') {
                                                 a(name: section.anchor) {}
                                                 h2 {
-                                                    i(class: "fa ${section.icon}", " $section.name")
+                                                    i(class: "fa-classic fa-solid ${section.icon}", " $section.name")
                                                 }
                                                 ul {
                                                     section.getItems().each { item ->

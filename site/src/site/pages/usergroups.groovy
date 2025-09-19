@@ -18,7 +18,7 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-8 col-lg-pull-0') {
                             include template: 'includes/contribute-button.groovy'
                             h1 {
-                                i(class: 'fa fa-users') {}
+                                i(class: 'fa-classic fa-regular fa-users') {}
                                 yield ' User groups'
                             }
                             article {

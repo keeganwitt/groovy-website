@@ -45,13 +45,16 @@ menu {
     }
 
     group('Socialize') {
-        item 'Discuss on the mailing-list', "${userSiteBase}mailing-lists.html",                'fa-envelope'
-        item 'Groovy on Twitter',           'https://twitter.com/ApacheGroovy',                 'fa-twitter'
-        item 'Events and conferences',      "${userSiteBase}events.html",                       'fa-calendar'
-        item 'Source code on GitHub',       'https://github.com/apache/groovy',                 'fa-github'
-        item 'Report issues in Jira',       "${userSiteBase}reporting-issues.html",             'fa-bug'
-        item 'Stack Overflow questions',    'http://stackoverflow.com/questions/tagged/groovy', 'fa-stack-overflow'
-        item 'Slack Community',             'http://www.groovycommunity.com/',                      'fa-slack'
+        item 'Discuss on the mailing-list', "${userSiteBase}mailing-lists.html",                'fa-classic fa-regular fa-envelope'
+        item 'Groovy on X',                 'https://x.com/ApacheGroovy',                       'fa-brands fa-x-twitter'
+        item 'Groovy on Bluesky',           'https://bsky.app/profile/groovy.apache.org',       'fa-brands fa-bluesky'
+        item 'Groovy on Mastodon',          'https://fosstodon.org/@ApacheGroovy',              'fa-brands fa-mastodon'
+        item 'Groovy on LinkedIn',          'https://www.linkedin.com/company/106402668/admin/dashboard/',  'fa-brands fa-linkedin'
+        item 'Events and conferences',      "${userSiteBase}events.html",                       'fa-classic fa-solid fa-calendar-days'
+        item 'Source code on GitHub',       'https://github.com/apache/groovy',                 'fa-brands fa-github'
+        item 'Report issues in Jira',       "${userSiteBase}reporting-issues.html",             'fa-classic fa-solid fa-bug'
+        item 'Stack Overflow questions',    'http://stackoverflow.com/questions/tagged/groovy', 'fa-brands fa-stack-overflow'
+        item 'Slack Community',             'http://www.groovycommunity.com/',                  'fa-brands fa-slack'
     }
 }
 

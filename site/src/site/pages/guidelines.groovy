@@ -18,7 +18,7 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-8 col-lg-pull-0') {
                             include template: 'includes/contribute-button.groovy'
                             h1 {
-                                i(class: 'fa fa-map-signs') {}
+                                i(class: 'fa-classic fa-solid fa-signs-post') {}
                                 yield ' Developer Guidelines'
                             }
                             article {

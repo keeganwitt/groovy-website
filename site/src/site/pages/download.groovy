@@ -40,7 +40,7 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-8 col-lg-pull-0') {
                             include template: 'includes/contribute-button.groovy'
                             h1 {
-                                i(class: 'fa fa-cloud-download') {}
+                                i(class: 'fa-classic fa-solid fa-cloud-arrow-down') {}
                                 yield ' Download Groovy'
                                 yieldUnescaped '&trade;'
                             }
@@ -48,7 +48,7 @@ layout 'layouts/main.groovy', true,
                             button(id: 'big-download-button', type: 'button', class: 'btn btn-default',
                                     title: "Download Apache Groovy&trade; ${linkVersionToDownload} binary zip\nSee below for verification information",
                                     onclick: "window.location.href=\"https://groovy.jfrog.io/artifactory/dist-release-local/groovy-zips/apache-groovy-sdk-${linkVersionToDownload}.zip\"") {
-                                i(class: 'fa fa-download') {}
+                                i(class: 'fa-classic fa-solid fa-download') {}
                                 yield " Download ${linkVersionToDownload}"
                             }
                             article {
@@ -123,7 +123,7 @@ layout 'layouts/main.groovy', true,
 
                                 distributions.each { dist ->
                                     h2 {
-                                        i(class: 'fa fa-star') {}
+                                        i(class: 'fa-classic fa-solid fa-star') {}
                                         yield " ${dist.name}"
                                     }
                                     if (dist.description) {
@@ -170,7 +170,7 @@ layout 'layouts/main.groovy', true,
                                             tr {
                                                 td {
                                                     a(href: "https://groovy.jfrog.io/artifactory/dist-release-local/groovy-zips/apache-groovy-binary-${v}.zip") {
-                                                        i(class: 'fa fa-gears fa-4x') {}
+                                                        i(class: 'fa-classic fa-solid fa-gears fa-4x') {}
                                                         br()
                                                         yield 'binary'
                                                     }
@@ -185,7 +185,7 @@ layout 'layouts/main.groovy', true,
                                                 }
                                                 td {
                                                     a(href: srcUrl(pkg)) {
-                                                        i(class: 'fa fa-code fa-4x') {}
+                                                        i(class: 'fa-classic fa-solid fa-code fa-4x') {}
                                                         br()
                                                         yield ' source'
                                                     }
@@ -193,7 +193,7 @@ layout 'layouts/main.groovy', true,
                                                 }
                                                 td {
                                                     a(href: "https://groovy.jfrog.io/artifactory/dist-release-local/groovy-zips/apache-groovy-docs-${v}.zip") {
-                                                        i(class: 'fa fa-file-text fa-4x') {}
+                                                        i(class: 'fa-classic fa-regular fa-file-text fa-4x') {}
                                                         br()
                                                         yield ' documentation'
                                                     }
@@ -208,7 +208,7 @@ layout 'layouts/main.groovy', true,
                                                 }
                                                 td {
                                                     a(href: "https://groovy.jfrog.io/artifactory/dist-release-local/groovy-zips/apache-groovy-sdk-${v}.zip") {
-                                                        i(class: 'fa fa-file-zip-o fa-4x') {}
+                                                        i(class: 'fa-classic fa-regular fa-file-zipper fa-4x') {}
                                                         br()
                                                         yield ' SDK bundle'
                                                     }
@@ -224,7 +224,7 @@ layout 'layouts/main.groovy', true,
                                                 if (pkg.windowsInstaller) {
                                                     td {
                                                         a(href: pkg.windowsInstaller, rel: 'nofollow') {
-                                                            i(class: 'fa fa-windows fa-4x') {}
+                                                            i(class: 'fa-brands fa-windows fa-4x') {}
                                                             br()
                                                             yield ' Windows installer'
                                                         }

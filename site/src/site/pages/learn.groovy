@@ -29,7 +29,7 @@ layout 'layouts/main.groovy', true,
                         div(class: 'col-lg-8 col-lg-pull-0') {
                             include template: 'includes/contribute-button.groovy'
                             h1 {
-                                i(class: 'fa fa-graduation-cap') {}
+                                i(class: 'fa-classic fa-solid fa-graduation-cap') {}
                                 yield ' Learn'
                             }
                             article {
@@ -54,7 +54,7 @@ layout 'layouts/main.groovy', true,
 
                                 a(name: 'books') {}
                                 h2 {
-                                    i(class: 'fa fa-book') {}
+                                    i(class: 'fa-classic fa-solid fa-book') {}
                                     yield ' Books'
                                 }
                                 p '''
@@ -97,7 +97,7 @@ layout 'layouts/main.groovy', true,
 
                                 a(name: 'videos') {}
                                 h2 {
-                                    i(class: 'fa fa-film') {}
+                                    i(class: 'fa-classic fa-solid fa-film') {}
                                     yield ' Presentations'
                                 }
                                 p """
@@ -121,13 +121,13 @@ layout 'layouts/main.groovy', true,
                                             if(video.slidesUrl || video.codeUrl) {
                                                 p(class: 'urls') {
                                                     if (video.slidesUrl) {
-                                                        i(class: 'fa fa-photo') {}
+                                                        i(class: 'fa-classic fa-regular fa-photo') {}
                                                         yield ' '
                                                         a(href: video.slidesUrl, 'slides')
                                                     }
                                                     if (video.slidesUrl && video.codeUrl) yield ' | '
                                                     if (video.codeUrl) {
-                                                        i(class: 'fa fa-code') {}
+                                                        i(class: 'fa-classic fa-solid fa-code') {}
                                                         yield ' '
                                                         a(href: video.codeUrl, 'source code')
                                                     }
@@ -157,7 +157,7 @@ layout 'layouts/main.groovy', true,
 
                                 a(name: 'courses') {}
                                 h2 {
-                                    i(class: 'fa fa-film') {}
+                                    i(class: 'fa-classic fa-solid fa-chalkboard-user') {}
                                     yield ' Courses'
                                 }
                                 p '''

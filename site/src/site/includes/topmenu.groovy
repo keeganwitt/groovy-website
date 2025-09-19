@@ -8,7 +8,7 @@ div(class: 'navbar navbar-default navbar-static-top', role: 'navigation') {
                 span(class: 'icon-bar') {}
             }
             a(class: 'navbar-brand', href: relative('index.html')) {
-                i(class: 'fa fa-star') {}
+                i(class: 'fa-classic fa-regular fa-star') {}
                 yield ' Apache Groovy'
                 yieldUnescaped '&trade;'
             }
@@ -23,7 +23,7 @@ div(class: 'navbar navbar-default navbar-static-top', role: 'navigation') {
                 }
                 li(class: (category == 'Search') ? 'active' : '') {
                     a(href: relative('search.html')) {
-                        i(class: 'fa fa-search') {}
+                        i(class: 'fa-classic fa-solid fa-magnifying-glass') {}
                     }
                 }
             }

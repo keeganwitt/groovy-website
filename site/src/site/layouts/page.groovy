@@ -30,7 +30,7 @@ head {
         script(src: relative('js/matomo.js')) { }
     }
     def styles = extraStyles ?: []
-    ['bootstrap.css', 'font-awesome.min.css', 'style.css', *styles].each {
+    ['bootstrap.css', 'fontawesome.min.css', 'brands.min.css', 'regular.min.css', 'solid.min.css', 'style.css', *styles].each {
         link rel: 'stylesheet', type: 'text/css', href:
                 it.startsWith('http')?it:relative("css/$it")
     }
