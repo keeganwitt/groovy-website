@@ -1250,6 +1250,16 @@ language whereby accessing a public field or a property (private field with a ge
 can have the same syntactic form. This idea wasn't carried over to the `getProperties()`
 method in an object's metaclass. Now `getProperties()` also returns public fields.
 link:https://issues.apache.org/jira/browse/GROOVY-10449[GROOVY-10449].
+* The code for generating needed calls to make Groovy's Meta-Object-Protocol (MOP) work correctly with runtime selection of super calls was created back in Groovy 1.0 days and didn't account for things like default methods in interfaces.
+Attempts to patch this over time have left a number of inconsistencies and faulty edge cases.
+MOP method generation and method indexing were changed in Groovy 4 to use a more sophisticated approach that doesn't have the limitations of the earlier design,
+but unfortunately full backwards compatibility was not possible.
+This isn't a concern when compiling a complete set of Groovy source files,
+but can cause problems when compiling Groovy source files under Groovy 4+
+with libraries built by pre-Groovy 4 versions or vice versa.
+A workaround is to use `@CompileStatic` for impacted super calls
+which alleviates the problem.
+link:https://issues.apache.org/jira/browse/GROOVY-8693[GROOVY-8693].
 
 [[Groovy4.0-requirements]]
 == JDK requirements
