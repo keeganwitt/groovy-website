@@ -212,7 +212,7 @@ Activity(Explore Pumicestone Passage by boat tour, Caloundra, Day 3, Afternoon)
 
 == Using Embabel
 
-https://github.com/vaadin/embabel[_Embabel_] is a newer JVM library that provides agent orchestration and LLM integration through a declarative approach.
+https://github.com/embabel[_Embabel_] is a newer JVM library that provides agent orchestration and LLM integration through a declarative approach.
 
 A simple text-generation example:
 
