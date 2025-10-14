@@ -1,13 +1,19 @@
-= Exploring AI with Groovy&trade
+= Exploring AI with Groovy&trade;
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2025-10-14T19:27:25+00:00
 :keywords: groovy, ai, ollama4j, langchain4j, spring-ai, embabel
 :description: A tour of using Groovy with modern AI libraries including ollama4j, LangChain4j, Spring AI, and Embabel.
 :draft: true
 
-In this post, we’ll look at several ways to integrate Groovy with AI tools, including `ollama4j`, `langchain4j`, `Spring AI`, and `Embabel`.
+== Introduction
+
+> [blue]#In this post, we’ll look at several ways to integrate Groovy with AI tools, including `ollama4j`, `langchain4j`, `Spring AI`, and `Embabel`.#
+
+image:img/bulcock_beach_sunset.jpg[Bulcock Beach, 350, float="right"]
+
 We'll use a simple chat example, perhaps similar to what you might have done yourself when trying out your favourite LLM.
 We'll ask for activities to do while on vacation.
+
 To make the examples as accessible as possible, we'll use Ollama's open-source models,
 which can be run locally. The libraries we use here can also connect to remote models and services.
 The examples mostly use the `mistral:7b` model, which you'll need to download to run the examples
@@ -360,7 +366,9 @@ This demonstrates how Embabel’s agent model and Groovy’s expressive syntax c
 
 Groovy’s interoperability, concise syntax, and powerful DSL capabilities make it an excellent language for prototyping and composing AI workflows on the JVM.
 Whether you’re chatting with Ollama, integrating via Spring, or orchestrating agents with Embabel, Groovy keeps your code clear and compact.
-
-You can find the full source for all these examples at:
-https://github.com/paulk-asert/groovy-ai
 Feel free to experiment with different models and prompts to see what interesting results you can achieve!
+
+You can find the full source for all these examples at: +
+https://github.com/paulk-asert/groovy-ai +
+Other examples of using Groovy with Spring AI can be found at: +
+https://github.com/danvega/groovyai
