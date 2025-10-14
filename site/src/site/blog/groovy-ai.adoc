@@ -8,7 +8,7 @@ Paul King <paulk-asert|PMC_Member>
 
 > [blue]#In this post, we’ll look at several ways to integrate Groovy with AI tools, including `ollama4j`, `langchain4j`, `Spring AI`, and `Embabel`.#
 
-image:img/bulcock_beach_sunset.jpg[Bulcock Beach at Sunset looking towards Pumicestone Passage, 320, float="right"]
+image:img/bulcock_beach_sunset.jpg[Bulcock Beach at Sunset looking towards Pumicestone Passage, 400, float="right"]
 
 We'll use a simple chat example, perhaps similar to what you might have done yourself when trying out your favourite LLM.
 We'll ask for activities to do while on vacation.
@@ -21,7 +21,7 @@ The examples mostly use the `mistral:7b` model, which you'll need to download to
 unchanged, but feel free to try other models and see what results you get.
 We also used Groovy 5 and JDK 25, but the examples should work on other Groovy and Java versions.
 
-== Using ollama4j
+== Using Ollama4j
 
 Since we are using Ollama, we'll start with a library aimed directly at that tool.
 https://github.com/ollama/ollama4j[_Ollama4j_] provides a client for interacting with local or remote https://ollama.com/[Ollama] models.
