@@ -358,7 +358,7 @@ void main() {
 ----
 
 Here we are using two different models for different tasks — `mistral:7b` for generating itineraries and `qwen3:8b` for rating them. Embabel provides richer ways to control and configure the models, but this simple approach works well for our example.
-The `@AchievesGoal` annotation makes use of Embabel's goal oriented action planning (GOAP) capabilities.
+The `@AchievesGoal` annotation makes use of Embabel's goal-oriented action planning (GOAP) capabilities.
 
 The output might look something like (slightly formatted here for readability):
 
