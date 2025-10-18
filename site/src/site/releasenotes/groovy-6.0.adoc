@@ -21,6 +21,16 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 TBD
 
+== Under exploration
+
+* Annotations in more places (source only), e.g. @Parallel, @Invariant on for loops
+* Grapes/Grab users can choose Maven Resolver or Ivy
+* Java compatibility: Module import declarations, additional destructuring
+* Improve REPL further (think nushell)
+* Performance
+* Spec improvements
+* Further subprojects, e.g. maybe GPars
+* async/await like functionality
 
 [[Groovy6.0-requirements]]
 == JDK requirements
