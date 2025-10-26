@@ -1260,6 +1260,22 @@ with libraries built by pre-Groovy 4 versions or vice versa.
 A workaround is to use `@CompileStatic` for impacted super calls
 which alleviates the problem.
 link:https://issues.apache.org/jira/browse/GROOVY-8693[GROOVY-8693].
+* Groovy 4 attempts to align `Boolean` property access more closely with JavaBean conventions.
+The JavaBeans specification indicates that for a primitive `boolean` property `foo`,
+the accessor method can be either `isFoo()` or `getFoo()`. The JavaBean specification
+doesn't indicate that the "is" variant is applicable to `Boolean` properties.
+In earlier Groovy versions, sometimes `isFoo()` was allowed for
+`Boolean` properties, and not allowed in other cases. Also, in some places Groovy
+generated both `isFoo()` and `getFoo()` accessors for such properties which caused
+problems for introspection-based frameworks and (de)serialization libraries, sometimes
+causing a property to be included twice.
+Groovy 4 sticks more closely to the JavaBean specification, so
+the recommendation is that users wanting to use `isFoo()`, should use primitive `boolean` properties.
+Users dealing with introspection-based frameworks and (de)serialization libraries
+can use `Boolean` properties (and a `getFoo()` accessors if needed) to be sure they won't have
+duplication issues. Metaprogramming can also be used to reintroduce the old behavior in numerous cases if needed.
+link:https://issues.apache.org/jira/browse/GROOVY-8392[GROOVY-8392],
+link:https://issues.apache.org/jira/browse/GROOVY-10133[GROOVY-10133].
 
 [[Groovy4.0-requirements]]
 == JDK requirements
