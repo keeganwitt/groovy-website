@@ -211,11 +211,6 @@ ecosystem {
         logo 'img/ecosystem/micronaut.png'
     }
 
-    project('Infrastructor') {
-        description 'Infrastructor is an agentless server provisioning tool written in Groovy. It provides a DSL to configure either VMs and bare metal machines via SSH.'
-        url 'http://infrastructor.io/'
-        logo 'img/ecosystem/infrastructor.png'
-    }
 }
 
 allEvents {
