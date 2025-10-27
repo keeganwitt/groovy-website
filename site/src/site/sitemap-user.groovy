@@ -153,7 +153,7 @@ documentation {
 ecosystem {
     project('Grails') {
         description 'Grails is an Open Source, full stack, web application framework for the JVM. It takes advantage of the Groovy programming language and convention over configuration to provide a productive and stream-lined development experience.'
-        url 'http://grails.org/'
+        url 'https://grails.apache.org/'
         logo 'img/ecosystem/grails.png'
     }
 
@@ -166,7 +166,7 @@ ecosystem {
     project('Spock') {
         description 'Spock is a testing and specification framework for Java and Groovy applications. What makes it stand out from the crowd is its beautiful and highly expressive specification language. Thanks to its JUnit runner, Spock is compatible with most IDEs, build tools, and continuous integration servers.'
         url 'http://spockframework.org/'
-        logo ''
+        logo 'img/ecosystem/spock-main-logo.png'
     }
 
     project('GPars') {
@@ -211,11 +211,6 @@ ecosystem {
         logo 'img/ecosystem/micronaut.png'
     }
 
-    project('Infrastructor') {
-        description 'Infrastructor is an agentless server provisioning tool written in Groovy. It provides a DSL to configure either VMs and bare metal machines via SSH.'
-        url 'http://infrastructor.io/'
-        logo 'img/ecosystem/infrastructor.png'
-    }
 }
 
 allEvents {
