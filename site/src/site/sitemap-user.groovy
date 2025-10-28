@@ -215,26 +215,14 @@ ecosystem {
 
 allEvents {
     // Note that the event image should be 257x180 to look nice
-    event('JavaZone 2025') {
-        location 'NOVA Spektrum, Lillestrøm'
-        date 'September 3-4, 2025'
-        url 'https://2025.javazone.no/en'
-        logo 'img/confs/javazone2025.png'
+    event('ChurConf 2025') {
+        location 'Parnell Conference Centre, Auckland'
+        date 'November 2, 2025'
+        url 'https://churconf.com/'
+        logo 'img/confs/chur-conf-logo.png'
         description '''
             <p>
-            JavaZone is the biggest community-driven Java conference that has been organized in Oslo, Norway since 2001.
-            </p>
-        '''
-    }
-    event('Community over Code NA') {
-        location 'Minneapolis, Minnesota'
-        date 'September 11-14, 2025'
-        url 'https://communityovercode.org/'
-        logo 'img/confs/coc2024.png'
-        description '''
-            <p>
-            The latest innovations from dozens of Apache projects and their communities in a collaborative,
-            vendor-neutral environment.
+            A Java community conference bringing together companies and enthusiasts focussing on Java development.
             </p>
         '''
     }
