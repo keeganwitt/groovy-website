@@ -152,7 +152,7 @@ documentation {
 
 ecosystem {
     project('Grails') {
-        description 'Grails is an Open Source, full stack, web application framework for the JVM. It takes advantage of the Groovy programming language and convention over configuration to provide a productive and stream-lined development experience.'
+        description 'Apache Grails is an Open Source, full stack, web application framework for the JVM. It takes advantage of the Apache Groovy programming language and convention over configuration to provide a productive and stream-lined development experience.'
         url 'https://grails.apache.org/'
         logo 'img/ecosystem/grails.png'
     }
