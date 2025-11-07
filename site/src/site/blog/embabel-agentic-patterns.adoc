@@ -1,0 +1,376 @@
+= Groovy&trade;, Embabel, and Agentic Design Patterns
+Paul King
+:revdate: 2025-11-07T23:00:00+00:00
+:keywords: groovy, spring ai, embabel, agentic
+:description: This post highlights some agentic code patterns supported by Embabel.
+
+A recent https://medium.com/@springrod/build-better-agents-in-java-vs-python-embabel-vs-langgraph-f7951a0d855c[blog post] by Rod Johnson, looked at using Embabel and Java to solve some common agentic design patterns.
+Rod's post in turn reference's
+another blog post by Hamza Boulahia using LangGraph with Python. Rod's post makes some
+excellent arguments as to the benefits of a JVM solution over LangGraph and Python.
+We won't repeat those arguments here, but we highly recommend that you read Rod's article.
+
+This blog post looks at those same examples using Groovy. Groovy is sometimes referred to
+as the Python of the JVM world. It's syntax mostly resembles Java but some of its features
+will be familiar to Python programmers. So, for Python folks who want to try out some JVM
+AI frameworks, Groovy might be a nice entry point.
+Also, for Groovy folks, we want to show them how easy it is to use powerful JVM frameworks like Embabel.
+As an added bonus, we'll get to show off a few neat features of Groovy on the way.
+
+We used Java 25, Groovy 5.0.2, and Embabel 0.2.0-SNAPSHOT.
+Embabel itself is built on Spring boot. We used Spring boot 3.5.6.
+Embabel supports a range of LLMs. We used Mistral:7b with Ollama.
+
+Embabel can make use of Spring Shell functionality and our example is all set up to use that.
+First, you'll need to have Ollama running locally, or set it up using docker as follows:
+
+[source,shell]
+----
+docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+docker exec -it ollama ollama run mistral:7b
+----
+
+You can of course use other LLMs and other models.
+Follow the https://docs.embabel.com/embabel-agent/guide/0.1.3/[Embabel documentation]
+to configure such artifacts if needed.
+
+Assuming you have cloned the https://github.com/paulk-asert/langgraph-patterns-groovy[example repo], you can then run the example using:
+
+[source,shell]
+----
+./gradlew run
+----
+
+This invokes our Embabel (Spring Boot) application:
+
+[source,groovy]
+----
+@SpringBootApplication
+@EnableAgents(loggingTheme = LoggingThemes.COLOSSUS)
+void main() {
+    SpringApplication.run(PatternsApplication)
+}
+----
+
+You can then interact with the Embabel agents from the command line (or IDE run terminal window).
+
+Now, we're ready to start exploring some of those design patterns.
+
+== Prompt Chaining
+
+Prompt chaining breaks tasks into manageable pieces.
+The blog title generator example picks topics from user input,
+and then generates several blog titles for each topic.
+The Groovy solution follows the Java solution very closely:
+
+[source,groovy]
+----
+@Agent(description = 'Blog Titler Agent')
+class BlogTitler {
+
+    private final Actor<?> techWriter = new Actor<>('''
+        You are an expert technical writer. Always give clear,
+        concise, and straight-to-the-point answers.
+        ''', LlmOptions.withAutoLlm())
+
+    record Topics(List<String> topics) {
+    }
+
+    record TopicTitles(String topic, List<String> titles) {
+    }
+
+    record BlogTitles(List<TopicTitles> topicTitles) {
+    }
+
+    @Action
+    Topics extractTopics(UserInput userInput, Ai ai) {
+        techWriter.promptRunner(ai)
+            .creating(Topics)
+            .fromPrompt("""
+                Extract 1-3 key topics from the following text:
+                $userInput.content
+                """)
+    }
+
+    @Action
+    @AchievesGoal(description='Generate Titles for Topics')
+    BlogTitles generateBlogTitles(Topics topics, OperationContext context) {
+        var titles = context.parallelMap(
+            topics.topics(),
+            10,
+            topic -> techWriter.promptRunner(context)
+            .creating(TopicTitles)
+            .fromPrompt("""
+                Generate two catchy blog titles for this topic:
+                $topic
+                """))
+        new BlogTitles(titles)
+    }
+}
+----
+
+It has domain records like `Topics` and `BlogTitles` to provide a richer context for our prompts
+compared to simple strings. The Groovy version has some minor improvements compared to Java.
+The most important is possibly the interpolated string support, which is still coming for Java.
+
+At the shell prompt, you can enter a command like:
+
+----
+Colossus> blogs topics "Why Groovy is a great option for your AI applications especially when using Embabel"
+----
+
+And the output might be something like this:
+
+----
+{
+  "topicTitles" : [ {
+    "topic" : "Groovy",
+    "titles" : [ "Unleashing Potential: Mastering Groovy for Modern Development", "Exploring the Future of Coding: Top Groovy Trends and Techniques in 2025" ]
+  }, {
+    "topic" : "AI Applications",
+    "titles" : [ "Unleashing Potential: Top AI Applications Shaping Our Future", "Revolutionizing Everyday Life: Exploring Cutting-Edge AI Applications" ]
+  }, {
+    "topic" : "Embabel",
+    "titles" : [ "Unveiling the Future: A Deep Dive into Embabel Technology", "Embabel Revolution: Transforming Tomorrow's Tech Landscape Today" ]
+  } ]
+}
+----
+
+== Reflection
+
+Reflection, also know by other names such as the evaluator-optimizer pattern,
+is where agents critique and improve outputs.
+The draft and refine example explores drafting text in response to a user-specified task
+and critiquing it until it’s satisfactory.
+
+Here is the Groovy code:
+
+[source,groovy]
+----
+@Configuration
+class DraftAndRefine {
+
+    record Draft(String content) {
+    }
+
+    @Bean
+    Agent draftAndRefineAgent() {
+        RepeatUntilAcceptableBuilder
+            .returning(Draft)
+            .consuming(UserInput)
+            .withMaxIterations(7)
+            .withScoreThreshold(.99)
+            .repeating(tac -> {
+                tac.ai()
+                    .withAutoLlm()
+                    .withId('draft')
+                    .createObject("""
+                        You are an assistant helping to complete the following task:
+
+                        Task:
+                        $tac.input.content
+
+                        Current Draft:
+                        ${tac.lastAttemptOr("no draft yet")}
+
+                        Feedback:
+                        ${tac.lastFeedbackOr("no feedback yet")}
+
+                        Instructions:
+                        - If there is no draft and no feedback, generate a clear and complete response to the task.
+                        - If there is a draft but no feedback, improve the draft as needed for clarity and quality.
+                        - If there is both a draft and feedback, revise the draft by incorporating the feedback directly.
+                        - Always produce a single, improved draft as your output.
+                        """, Draft)
+            })
+            .withEvaluator(tac -> {
+                tac.ai().withAutoLlm()
+                    .withId('evaluate_draft')
+                    .createObject("""
+                        Evaluating the following draft, based on the given task.
+                        Score it from 0.0 to 1.0 (best) and provide constructive feedback for improvement.
+
+                        Task:
+                        $tac.input.content
+
+                        Draft:
+                        $tac.resultToEvaluate
+                        """, TextFeedback)
+            })
+            .buildAgent('draft_and_refine_agent', 'An agent that drafts and refines content')
+    }
+}
+----
+
+Again, it follows the Java code very closely with some minor improvements.
+
+You might invoke it with something like:
+
+----
+Colossus> x "Draft and refine a paragraph about using Groovy and Embabel"
+----
+
+The output might be something like:
+
+----
+You asked: UserInput(content=Draft and refine a paragraph about using Groovy and Embabel, timestamp=2025-11-07T10:37:55.707939Z)
+
+{
+  "content" : "Groovy, a dynamic language for the Java platform with an elegant syntax and seamless integration with Java, is particularly useful when combined with Embabel. In complex problem-solving scenarios such as test automation and scripting tasks, Groovy's concise and readable code enables developers to tackle these challenges effectively. Embabel simplifies the process by abstracting away low-level programming details, further improving performance and reducing development time significantly. However, it's essential to understand the nuances of each language, manage compatibility issues between them, and anticipate potential challenges or limitations while using these tools together."
+}
+
+LLMs used: [mistral:7b] across 15 calls
+Prompt tokens: 7,502,
+Completion tokens: 1,914
+----
+
+== Routing
+
+Another fundamental pattern is routing within a workflow.
+The sentiment classification example first performs sentiment analysis,
+and then chooses between alternative options for generating a response.
+
+The Java Embabel solution itself incorporates a coding design pattern:
+Algebraic Data Types (ADTs). This pattern is worth exploring a bit more.
+ADTs have _product_ types, like records,
+and _sum_ types, like what you get with a sealed base class and some subtype variants.
+Other programming languages, like Haskell, represent sum types with different approaches.
+A common scenario is capturing state as types (positive/negative in our
+example but more elaborate state machines can be represented this way).
+It is also convenient being able to convert between the states and a data type
+like an enum. As an added bonus, serializability to JSON also helps in many scenarios
+including constructing AI payloads.
+
+The first half of the `ClassificationAgent` class
+has the relevant types for our ADT (copied from Rod's example):
+
+[source,java]
+----
+@Agent(description = "Perform sentiment analysis")          // Java
+public class ClassificationAgent {
+
+    @JsonTypeInfo(
+            use = JsonTypeInfo.Id.SIMPLE_NAME,
+            include = JsonTypeInfo.As.PROPERTY,
+            property = "type"
+    )
+    public sealed interface Sentiment {
+    }
+
+    public static final class Positive implements Sentiment {
+    }
+
+    public static final class Negative implements Sentiment {
+    }
+
+    private enum SentimentType {
+        POSITIVE,
+        NEGATIVE;
+
+        public Sentiment toSentiment() {
+            return switch (this) {
+                case POSITIVE -> new Positive();
+                case NEGATIVE -> new Negative();
+            };
+        }
+    }
+
+    public record Response(String message) {
+    }
+----
+
+You could imagine similar scenarios where we'd want to capture similar ADTs.
+Whenever we have common boilerplate code, Groovy AST transforms can be a useful tool.
+We'll create a `@SumType` AST transform (details in the source code repo). Then our code becomes:
+
+[source,groovy]
+----
+@Agent(description = 'Perform sentiment analysis')
+class ClassificationAgent {
+
+    @SumType(variantHelper = 'toSentiment')
+    interface Sentiment {
+        Positive()
+        Negative()
+    }
+
+    record Response(String message) {
+    }
+----
+
+It generates the same types and methods in Rod's example.
+
+The second half of the classification agent follows the Java version closely:
+
+[source,groovy]
+----
+    @Action
+    Sentiment classify(UserInput userInput, Ai ai) {
+        ai.withAutoLlm()
+            .createObject("""
+                Determine if the sentiment of the following text is positive or negative.
+                Text: "$userInput.content"
+                """, SentimentType)
+            .toSentiment()
+    }
+
+    @Action
+    Response encourage(UserInput userInput, Positive sentiment, Ai ai) {
+        ai.withAutoLlm()
+            .createObject("""
+                Generate an encouraging response to the following positive text:
+                $userInput.content
+                """, Response)
+    }
+
+    @Action
+    Response help(UserInput userInput, Negative sentiment, Ai ai) {
+        ai.withAutoLlm()
+            .createObject("""
+                Generate a supportive response to the following negative text:
+                $userInput.content
+                """, Response)
+    }
+
+    @AchievesGoal(description = 'Generate a response based on discerning sentiment in user input')
+    @Action
+    Response done(Response response) {
+        response
+    }
+
+}
+----
+
+We can ask a query that will trigger these agents:
+
+----
+x "Analyze sentiment and respond to 'Groovy makes you more productive when writing your AI applications' "
+----
+
+The output might look like this:
+
+----
+You asked: UserInput(content=Analyze sentiment and respond to 'Groovy makes you more productive when writing your AI applications' , timestamp=2025-11-07T10:40:14.120002Z)
+
+{
+  "message" : "Continuing to utilize Groovy for your AI applications will undeniably foster increased productivity and efficiency in your development process. Keep up the great work!"
+}
+
+LLMs used: [mistral:7b] across 2 calls
+Prompt tokens: 425,
+Completion tokens: 47
+----
+
+== Discussion
+
+Hopefully you can see that writing Embabel applications is easy using Groovy.
+Python users might find the Groovy syntax a friendly starting point to try out JVM development.
+Certainly, Groovy has
+powerful DSL capabilities. We could provide an alternative DSL that offered
+an even more Python-like coding experience for the Embabel framework,
+but that's a topic for a different blog post.
+
+.Update history
+****
+*07/Nov/2025*: Initial version.
+****
