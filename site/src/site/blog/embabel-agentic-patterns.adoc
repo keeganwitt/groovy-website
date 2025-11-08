@@ -5,7 +5,7 @@ Paul King
 :description: This post highlights some agentic code patterns supported by Embabel.
 
 A recent https://medium.com/@springrod/build-better-agents-in-java-vs-python-embabel-vs-langgraph-f7951a0d855c[blog post] by Rod Johnson, looked at using Embabel and Java to solve some common agentic design patterns.
-Rod's post in turn reference's
+Rod's post in turn references
 another blog post by Hamza Boulahia using LangGraph with Python. Rod's post makes some
 excellent arguments as to the benefits of a JVM solution over LangGraph and Python.
 We won't repeat those arguments here, but we highly recommend that you read Rod's article.
@@ -281,7 +281,8 @@ public class ClassificationAgent {
 
 You could imagine similar scenarios where we'd want to capture similar ADTs.
 Whenever we have common boilerplate code, Groovy AST transforms can be a useful tool.
-We'll create a `@SumType` AST transform (details in the source code repo). Then our code becomes:
+We'll create a `@SumType` AST transform (details in the
+https://github.com/paulk-asert/langgraph-patterns-groovy[example repo]). Then our code becomes:
 
 [source,groovy]
 ----
