@@ -14,19 +14,25 @@ image:img/bulcock_beach_sunset.jpg[Bulcock Beach at Sunset looking towards Pumic
 We'll use a simple chat example, perhaps similar to what you might have done yourself when trying out your favourite LLM.
 We'll ask for activities to do while on vacation.
 
-To make the examples as accessible as possible, we'll use Ollama's open-source models,
+To make the examples as accessible as possible, we'll use Ollama,
+and use some _not-too-large_ open-source models,
 which can be run locally. So, no need to get keys, or use up your token limits.
-The libraries we use here can also connect to remote models and services.
+But feel free to try out other models and services.
+Most of the libraries we use here can connect to remote models and services,
+sometimes just by changing a line or two of config in a properties file.
 
 The examples mostly use the `mistral:7b` model, which you'll need to download to run the examples
 unchanged, but feel free to try other models and see what results you get.
-Some of the examples use the `qwen3:8b` model. It seems to give better results when using tools.
+Some of the examples also use the `qwen3:8b` model. It seems to give better results when using tools.
+See the example repo for how to run the needed services using docker,
+or within GitHub actions if you don't have Ollama already running locally.
 We also used Groovy 5 and JDK 25, but the examples should work on other Groovy and Java versions.
 
 == Using Ollama4j
 
 Since we are using Ollama, we'll start with a library aimed directly at that tool.
-https://github.com/ollama/ollama4j[_Ollama4j_] provides a client for interacting with local or remote https://ollama.com/[Ollama] models.
+https://github.com/ollama/ollama4j[_Ollama4j_] provides a client for interacting with local or remote https://ollama.com/[Ollama] models. The examples here are
+geared towards local models, but see the Ollama documentation if you want to use Ollama _cloud_ models.
 
 We first create an instance of the `Ollama` class.
 We set a generous timeout to allow for longer-running models
@@ -568,8 +574,7 @@ void main() {
             .ai()
             .withDefaultLlm()
             .createObject('What are some interesting things to do while I am on vacation in Caloundra?', Itinerary)
-            .itinerary
-            .join('\n')
+            .display()
     }
 }
 ----
@@ -797,7 +802,8 @@ class Holiday implements QuarkusApplication {
 }
 ----
 
-Running the example might give output like:
+Running the example, and note we are asking about Minneapolis this time,
+might give output like:
 
 ----
 Asking: What are four things to do while visiting Minneapolis?
@@ -809,7 +815,6 @@ Answer:  1. Explore the Minneapolis Sculpture Garden: This 11-acre outdoor museu
 
 4. Attend a concert or sporting event: Minneapolis is home to several major sports teams, including the Minnesota Vikings (NFL), Minnesota Timberwolves (NBA), and Minnesota Twins (MLB). The city also has a thriving music scene, with venues like First Avenue and the Orpheum Theatre hosting concerts by popular artists. Additionally, the Walker Art Center offers free outdoor performances during the summer months at its Sculpture Garden.
 ----
-
 
 == Conclusion
 
@@ -826,5 +831,5 @@ https://github.com/danvega/groovyai
 .Update history
 ****
 *15/Oct/2023*: Initial version +
-*14/Nov/2025*: Updated with Micronaut, Quarkus, and tools examples.
+*14/Nov/2025*: Updated with Micronaut, Quarkus, and AI tools examples.
 ****
