@@ -359,6 +359,15 @@ We switched to the `qwen3:8b` model. It is slightly larger to download but does
 a more reliable job calling tools correctly. The tools are annotation with `@Tools`
 and will be automatically found.
 
+The `getWeather` tool has return type `Weather` which is another domain object:
+
+[source,groovy]
+----
+@ToString(includePackage = false)
+record Weather(String forecast, int minTemp, int maxTemp) {
+}
+----
+
 The output might look something like:
 
 ----
