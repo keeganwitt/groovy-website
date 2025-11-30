@@ -21,6 +21,82 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 TBD
 
+== Extension method additions and improvements
+
+Groovy provides over 2000 extension methods to 150+ JDK classes to enhance JDK functionality, with new methods added in Groovy 6. These methods reduce dependency on third-party libraries for common tasks, and make code more intuitive. Let's explore some highlights from those 350 new methods.
+
+Several variants of `groupByMany` exist for grouping lists and maps of items.
+
+The most common form takes a closure (or lambda) which converts from some item
+into a list of keys to group by (in this case group words by the vowels they contain):
+
+[source,groovy]
+----
+var words = ['ant', 'bee', 'ape', 'cow', 'pig']
+
+var vowels = 'aeiou'.toSet()
+var vowelsOf = { String word -> word.toSet().intersect(vowels) }
+
+assert words.groupByMany(s -> vowelsOf(s)) == [
+    a:['ant', 'ape'], e:['bee', 'ape'], i:['pig'], o:['cow']
+]
+
+----
+
+The most general form takes two closures, one to transform the item to some list of keys for grouping,
+the other to transform the grouped value if needed:
+
+[source,groovy]
+----
+record Person(String name, List<String> citiesLived) { }
+
+def people = [
+    new Person('Alice', ['NY', 'LA']),
+    new Person('Bob', ['NY']),
+    new Person('Cara', ['LA', 'CHI'])
+]
+
+def grouped = people.groupByMany(Person::name, Person::citiesLived)
+
+assert grouped == [
+    NY  : ['Alice', 'Bob'],
+    LA  : ['Alice', 'Cara'],
+    CHI : ['Cara']
+]
+----
+
+There is also a version that works directly with maps where the map value is
+already a list:
+
+[source,groovy]
+----
+def citiesLived = [
+    Alice: ['NY', 'LA'],
+    Bob: ['NY'],
+    Cara: ['LA', 'CHI']
+]
+
+def grouped = citiesLived.groupByMany()
+
+assert grouped == [
+   NY  : ['Alice', 'Bob'],
+   LA  : ['Alice', 'Cara'],
+   CHI : ['Cara']
+]
+----
+
+Another map example, with a `collectValues` step to get the map into the form we want:
+
+[source,groovy]
+----
+var nums = [1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five']
+
+var firstLetters = nums.collectValues(s -> [s[0]])
+assert firstLetters == [1:['o'], 2:['t'], 3:['t'], 4:['f'], 5:['f']]
+
+assert firstLetters.groupByMany() == [o:[1], t:[2, 3], f:[4, 5]]
+----
+
 == Under exploration
 
 * Annotations in more places (source only), e.g. @Parallel, @Invariant on for loops
