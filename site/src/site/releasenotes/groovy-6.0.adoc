@@ -40,7 +40,6 @@ var vowelsOf = { String word -> word.toSet().intersect(vowels) }
 assert words.groupByMany(s -> vowelsOf(s)) == [
     a:['ant', 'ape'], e:['bee', 'ape'], i:['pig'], o:['cow']
 ]
-
 ----
 
 The most general form takes two closures, one to transform the item to some list of keys for grouping,
