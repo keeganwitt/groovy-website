@@ -1,5 +1,5 @@
 = Grouping Fruity Collections
-Paul King
+Paul King <paulk-asert|PMC_Member>
 :revdate: 2025-12-01T10:45:00+00:00
 :keywords: eclipse collections, groovy, emoji, many-to-many, grouping
 :description: This post looks at using grouping in the context of many-to-many relationships.
@@ -22,11 +22,11 @@ and is one of the examples carried over into the aforementioned Groovy blog post
 [source,groovy]
 ----
 assert Fruit.ALL.groupBy(Fruit::getColor) ==
-        Multimaps.mutable.list.empty()
-                .withKeyMultiValues(RED, Fruit.of('🍎'), Fruit.of('🍒'))
-                .withKeyMultiValues(ORANGE, Fruit.of('🍑'), Fruit.of('🍊'))
-                .withKeyMultiValues(YELLOW, Fruit.of('🍌'))
-                .withKeyMultiValues(MAGENTA, Fruit.of('🍇'))
+    Multimaps.mutable.list.empty()
+        .withKeyMultiValues(RED, Fruit.of('🍎'), Fruit.of('🍒'))
+        .withKeyMultiValues(ORANGE, Fruit.of('🍑'), Fruit.of('🍊'))
+        .withKeyMultiValues(YELLOW, Fruit.of('🍌'))
+        .withKeyMultiValues(MAGENTA, Fruit.of('🍇'))
 ----
 
 We have a collection of fruit and we have colors.
@@ -69,12 +69,12 @@ Here is how we can explore the relationship between fruit and colors with these 
 [source,groovy]
 ----
 assert Fruit.ALL.groupByEach(Fruit::getColors) ==
-        Multimaps.mutable.list.empty()
-                .withKeyMultiValues(GREEN, Fruit.of('🍎'), Fruit.of('🍌'), Fruit.of('🍇'))
-                .withKeyMultiValues(RED, Fruit.of('🍎'), Fruit.of('🍒'))
-                .withKeyMultiValues(ORANGE, Fruit.of('🍑'), Fruit.of('🍊'))
-                .withKeyMultiValues(YELLOW, Fruit.of('🍌'))
-                .withKeyMultiValues(MAGENTA, Fruit.of('🍇'))
+    Multimaps.mutable.list.empty()
+        .withKeyMultiValues(GREEN, Fruit.of('🍎'), Fruit.of('🍌'), Fruit.of('🍇'))
+        .withKeyMultiValues(RED, Fruit.of('🍎'), Fruit.of('🍒'))
+        .withKeyMultiValues(ORANGE, Fruit.of('🍑'), Fruit.of('🍊'))
+        .withKeyMultiValues(YELLOW, Fruit.of('🍌'))
+        .withKeyMultiValues(MAGENTA, Fruit.of('🍇'))
 ----
 
 Grape colors are sometimes known by the juice or wine they produce (red and white)
@@ -93,11 +93,11 @@ Collections but just using normal JDK lists and maps:
 [source,groovy]
 ----
 var expected = [
-        (GREEN)   : [Fruit.of('🍎'), Fruit.of('🍌'), Fruit.of('🍇')],
-        (RED)     : [Fruit.of('🍎'), Fruit.of('🍒')],
-        (ORANGE)  : [Fruit.of('🍑'), Fruit.of('🍊')],
-        (YELLOW)  : [Fruit.of('🍌')],
-        (MAGENTA) : [Fruit.of('🍇')]
+    (GREEN)   : [Fruit.of('🍎'), Fruit.of('🍌'), Fruit.of('🍇')],
+    (RED)     : [Fruit.of('🍎'), Fruit.of('🍒')],
+    (ORANGE)  : [Fruit.of('🍑'), Fruit.of('🍊')],
+    (YELLOW)  : [Fruit.of('🍌')],
+    (MAGENTA) : [Fruit.of('🍇')]
 ]
 ----
 
@@ -111,9 +111,9 @@ in combination with `collectMany` (_flatMap_) and `collectEntries` (or we could 
 [source,groovy]
 ----
 assert expected == Fruit.values()
-        .collectMany(f -> f.colors.collect{ c -> [c, f] })
-        .groupBy{ c, f -> c }
-        .collectEntries{ k, v -> [k, v*.get(1)] }
+    .collectMany(f -> f.colors.collect{ c -> [c, f] })
+    .groupBy{ c, f -> c }
+    .collectEntries{ k, v -> [k, v*.get(1)] }
 ----
 
 This works well but isn't necessarily obvious at first glance.
@@ -166,11 +166,11 @@ representation for our fruit rather than the enum used in previous examples:
 [source,groovy]
 ----
 assert Fruit.values().groupByMany(Fruit::getEmoji, Fruit::getColors) == [
-        (GREEN)   : ['🍎', '🍌', '🍇'],
-        (RED)     : ['🍎', '🍒'],
-        (ORANGE)  : ['🍑', '🍊'],
-        (YELLOW)  : ['🍌'],
-        (MAGENTA) : ['🍇']
+    (GREEN)   : ['🍎', '🍌', '🍇'],
+    (RED)     : ['🍎', '🍒'],
+    (ORANGE)  : ['🍑', '🍊'],
+    (YELLOW)  : ['🍌'],
+    (MAGENTA) : ['🍇']
 ]
 ----
 
@@ -183,10 +183,10 @@ As another example, let's group the fruit by the vowels they contain:
 ----
 var vowels = 'AEIOU'.toSet()
 var vowelsOf = { String word -> word.toSet().intersect(vowels) }
-assert Fruit.values().groupByMany(Fruit::getEmoji, fruit -> vowelsOf(fruit.name())) == [
-        A: ['🍎', '🍑', '🍌', '🍊', '🍇'],
-        E: ['🍎', '🍑', '🍒', '🍊', '🍇'],
-        O: ['🍊']
+assert Fruit.values().groupByMany(Fruit::getEmoji, f -> vowelsOf(f.name())) == [
+    A: ['🍎', '🍑', '🍌', '🍊', '🍇'],
+    E: ['🍎', '🍑', '🍒', '🍊', '🍇'],
+    O: ['🍊']
 ]
 ----
 
