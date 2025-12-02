@@ -226,7 +226,7 @@ assert availability.groupByMany() == [
 ]
 ----
 
-[Sorry U.S. folks, _Autumn_ has the same number of letters as the other season names
+[Sorry U.S. readers, _Autumn_ has the same number of letters as the other season names
 and makes the last map look prettier - _Fall_ just didn't cut it this time!]
 
 This Map variant is the equivalent of Eclipse Collections `flip` method on multimaps
