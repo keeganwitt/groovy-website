@@ -126,12 +126,31 @@ assert expected == Fruit.values()
 
 This works well but isn't necessarily obvious at first glance.
 
+We can also use streams. The JDK21 `mapMulti` stream method
+comes in handy:
+
+[source,groovy]
+----
+assert expected == Fruit.values().stream()
+    .mapMulti((fruit, consumer) -> {
+        for (Color color : fruit.colors) {
+            consumer.accept(Map.entry(color, fruit))
+        }
+    })
+    .collect(Collectors.groupingBy(
+            Map.Entry::getKey,
+            Collectors.mapping(Map.Entry::getValue, Collectors.toList())
+    ))
+----
+
+This also works well, but again isn't necessarily obvious at first glance.
+
 == Grouping JDK Collections Fruit Salad with GQuery
 
 Dealing with many-to-many relationships is very common in database systems.
 Query languages like SQL have special support for querying such relationships.
 It should come as no surprise then, that Groovy's integrated query technology,
-GQuery (groovy-ginq), would also support such relationships.
+GQuery (AKA groovy-ginq), would also support such relationships.
 
 Here is the same example again using GQuery:
 
