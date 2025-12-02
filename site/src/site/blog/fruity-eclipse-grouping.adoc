@@ -30,14 +30,22 @@ assert Fruit.ALL.groupBy(Fruit::getColor) ==
 ----
 
 We have a collection of fruit and we have colors.
-The fruit is an enum. The colors are `java.awt.Color` values.
-We won't show the details of those but see the previous blog posts or the
-associated GitHub repo if you want all the details.
+See the previous blog posts or the
+associated GitHub repo if you want all the details,
+but here's a brief summary of our domain:
+
+* each fruit is an enum having a `getColor` method to return its color
+* there is also an `of` factory method for creating a `Fruit`,
+e.g. `APPLE`, from its emoji, e.g. `'🍎'`
+* the colors are `java.awt.Color` values
+* ALL returns the `values()` as an `ImmutableList`
+* Eclipse Collections multimaps are the result type of `groupBy`
 
 As originally presented,
 there is a one-to-many relationship between fruit and their color.
 A fruit has one color, but there can be many fruit of a particular color.
-That's what `groupBy` allows us to explore.
+That's what `groupBy` allows us to explore. It captures the
+color relationship in the returned multimap.
 
 In this post, we want to explore grouping in the context of many-to-many relationships.
 
@@ -45,7 +53,7 @@ As an example, suppose now that rather than just coming in one _typical_ color,
 in our case the predominant color of the supplied emoji, that multiple colors might be possible for
 any given fruit: red and green apples, a green unripe banana, and so forth.
 So, let's expand the previous example so that rather than calling `getColor` to find _the_ color,
-we'll call `getColors` to find a list of potential colors.
+we'll call `getColors` to find the list of potential colors.
 
 We'll do that first using Eclipse Collections and then look at various possibilities
 for JDK collections when using Groovy.
@@ -220,6 +228,29 @@ assert availability.groupByMany() == [
 
 [Sorry U.S. folks, _Autumn_ has the same number of letters as the other season names
 and makes the last map look prettier - _Fall_ just didn't cut it this time!]
+
+This Map variant is the equivalent of Eclipse Collections `flip` method on multimaps
+as this example shows:
+
+[source,groovy]
+----
+var fruitColors = Multimaps.mutable.set.empty()
+fruitColors.put('red', '🍒')
+fruitColors.put('red', '🍎')
+fruitColors.put('green', '🍎')
+fruitColors.put('yellow', '🍌')
+fruitColors.put('green', '🍌')
+fruitColors.put('green', '🥑')
+println fruitColors
+println fruitColors.flip()
+----
+
+Which has this output:
+
+----
+{red=[🍒, 🍎], green=[🍌, 🥑, 🍎], yellow=[🍌]}
+{🍒=[red], 🍌=[green, yellow], 🥑=[green], 🍎=[red, green]}
+----
 
 == Further information
 
