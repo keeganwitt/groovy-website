@@ -284,6 +284,13 @@ Multimaps.invertFrom(fruitColors, flipped)
 println flipped
 ----
 
+Which has almost identical output:
+
+----
+{red=[🍒, 🍎], green=[🥑, 🍎, 🍌], yellow=[🍌]}
+{🥑=[green], 🍎=[red, green], 🍌=[yellow, green], 🍒=[red]}
+----
+
 == Further information
 
 * Repo with example code: https://github.com/paulk-asert/fruity-eclipse-collections
