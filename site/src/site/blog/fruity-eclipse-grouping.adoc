@@ -269,19 +269,19 @@ Which has this output:
 ----
 
 Speaking of fruit, we should consider this last example
-also using Guava (Google's collection library):
+also using Guava (Google's collection library). For
+Guava, the `ImmutableMultimap` class has an `inverse` method:
 
 [source,groovy]
 ----
-def fruitColors = HashMultimap.create()
-fruitColors.putAll('red',    ['🍒', '🍎'])
-fruitColors.putAll('green',  ['🍎', '🍌', '🥑'])
-fruitColors.put('yellow', '🍌')
-println fruitColors
+def fruitColors = new ImmutableMultimap.Builder<String, String>()
+    .putAll("red", ["🍒", "🍎"])
+    .putAll("green", ["🍎", "🍌", "🥑"])
+    .put("yellow", "🍌")
+    .build()
 
-def flipped = HashMultimap.create()
-Multimaps.invertFrom(fruitColors, flipped)
-println flipped
+println fruitColors
+println fruitColors.inverse()
 ----
 
 Which has almost identical output:
@@ -290,6 +290,10 @@ Which has almost identical output:
 {red=[🍒, 🍎], green=[🥑, 🍎, 🍌], yellow=[🍌]}
 {🥑=[green], 🍎=[red, green], 🍌=[yellow, green], 🍒=[red]}
 ----
+
+The `inverse` method is available on `ImmutableListMultimap` and `ImmutableSetMultimap` instances;
+for other cases, there is an `invertFrom` utility method
+in the `Multimaps` class.
 
 == Further information
 
