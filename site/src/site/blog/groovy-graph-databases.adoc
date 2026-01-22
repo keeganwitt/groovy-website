@@ -1,7 +1,7 @@
 = Using Graph Databases with Groovy&trade;
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2024-09-02T22:18:00+00:00
-:updated: 2025-03-08T21:00:00+00:00
+:updated: 2026-01-22T14:00:00+00:00
 :keywords: tugraph, apache tinkerpop, gremlin, neo4j, apache age, graph databases, apache hugegraph, arcadedb, orientdb, groovy
 :description: This post illustrates using graph databases with Groovy.
 
@@ -1104,7 +1104,6 @@ run('''
 
 Our final technology is Apache
 https://hugegraph.apache.org/[HugeGraph].
-It is a project undergoing incubation at the ASF.
 
 image:https://www.apache.org/logos/res/hugegraph/hugegraph.png[hugegraph logo,50%]
 
@@ -1824,4 +1823,5 @@ ideas yourself!
 *11/Dec/2024*: Updated for: latest Groovy 5 version, TuGraph 4.5.1, HugeGraph 1.5.0, ArcadeDB 24.11.2, Gremlin 3.7.3, Neo4J 5.26.0, OrientDB 3.2.36. +
 *08/Mar/2025*: Updated for: latest Groovy 5 version, H2 2.3.232, TuGraph 4.5.1, ArcadeDB 25.3.1, Neo4J 2025.02.0, OrientDB 3.2.38. +
 *14/Mar/2025*: Updated for GraphQL: graphql-java, GQL, neo4j-graphql-java. +
+*22/Jan/2026*: Updated for: Groovy 5.0.4, ArcadeDB 25.12.1, H2 2.4.240, HugeGraph 1.7.0, Neo4J 2025.12.1, OrientDB 3.2.48, Tinkerpop 3.8.0, TuGraph 4.5.2. +
 ****
