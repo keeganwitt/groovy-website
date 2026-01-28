@@ -806,7 +806,7 @@ html.noScroll body, html.noScroll .st-container, html.noScroll .st-pusher, html.
 }
 
 .sign-in-fa-icon:before {
-    font-family: FontAwesome;
+    font-family: "Font Awesome 7 Free";
     content: '\f090';
     padding-right: 10px;
 }
@@ -1371,7 +1371,7 @@ a span.icon > .fa {
 
 .admonitionblock td.icon [class^="icon-"]:before,
 .admonitionblock td.icon [class*=" icon-"]:before {
-    font-family: FontAwesome, serif;
+    font-family: "Font Awesome 7 Free", serif;
     font-style: normal;
     font-size: 2.5em;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);

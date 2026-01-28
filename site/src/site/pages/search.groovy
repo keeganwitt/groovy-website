@@ -94,7 +94,7 @@ layout 'layouts/main.groovy', true,
                                         margin-top: 4px;
                                     }
                                     .gs-per-result-labels:before {
-                                        font-family: FontAwesome;
+                                        font-family: "Font Awesome 7 Free";
                                         content: '\\f02c';
                                         margin-right: 8px;
                                     }
