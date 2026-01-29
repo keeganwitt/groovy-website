@@ -58,7 +58,7 @@ tasks.register('copyAssets', Copy) {
         }
     }
     filesMatching('**/*.js') { f->
-        if (!f.name.contains('.min.')) {
+        if (!f.name.contains('.min.') && !f.name.contains('search')) {
             filter(JsFilter)
         }
     }
@@ -90,6 +90,56 @@ tasks.register('generateSite', JavaExec) {
     mainClass = 'generator.SiteGenerator'
     args = [sources, outputDir.get(), 'sitemap-dev.groovy', project.watchmode]
     systemProperties.docs_baseurl = System.getProperty('docs_baseurl')
+}
+
+import groovy.json.JsonOutput
+
+tasks.register('generateSearchIndex') {
+    group = 'documentation'
+    description = 'Generate search index for site-dev documentation'
+    ext.outputDir = project.layout.buildDirectory.dir('site')
+
+    dependsOn 'generateSite'
+
+    doLast {
+        def htmlRoot = file(outputDir)
+        def outDir = new File(htmlRoot, "search")
+        outDir.mkdirs()
+
+        def index = []
+
+        fileTree(htmlRoot).matching {
+            include '**/*.html'
+            exclude 'search/**'
+        }.each { File html ->
+
+            def text = html.text
+                    .replaceAll(/<script.*?<\/script>/, '')
+                    .replaceAll(/<style.*?<\/style>/, '')
+                    .replaceAll(/<\/?[^>]+>/, ' ')
+                    .replaceAll(/\s+/, ' ')
+                    .trim()
+
+            def title = (html.text =~ /<title>(.*?)<\/title>/)?.with {
+                it ? it[0][1] : html.name
+            }
+
+            def url = html.path
+                    .substring(html.path.indexOf('/site/') + 6)
+                    .replace('\\', '/')
+
+            index << [
+                    id      : url,
+                    title   : title,
+                    content : text,
+                    url     : url,
+                    site    : 'dev'
+            ]
+        }
+
+        new File(outDir, 'search-index.json').text =
+                JsonOutput.prettyPrint(JsonOutput.toJson(index))
+    }
 }
 
 tasks.register('checkDeadLinks') {

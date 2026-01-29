@@ -60,7 +60,7 @@ menu {
 
 pages {
 //    page 'index', 'index', [:]
-    page 'search', 'search', [category: 'Search']
+    page 'devsearch', 'search', [category: 'Search']
     page 'download', 'download', [category: 'Download', distributions: distributions]
     page 'versioning', 'versioning', [category: 'Download']
     page 'snapshots', 'snapshots', [category: 'Develop']
