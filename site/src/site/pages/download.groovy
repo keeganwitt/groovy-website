@@ -530,6 +530,11 @@ layout 'layouts/main.groovy', true,
                                         }
                                         tbody {
                                             tr {
+                                                td { b '6.0 (work in progress)' }
+                                                td 'N/A'
+                                                td '17'
+                                            }
+                                            tr {
                                                 td { b '5.0' }
                                                 td 'N/A'
                                                 td '11'
