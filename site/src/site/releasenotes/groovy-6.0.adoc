@@ -96,6 +96,62 @@ assert firstLetters == [1:['o'], 2:['t'], 3:['t'], 4:['f'], 5:['f']]
 assert firstLetters.groupByMany() == [o:[1], t:[2, 3], f:[4, 5]]
 ----
 
+== Grape: Dual Engine Support
+
+NOTE: This section is still under development and is subject to change or movement to another Groovy version. The final details of the Grape dual engine support may differ from what is described here.
+
+Groovy 6 introduces a major evolution of the Grape dependency management system with the addition of a second built-in engine implementation alongside the existing Apache Ivy-based engine.
+
+=== What's new
+
+*Two production-ready Grape engines*
+
+- **GrapeIvy** (default): Apache Ivy backend, established and stable. Supports fine-grained configuration via `~/.groovy/grapeConfig.xml`, multiple Ivy configurations per dependency, and optional-only downloads via `@GrabConfig(autoDownload=false)`.
+
+- **GrapeMaven**: New Maven Resolver (Aether) backend. Uses the same resolution strategy as Maven itself, integrates with Maven Central and other standard Maven repositories out of the box, and provides an alternative for teams more familiar with Maven tooling.
+
+*Automatic engine selection with override capability*
+
+Both engines expose the same `@Grab`, `@GrabResolver`, and `@GrabExclude` annotations and APIs. If both are on the classpath, GrapeIvy is preferred for backward compatibility. Users can switch to GrapeMaven on a per-script basis:
+
+[source]
+----
+groovy -Dgroovy.grape.impl=groovy.grape.maven.GrapeMaven yourscript.groovy
+----
+
+*Extensibility via Java SPI*
+
+Developers can now provide custom Grape implementations by creating a jar with a `META-INF/services/groovy.grape.GrapeEngine` entry. Groovy will discover and load custom implementations via the standard Java Service Provider Interface, enabling integration with in-house or specialized dependency resolution engines.
+
+=== Cache directories
+
+- **GrapeIvy**: `~/.groovy/grapes` (Ivy cache format)
+- **GrapeMaven**: `~/.groovy/grapesM2` (Maven repository format)
+
+Both respect the `grape.root` system property for custom cache root paths.
+
+=== Compatibility notes
+
+Most existing `@Grab` scripts remain unchanged and work with both engines, as they use only the common core features. However, there are some compatibility considerations when switching between engines:
+
+==== GrapeIvy to GrapeMaven
+
+- *`conf:` parameter*: GrapeIvy maps `conf:` to Ivy configurations (which can be a list like `conf:['default','optional']`). GrapeMaven treats `conf:` as a Maven scope string (singular). Scripts using multiple configurations will need reworking or should remain on GrapeIvy.
+- *Custom Ivy configuration*: If you have customized `~/.groovy/grapeConfig.xml` with non-standard settings (e.g., disabled `m2compatible` mode, custom resolvers), those settings do not apply to GrapeMaven. Review your configuration and ensure your scripts remain on GrapeIvy or move them to use `@GrabResolver` for repository configuration.
+- *Optional-only downloads*: `@GrabConfig(autoDownload=false)` is not honoured by GrapeMaven as a per-grab switch. The closest equivalent is to point `@GrabResolver` (or `Grape.addResolver`) at a local-only repository/cache location. If you rely on `autoDownload=false` semantics broadly, remain on GrapeIvy for now.
+
+==== GrapeMaven to GrapeIvy
+
+- In most cases, switching from GrapeMaven to GrapeIvy is straightforward. GrapeIvy's defaults are more permissive, so scripts that work with GrapeMaven typically work unchanged with GrapeIvy.
+
+=== Migration guide
+
+*For most users:* No action required. Existing scripts continue to work with the default GrapeIvy engine.
+
+*If switching to GrapeMaven:* Review the compatibility notes above. If your scripts use multiple `conf:` values, remain on GrapeIvy for now (the default) and start reworking your Grab definitions to singular scopes. For `autoDownload=false` workflows, point `@GrabResolver` to a local-only repository/cache location.
+
+*If you have customized Ivy settings:* Your `~/.groovy/grapeConfig.xml` is only honoured by GrapeIvy. If switching to GrapeMaven, you will need to reconfigure any custom repositories or settings using `@GrabResolver` annotations or programmatically via the `Grape.addResolver()` API.
+
 == Under exploration
 
 * Annotations in more places (source only), e.g. @Parallel, @Invariant on for loops
