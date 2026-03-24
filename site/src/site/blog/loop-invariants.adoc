@@ -1,5 +1,5 @@
 = Design by contract with Groovy&trade;: loop invariants
-Paul King
+Paul King <paulk-asert|PMC_Member>
 :revdate: 2026-03-24T16:30:00+00:00
 :keywords: design-by-contract, groovy, dafny, loop invariants
 :description: This post looks at a proposed extension to Groovy's design-by-contract support in groovy-contracts to allow invariants on loops.

@@ -1,0 +1,321 @@
+= Async/await for Groovy
+Paul King <paulk-asert|PMC_Member>
+:revdate: 2026-03-24T16:30:00+00:00
+:draft: true
+:keywords: async, await, concurrency, virtual-threads
+:description: This post looks at a proposed extension to Groovy which provides comprehensive async/await support.
+
+== Introduction
+
+A proposed enhancement for Groovy adds native `async`/`await` as a
+language-level feature
+(https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381],
+https://github.com/apache/groovy/pull/2387[PR #2387]).
+Inspired by similar constructs in JavaScript, C#, Kotlin, and Swift,
+the proposal lets you write asynchronous code in a sequential, readable
+style — with first-class support for async streams, deferred cleanup,
+structured concurrency, Go-style channels, and framework adapters
+for Reactor and RxJava.
+
+On JDK 21+, async methods automatically leverage
+https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#ofVirtual()[virtual threads]
+for optimal scalability.
+
+This is a comprehensive feature. Rather than cover every detail,
+this post walks through a handful of bite-sized examples that show
+what the day-to-day experience would feel like — and how it compares
+to what you'd write in plain Java today.
+
+== The problem: callback complexity
+
+Consider a three-step workflow — fetch a user ID, look up a name,
+load a profile. With `CompletableFuture` the logic gets buried
+under plumbing:
+
+[source,java]
+----
+// Java with CompletableFuture
+CompletableFuture<String> profile =
+    fetchUserId()
+        .thenCompose(id -> lookupName(id))
+        .thenCompose(name -> loadProfile(name))
+        .exceptionally(e -> "fallback");
+----
+
+Each `.thenCompose()` adds a nesting level, exception recovery is
+separated from the code that causes the exception, and the control
+flow reads inside-out.
+
+== Example 1: sequential async — reads like synchronous code
+
+With the proposed `async`/`await`, the same logic becomes:
+
+[source,groovy]
+----
+async String getProfile() {
+    var id      = await fetchUserId()
+    var name    = await lookupName(id)
+    var profile = await loadProfile(name)
+    return profile
+}
+----
+
+Variables are declared at the point of use. The return value is
+obvious. No callbacks, no lambdas, no chained combinators. Standard
+`try`/`catch` works — and `await` automatically unwraps
+`CompletionException`, so you catch the _original_ exception type,
+not a wrapper.
+
+== Example 2: parallel tasks — fetch once, await together
+
+Launching concurrent work and collecting the results is a common
+pattern. Here's how it looks with `Awaitable.all`:
+
+[source,groovy]
+----
+async def fetchDashboard() {
+    var user   = async { fetchUser() }
+    var orders = async { fetchOrders() }
+    var prefs  = async { fetchPrefs() }
+
+    var (u, o, p) = await Awaitable.all(user(), orders(), prefs())
+    return buildDashboard(u, o, p)
+}
+----
+
+All three I/O calls run concurrently. The `all` combinator waits
+for every result, failing fast if any task throws.
+
+=== How this compares to Java's `StructuredTaskScope`
+
+Java's structured concurrency preview
+(https://openjdk.org/jeps/525[JEP 525], previewing since JDK 21)
+provides a similar capability through `StructuredTaskScope`:
+
+[source,java]
+----
+// Java with StructuredTaskScope (JDK 25 preview API)
+try (var scope = StructuredTaskScope.open()) {
+    var userTask   = scope.fork(() -> fetchUser());
+    var ordersTask = scope.fork(() -> fetchOrders());
+    var prefsTask  = scope.fork(() -> fetchPrefs());
+    scope.join();
+    return buildDashboard(
+        userTask.get(), ordersTask.get(), prefsTask.get());
+}
+----
+
+The goals are aligned — both approaches bind task lifetimes to a
+scope and cancel siblings on failure. The Groovy version adds
+syntactic sugar (`await`, `all`) and integrates with the same
+`async`/`await` model used everywhere else, whereas Java's API
+is deliberately lower-level and imperative.
+
+== Example 3: async streams with `yield return` and `for await`
+
+Many real-world scenarios involve _streams_ of values that arrive
+over time — paginated API results, sensor readings, log events.
+The proposal introduces `yield return` (to produce values lazily)
+and `for await` (to consume them):
+
+[source,groovy]
+----
+async fetchPages(String url) {
+    var next = url
+    while (next != null) {
+        var page = await httpGet(next)
+        yield return page.items
+        next = page.nextLink
+    }
+}
+
+async def processAll() {
+    for await (items in fetchPages('/api/data')) {
+        items.each { process(it) }
+    }
+}
+----
+
+The producer yields values on demand. The consumer pulls them with
+`for await`. The runtime provides natural *back-pressure* — the
+producer blocks on each `yield return` until the consumer is ready,
+preventing unbounded memory growth. No explicit queues, signals, or
+synchronization required.
+
+There's nothing comparable in plain Java today. You'd typically
+reach for Reactor's `Flux` or RxJava's `Flowable`, each of which
+brings its own operator vocabulary and mental model. With `for await`,
+async iteration feels as natural as a regular `for` loop.
+
+== Example 4: `defer` — Go-style cleanup
+
+The `defer` keyword schedules cleanup to run when the enclosing
+async method completes, regardless of success or failure.
+Multiple deferred blocks execute in LIFO order — exactly like
+https://go.dev/blog/defer-panic-and-recover[Go's `defer`]:
+
+[source,groovy]
+----
+async def withTempFile() {
+    var f = createTempFile()
+    defer { f.delete() }
+
+    var conn = openConnection()
+    defer { conn.close() }
+
+    await uploadTo(conn, f)
+}
+----
+
+This is cleaner than nested `try`/`finally` blocks, especially when
+multiple resources are acquired at different points in the method.
+
+== Example 5: Go-style channels
+
+For task-to-task coordination, the proposal includes CSP-style
+channels inspired by Go:
+
+[source,groovy]
+----
+async def pipeline() {
+    var ch = Awaitable.channel(5)  // buffered channel, capacity 5
+
+    // Producer
+    Awaitable.go {
+        for (i in 1..10) {
+            await ch.send(i)
+        }
+        ch.close()
+    }
+
+    // Consumer
+    var sum = 0
+    for await (val in ch) {
+        sum += val
+    }
+    assert sum == 55
+}
+----
+
+Channels support both unbuffered (rendezvous) and buffered modes.
+`for await` iterates received values until the channel is closed —
+the Groovy equivalent of Go's `for range ch`. You can also race
+channel operations with `Awaitable.any(...)`, serving a similar
+role to Go's `select` statement.
+
+== Example 6: structured concurrency with `AsyncScope`
+
+`AsyncScope` binds child task lifetimes to a scope — inspired by
+Kotlin's `coroutineScope`, Swift's `TaskGroup`, and Java's
+`StructuredTaskScope`. When the scope exits, all child tasks have
+completed or been cancelled:
+
+[source,groovy]
+----
+async def fetchAll(List<String> urls) {
+    AsyncScope.withScope { scope ->
+        var tasks = urls.collect { url ->
+            scope.async { await httpGet(url) }
+        }
+        tasks.collect { await it }
+    }
+}
+----
+
+By default, `AsyncScope` uses fail-fast semantics: if any child
+task throws, siblings are cancelled immediately.
+
+== Example 7: framework integration
+
+The `await` keyword natively understands `CompletableFuture`,
+`CompletionStage`, `Future`, and `Flow.Publisher`. For third-party
+frameworks, drop-in adapter modules are auto-discovered via
+`ServiceLoader`:
+
+[source,groovy]
+----
+// With groovy-reactor on the classpath:
+async def reactorExample() {
+    var value = await Mono.just("hello")
+    for await (item in Flux.range(1, 5)) {
+        println item
+    }
+}
+
+// With groovy-rxjava on the classpath:
+async def rxExample() {
+    var value = await Single.just("hello")
+    for await (item in Observable.range(1, 5)) {
+        println item
+    }
+}
+----
+
+No manual adapter registration is needed — add the dependency and
+`await` works transparently with Reactor and RxJava types.
+
+== How it relates to GPars and virtual threads
+
+Readers of the
+https://groovy-lang.org/blog/gpars-meets-virtual-threads.html[GPars meets virtual threads]
+blog post will recall that GPars provides parallel collections,
+actors, agents, and dataflow concurrency — and that it works well
+with virtual threads via custom executor services.
+
+The async/await proposal complements GPars rather than replacing
+it. GPars excels at data-parallel operations (`collectParallel`,
+`findAllParallel`) and actor-based designs. Async/await targets a
+different sweet spot: sequential-looking code that is actually
+asynchronous, with language-level support for streams, cleanup,
+structured concurrency, and framework bridging. If you're calling
+microservices, paginating through APIs, or coordinating I/O-bound
+tasks, async/await gives you a concise way to express that without
+dropping into callback chains.
+
+Both approaches benefit from virtual threads on JDK 21+, and
+both can coexist in the same codebase.
+
+== The full picture
+
+The examples above are only a taste. The complete proposal also includes
+async closures and lambdas, the `@Async` annotation (for Java-style
+declarations), `Awaitable` combinators (`any`, `allSettled`, `delay`,
+`orTimeoutMillis`), `AsyncContext` for propagating trace and tenant
+metadata across thread hops, cancellation support, and a pluggable
+adapter registry for custom async types. The full spec is available in
+the
+https://github.com/apache/groovy/blob/GROOVY-9381_3/src/spec/doc/core-async-await.adoc[draft documentation].
+
+== We'd love your feedback
+
+The async/await feature is currently a proposal in
+https://github.com/apache/groovy/pull/2387[PR #2387]
+(tracking issue
+https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381]).
+This is a substantial addition to the language and we want to get
+it right.
+
+* *Comment* on the https://github.com/apache/groovy/pull/2387[PR] or
+  the https://issues.apache.org/jira/browse/GROOVY-9381[JIRA issue]
+  with your thoughts, use cases, or design suggestions.
+* *Vote* on the JIRA issue if you'd like to see this feature land.
+
+Your feedback helps us gauge interest and shape the final design.
+
+== Conclusion
+
+We've seen how the proposed async/await feature lets you write
+async Groovy code that reads almost like synchronous code — from
+simple sequential awaits, to parallel fan-out, async streams,
+Go-style channels, structured concurrency, and framework
+integration. The syntax is concise, the mental model is
+straightforward, and virtual threads make it scale.
+
+== References
+
+* https://github.com/apache/groovy/pull/2387[PR #2387 — Async/await support]
+* https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381 — Tracking issue]
+* https://github.com/apache/groovy/blob/GROOVY-9381_3/src/spec/doc/core-async-await.adoc[Draft spec documentation]
+* https://openjdk.org/jeps/525[JEP 525 — Structured Concurrency (Sixth Preview)]
+* https://groovy-lang.org/blog/gpars-meets-virtual-threads.html[GPars meets Virtual Threads]
+* http://gpars.org/[GPars]
