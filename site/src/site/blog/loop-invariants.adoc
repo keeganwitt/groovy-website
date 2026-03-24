@@ -1,0 +1,235 @@
+= Design by contract with Groovy&trade;: loop invariants
+Paul King
+:revdate: 2026-03-24T16:30:00+00:00
+:draft: true
+:keywords: design -by-contract, groovy, dafny, loop invariants
+:description: This post looks at a proposed extension to Groovy's design-by-contract support in groovy-contracts to allow invariants on loops.
+
+== Introduction
+
+https://en.wikipedia.org/wiki/Design_by_contract[Design by contract] (DbC)
+is a software correctness methodology where developers specify
+_preconditions_, _postconditions_, and _invariants_ alongside their code.
+Languages like https://dafny.org/[Dafny] take this further — they
+_statically verify_ that every contract is satisfied for all possible inputs,
+giving mathematical certainty that a program is correct.
+
+Groovy has long supported DbC through its
+https://groovy-lang.org/contracts.html[groovy-contracts] module,
+which provides `@Invariant`, `@Requires`, and `@Ensures` annotations.
+A proposed enhancement
+(https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878])
+would let you annotate _loops_ with `@Invariant` too — bringing Groovy's
+contract syntax even closer to languages like Dafny.
+
+In this post we'll take a small but complete Dafny example — multiplication
+via repeated addition — and show how the proposed feature would look
+in Groovy.
+
+== The Dafny example: multiply by repeated addition
+
+Here is a textbook Dafny example.
+It computes `m × n` by adding `m` to a running total, `n` times:
+
+[source,dafny]
+----
+method Multiply(m: int, n: int) returns (res: int)
+  requires m >= 0 && n >= 0
+  ensures res == m * n
+{
+  res := 0;
+  var i := 0;
+  while i < n
+    invariant 0 <= i <= n
+    invariant res == i * m
+  {
+    res := res + m;
+    i := i + 1;
+  }
+}
+----
+
+Every annotation here is a _contract_:
+
+* `requires` — a *precondition*: what must be true when the method is called.
+* `ensures` — a *postcondition*: what the method guarantees on return.
+* `invariant` — a *loop invariant*: a property that holds before and after
+every iteration of the loop.
+
+When you run the Dafny verifier on this code, it checks _statically_ — at
+compile time, without running the program — that the postcondition
+`res == m * n` follows logically from the preconditions and loop invariants.
+No test cases needed. No edge cases missed.
+
+== How the proof works
+
+The verification relies on three phases:
+
+*1. Establishing the invariant (entry).* Before the loop starts, `res` is `0`
+and `i` is `0`. The invariant `res == i * m` becomes `0 == 0 * m`, which is
+trivially true. The bound `0 \<= i \<= n` is also satisfied since `n >= 0` is
+given by the precondition.
+
+*2. Maintaining the invariant (step).* Dafny _assumes_ the invariant holds at
+the start of an iteration: `res == i * m`. Inside the loop body we execute
+`res := res + m` and `i := i + 1`. Substituting, the new values satisfy
+`res' == (i + 1) * m` because `res + m == i * m + m == (i + 1) * m` — this
+is just the distributive law. The bound invariant is maintained because the
+loop guard guarantees `i < n`, so after incrementing `i` we still have `i \<= n`.
+
+*3. Conclusion (exit).* When the loop terminates, the guard `i < n` is false,
+so `i >= n`. Combined with the invariant `i \<= n`, we get `i == n`.
+Substituting into the other invariant: `res == n * m`, which is exactly the
+postcondition.
+
+This is the essence of _Hoare logic_ applied to a loop: establish, maintain,
+conclude.
+
+== The proposed Groovy translation
+
+With the existing `groovy-contracts` annotations and the
+proposed loop invariant support from
+https://github.com/apache/groovy/pull/2400[PR #2400],
+the Groovy translation is remarkably close to the Dafny original:
+
+[source,groovy]
+----
+@Requires({ m >= 0 && n >= 0 })
+@Ensures({ result == m * n })
+static int multiply(int m, int n) {
+    int res = 0
+    int i = 0
+    @Invariant({ 0 <= i && i <= n })
+    @Invariant({ res == i * m })
+    while (i < n) {
+        res = res + m
+        i = i + 1
+    }
+    res
+}
+----
+
+The mapping from Dafny to Groovy is almost one-to-one:
+
+[cols="1,1",options="header"]
+|===
+| Dafny | Groovy
+
+| `requires m >= 0 && n >= 0`
+| `@Requires({ m >= 0 && n >= 0 })`
+
+| `ensures res == m * n`
+| `@Ensures({ result == m * n })`
+
+| `invariant 0 \<= i \<= n`
+| `@Invariant({ 0 \<= i && i \<= n })`
+
+| `invariant res == i * m`
+| `@Invariant({ res == i * m })`
+|===
+
+Groovy's `@Ensures` uses the special variable `result` to refer to the
+method's return value, whereas Dafny uses a named return variable (`res`).
+Dafny also allows chained comparisons like `0 \<= i \<= n`, which Groovy
+spells as `0 \<= i && i \<= n`. Otherwise the structure is the same.
+
+Groovy is a very extensible language. It would be possible to enhance the
+groovy-contracts transforms to make similar calls to a static verifier
+like Dafny does, or make transforms act like a transpiler,
+making Groovy an alternative front-end syntax for Dafny.
+But that isn't what Groovy is proposing to do right now,
+instead here we enhance the existing design-by-contract features
+and inject assertions within the body of the loop code.
+
+These assertions are checked at _runtime_ rather than proved at compile time.
+They serve as executable documentation and a dynamic safety net. If a bug breaks a
+loop invariant, you find out immediately with a clear error message
+pointing at the violated contract — not via a mysterious wrong result
+three methods later. In production, you can disable contract checking for performance, or leave it on for critical code.
+
+== Dafny vs Groovy: what's the same, what's different
+
+Both languages let you state _what_ the code should do separately from
+_how_ it does it. The contracts act as a formal specification that
+lives right next to the implementation.
+
+The key difference is _when_ the checking happens. Dafny proves your
+contracts hold for all inputs at compile time. Groovy checks them for
+the inputs you actually exercise at runtime. Think of it as the
+difference between a mathematical proof and a thorough test suite —
+both increase confidence, through different means.
+
+For many applications, runtime contract checking is the right trade-off:
+you get the documentation and safety benefits without needing a
+verification-aware language. And if you're already writing Groovy,
+the proposed `@Invariant` on loops means you can express these
+properties with almost no syntactic overhead compared to Dafny.
+
+But perhaps more importantly, in this age of AI-assisted programming, the contracts serve as a powerful tool for guiding code generation and verification. An AI model can read the contracts and understand the intended behavior of the code, which can help it generate correct code or identify potential issues. This is especially valuable for complex algorithms where the logic might not be immediately clear from the code alone.
+
+This aligns with a goal of _making Groovy better for humans and AI_.
+Design by contract hasn't been widely adopted in mainstream development, but perhaps with better tooling and AI support, it could become a more common practice. The proposed loop invariant feature is a step in that direction.
+
+== But wait, there's more
+
+The `@Invariant` on loops is just one example of what becomes possible
+once AST transforms can target loop statements. The underlying change
+in https://github.com/apache/groovy/pull/2400[PR #2400] is more
+general: it extends Groovy's grammar and AST plumbing so that _any_
+annotation-driven AST transform can be applied to `for`, `while`, and
+`do-while` loops — not just `@Invariant`.
+
+To illustrate the point, the PR includes a second experimental transform:
+`@Parallel`. When placed on a `for` loop, it rewrites the loop so that
+each iteration runs on a separate thread:
+
+[source,groovy]
+----
+@Parallel
+for (item in ['a', 'b', 'c', 'd']) {
+    println "Processing $item on ${Thread.currentThread().name}"
+}
+----
+
+This is _not_ intended to be production-quality or included in the final
+merge — it's a lightweight demo that deliberately favours simplicity over
+proper parallel orchestration. But it shows the kind of thing that
+framework authors could build once loop-level annotations are available.
+Imagine annotations for loop unrolling hints, tracing or profiling
+instrumentation, automatic retry logic, GPU offloading, or even
+domain-specific loop transformations in scientific computing —
+all expressible as a simple annotation in front of a loop.
+
+The key takeaway is that `@Invariant` on loops is the first consumer
+of a more general capability. The plumbing is there for the community
+to build on.
+
+The loop invariant feature is currently a proposal in
+https://github.com/apache/groovy/pull/2400[PR #2400]
+(tracking issue
+https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878]).
+If you find this kind of design-by-contract support useful — whether
+for teaching, for critical code, or simply for making your intent
+explicit — we'd love to hear from you.
+
+* *Comment* on the https://github.com/apache/groovy/pull/2400[PR] or
+the https://issues.apache.org/jira/browse/GROOVY-11878[JIRA issue]
+with your thoughts, use cases, or suggestions.
+* *Vote* on the JIRA issue if you'd like to see this feature land.
+
+Your feedback helps us gauge interest and shape the final design.
+
+== Conclusion
+
+We have seen how a small Dafny example translates almost directly into
+Groovy using `@Requires`, `@Ensures`, and the proposed `@Invariant` on
+loops. The three-phase reasoning — establish, maintain, conclude — is
+the same in both languages; only the enforcement mechanism differs.
+
+== References
+
+* https://groovy-lang.org/contracts.html[Groovy Contracts documentation]
+* https://dafny.org/[Dafny language]
+* https://github.com/apache/groovy/pull/2400[PR #2400 — Loop invariant support]
+* https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878 — Tracking issue]
+* https://en.wikipedia.org/wiki/Hoare_logic[Hoare logic] (Wikipedia)
