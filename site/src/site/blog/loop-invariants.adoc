@@ -1,8 +1,7 @@
 = Design by contract with Groovy&trade;: loop invariants
 Paul King
 :revdate: 2026-03-24T16:30:00+00:00
-:draft: true
-:keywords: design -by-contract, groovy, dafny, loop invariants
+:keywords: design-by-contract, groovy, dafny, loop invariants
 :description: This post looks at a proposed extension to Groovy's design-by-contract support in groovy-contracts to allow invariants on loops.
 
 == Introduction
@@ -129,16 +128,19 @@ The mapping from Dafny to Groovy is almost one-to-one:
 |===
 
 Groovy's `@Ensures` uses the special variable `result` to refer to the
-method's return value, whereas Dafny uses a named return variable (`res`).
+method's return value, and we define a local variable `res` to keep the
+tally so far during our looping.
+The Dafny example uses a named return variable (`res`) and mutates that variable
+during looping.
 Dafny also allows chained comparisons like `0 \<= i \<= n`, which Groovy
-spells as `0 \<= i && i \<= n`. Otherwise the structure is the same.
+splits into `0 \<= i && i \<= n`. Otherwise, the structure is the same.
 
 Groovy is a very extensible language. It would be possible to enhance the
-groovy-contracts transforms to make similar calls to a static verifier
-like Dafny does, or make transforms act like a transpiler,
+`groovy-contracts` transforms to make similar calls to a static verifier
+like Dafny does, or make the transforms act like a transpiler,
 making Groovy an alternative front-end syntax for Dafny.
-But that isn't what Groovy is proposing to do right now,
-instead here we enhance the existing design-by-contract features
+But that isn't what Groovy is proposing to do right now;
+instead, here we enhance the existing design-by-contract features
 and inject assertions within the body of the loop code.
 
 These assertions are checked at _runtime_ rather than proved at compile time.
