@@ -125,12 +125,13 @@ common pattern. Here's how it looks with `Awaitable.all`:
 
 [source,groovy]
 ----
-async def prepareBattle(heroId, visibleVillainId) {
+async prepareBattle(heroId, visibleVillainId) {
     var stats     = async { fetchHeroStats(heroId) }
     var inventory = async { fetchInventory(heroId) }
     var villain   = async { fetchVillain(visibleVillainId) }
 
-    var (s, inv, v) = await Awaitable.all(stats(), inventory(), villain())
+    var result = await Awaitable.all(stats(), inventory(), villain())
+    var (s, inv, v) = result*.get()
     return new BattleScreen(s, inv, v)
 }
 ----
@@ -183,7 +184,7 @@ async generateWaves(String dungeonId) {
     }
 }
 
-async def runDungeon(hero, dungeonId) {
+async runDungeon(hero, dungeonId) {
     for await (wave in generateWaves(dungeonId)) {
         wave.each { villain -> hero.fight(villain) }
     }
@@ -212,7 +213,7 @@ https://go.dev/blog/defer-panic-and-recover[Go's `defer`]:
 
 [source,groovy]
 ----
-async def enterDungeon(hero, dungeonId) {
+async enterDungeon(hero, dungeonId) {
     var familiar = hero.summonFamiliar()
     defer { familiar.dismiss() }
 
@@ -253,7 +254,7 @@ channels inspired by Go:
 
 [source,groovy]
 ----
-async def bossFight(hero, bossArena) {
+async bossFight(hero, bossArena) {
     var enemies = AsyncChannel.create(3)  // buffered channel
 
     // Villain spawner — runs concurrently
@@ -290,7 +291,7 @@ completed or been cancelled:
 
 [source,groovy]
 ----
-async def raidDungeon(List<Hero> party, List<Room> rooms) {
+async raidDungeon(List<Hero> party, List<Room> rooms) {
     AsyncScope.withScope { scope ->
         var missions = unique(party, rooms).collect { hero, room ->
             scope.async { await hero.scout(room) }
@@ -339,20 +340,22 @@ Many game backends already use reactive frameworks. The `await`
 keyword natively understands `CompletableFuture`,
 `CompletionStage`, `Future`, and `Flow.Publisher`. For third-party
 frameworks, drop-in adapter modules are auto-discovered via
-`ServiceLoader`:
+`ServiceLoader`.
+
+Here, heroes might asynchronously gain boosts in power (_buff_), and we might be able to stream villain alerts from a dungeon's alert feed. With the appropriate adapters on the classpath, we can `await` Reactor's `Mono` and `Flux` or RxJava's `Single` and `Observable` directly:
 
 [source,groovy]
 ----
 // With groovy-reactor on the classpath:
-async def heroBuffs(heroId) {
+async heroBoosts(heroId) {
     var hero = await Mono.just(fetchHero(heroId))
-    for await (buff in Flux.from(hero.activeBuffStream())) {
-        hero.applyBuff(buff)
+    for await (boost in Flux.from(hero.activeBoostStream())) {
+        hero.applyBoost(boost)
     }
 }
 
 // With groovy-rxjava on the classpath:
-async def villainAlerts(dungeonId) {
+async villainAlerts(dungeonId) {
     var dungeon = await Single.just(loadDungeon(dungeonId))
     for await (alert in Observable.from(dungeon.alertFeed())) {
         broadcastToParty(alert)
