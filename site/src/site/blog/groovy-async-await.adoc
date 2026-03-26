@@ -342,14 +342,7 @@ cancelled:
 ----
 async raidWithTimeLimit(List<Hero> party, List<Room> rooms) {
     try {
-        await Awaitable.orTimeoutMillis(30_000) {
-            AsyncScope.withScope { scope ->
-                var missions = unique(party, rooms).collect { hero, room ->
-                    scope.async { await hero.scout(room) }
-                }
-                missions.collect { await it }
-            }
-        }
+        await Awaitable.orTimeout(raidDungeon(party, rooms), 30, SECONDS)
     } catch (TimeoutException e) {
         party.each { it.retreat() }
         return []  // no loot this time
@@ -360,6 +353,13 @@ async raidWithTimeLimit(List<Hero> party, List<Room> rooms) {
 When the timeout fires, the scope's child tasks are cancelled and
 a `TimeoutException` is thrown — which you handle with an ordinary
 `catch`, just like any other error.
+
+In simple cases, you can also use `completeOnTimeout`:
+
+[source,groovy]
+----
+var loot = await Awaitable.completeOnTimeout(raidDungeon(heroes, rooms), [], 30, SECONDS)
+----
 
 === Complementing JDK structured concurrency
 
