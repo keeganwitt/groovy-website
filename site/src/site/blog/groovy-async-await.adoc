@@ -10,7 +10,7 @@ Paul King <paulk-asert|PMC_Member>
 A proposed enhancement for Groovy adds native `async`/`await` as a
 language-level feature
 (https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381],
-https://github.com/apache/groovy/pull/2387[PR #2387]).
+https://github.com/apache/groovy/pull/2387[PR \#2387]).
 Inspired by similar constructs in JavaScript, C#, Kotlin, and Swift,
 the proposal lets you write asynchronous code in a sequential, readable
 style — with first-class support for async streams, deferred cleanup,
@@ -234,10 +234,10 @@ https://go.dev/blog/defer-panic-and-recover[Go's `defer`]:
 ----
 async enterDungeon(hero, dungeonId) {
     var familiar = hero.summonFamiliar()
-    defer { familiar.dismiss() }
+    defer familiar.dismiss()
 
     var portal = openPortal(dungeonId)
-    defer { portal.close() }
+    defer portal.close()
 
     await hero.explore(portal, familiar)
 }
