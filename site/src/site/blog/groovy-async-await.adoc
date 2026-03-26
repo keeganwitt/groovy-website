@@ -111,10 +111,29 @@ async Quest loadHeroQuest(String loginToken) {
 ----
 
 Variables are declared at the point of use. The return value is
-obvious. No callbacks, no lambdas, no chained combinators. Standard
-`try`/`catch` works — and `await` automatically unwraps
-`CompletionException`, so you catch the _original_ exception type,
-not a wrapper.
+obvious. No callbacks, no lambdas, no chained combinators.
+
+What about the `.exceptionally(e -> Quest.DEFAULT)` fallback from
+the Java version? With `async`/`await`, it's just a `try`/`catch`:
+
+[source,groovy]
+----
+async Quest loadHeroQuest(String loginToken) {
+    try {
+        var heroId    = await lookupHeroId(loginToken)
+        var heroClass = await fetchHeroClass(heroId)
+        return await loadActiveQuest(heroClass)
+    } catch (NoActiveQuestException e) {
+        return Quest.DEFAULT
+    }
+}
+----
+
+`await` automatically unwraps `CompletionException`, so you catch
+the _original_ exception type — `NoActiveQuestException` here, not
+a `CompletionException` wrapper. Error handling reads exactly like
+synchronous code — no separate `.exceptionally()` callback bolted
+on at the end of a chain.
 
 == Example 2: preparing for battle — fetch once, await together
 
