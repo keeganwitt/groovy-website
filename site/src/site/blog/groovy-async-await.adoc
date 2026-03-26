@@ -7,12 +7,12 @@ Paul King <paulk-asert|PMC_Member>
 
 == Introduction
 
-A proposed enhancement for Groovy adds native `async`/`await` as a
-language-level feature
+A proposed enhancement, targeted for Groovy 6,
+adds native `async`/`await` as a language-level feature
 (https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381],
 https://github.com/apache/groovy/pull/2387[PR \#2387]).
 Inspired by similar constructs in JavaScript, C#, Kotlin, and Swift,
-the proposal lets you write asynchronous code in a sequential, readable
+the proposal would let you write asynchronous code in a sequential, readable
 style — with first-class support for async streams, deferred cleanup,
 structured concurrency, Go-style channels, and framework adapters
 for Reactor and RxJava.
@@ -59,6 +59,10 @@ Before diving in, here's a quick guide to when you'd reach for each:
 | You want structured concurrency — child task lifetimes tied to a scope with automatic cancellation.
 | Groovy's take on the same goal as JDK `StructuredTaskScope`, with `async`/`await` integration.
 
+| `AsyncContext`
+| You need contextual data (e.g. player session, logging trace ID) to follow your async calls across thread hops.
+| Automatically propagated through `async`/`await`, `AsyncScope`, and `Awaitable.go`.
+
 | Framework adapters
 | You're already using Reactor or RxJava and want `await` to work transparently with their types.
 | Auto-discovered via `ServiceLoader` — just add the dependency.
@@ -94,7 +98,9 @@ CompletableFuture<Quest> quest =
 
 Each `.thenCompose()` adds a nesting level, exception recovery is
 separated from the code that causes the exception, and the control
-flow reads inside-out.
+flow reads inside-out. For this example, the simple chaining
+is manageable, but the complexity grows non-linearly with
+branching and error handling
 
 == Example 1: loading a hero — reads like synchronous code
 
@@ -216,8 +222,8 @@ the producer blocks on each `yield return` until the hero is ready
 for the next wave, preventing unbounded enemy spawning. No explicit
 queues, signals, or synchronization required.
 
-There's nothing comparable in plain Java today. You'd typically
-reach for Reactor's `Flux` or RxJava's `Flowable`, each of which
+There's no language-level equivalent in plain Java today.
+You'd typically reach for Reactor's `Flux` or RxJava's `Flowable`, each of which
 brings its own operator vocabulary and mental model. With `for await`,
 async iteration feels as natural as a regular `for` loop.
 
@@ -324,6 +330,37 @@ By default, `AsyncScope` uses fail-fast semantics: if any hero's
 scouting task throws (the hero falls), sibling tasks are cancelled
 immediately — the raid retreats.
 
+=== Cancellation and timeouts
+
+Cancellation is one of the trickiest parts of async programming —
+and one of `CompletableFuture`'s biggest pain points. The proposal
+makes it straightforward. For instance, a raid might have a time
+limit — if the party takes too long, all scouting missions are
+cancelled:
+
+[source,groovy]
+----
+async raidWithTimeLimit(List<Hero> party, List<Room> rooms) {
+    try {
+        await Awaitable.orTimeoutMillis(30_000) {
+            AsyncScope.withScope { scope ->
+                var missions = unique(party, rooms).collect { hero, room ->
+                    scope.async { await hero.scout(room) }
+                }
+                missions.collect { await it }
+            }
+        }
+    } catch (TimeoutException e) {
+        party.each { it.retreat() }
+        return []  // no loot this time
+    }
+}
+----
+
+When the timeout fires, the scope's child tasks are cancelled and
+a `TimeoutException` is thrown — which you handle with an ordinary
+`catch`, just like any other error.
+
 === Complementing JDK structured concurrency
 
 Java's `StructuredTaskScope`
@@ -388,7 +425,7 @@ No manual adapter registration is needed — add the dependency and
 == How it relates to GPars and virtual threads
 
 Readers of the
-https://groovy-lang.org/blog/gpars-meets-virtual-threads.html[GPars meets virtual threads]
+https://groovy.apache.org/blog/gpars-meets-virtual-threads[GPars meets virtual threads]
 blog post will recall that GPars provides parallel collections,
 actors, agents, and dataflow concurrency — and that it works well
 with virtual threads via custom executor services.
