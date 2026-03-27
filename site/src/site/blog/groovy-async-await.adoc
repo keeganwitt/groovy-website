@@ -312,12 +312,12 @@ simultaneously. If any hero falls, the whole raid retreats.
 `AsyncScope` binds child task lifetimes to a scope — inspired by
 Kotlin's `coroutineScope`, Swift's `TaskGroup`, and Java's
 `StructuredTaskScope`. When the scope exits, all child tasks have
-completed or been cancelled:
+completed or been canceled:
 
 [source,groovy]
 ----
 async raidDungeon(List<Hero> party, List<Room> rooms) {
-    AsyncScope.withScope { scope ->
+    try(var scope = AsyncScope.create()) {
         var missions = unique(party, rooms).collect { hero, room ->
             scope.async { await hero.scout(room) }
         }
