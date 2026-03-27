@@ -1,6 +1,6 @@
 = Async/await for Groovy
 Paul King <paulk-asert|PMC_Member>
-:revdate: 2026-03-24T16:30:00+00:00
+:revdate: 2026-03-27T16:30:00+00:00
 :keywords: async, await, concurrency, virtual-threads
 :description: This post looks at a proposed extension to Groovy which provides comprehensive async/await support.
 
