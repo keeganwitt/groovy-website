@@ -1,7 +1,6 @@
 = Async/await for Groovy
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2026-03-24T16:30:00+00:00
-:draft: true
 :keywords: async, await, concurrency, virtual-threads
 :description: This post looks at a proposed extension to Groovy which provides comprehensive async/await support.
 
@@ -100,7 +99,7 @@ Each `.thenCompose()` adds a nesting level, exception recovery is
 separated from the code that causes the exception, and the control
 flow reads inside-out. For this example, the simple chaining
 is manageable, but the complexity grows non-linearly with
-branching and error handling
+branching and error handling.
 
 == Example 1: loading a hero — reads like synchronous code
 
@@ -156,15 +155,14 @@ async prepareBattle(heroId, visibleVillainId) {
     var villain   = async { fetchVillain(visibleVillainId) }
 
     var result = await Awaitable.all(stats(), inventory(), villain())
-    var (s, inv, v) = result*.get()
+    var (s, inv, v) = result*.get()  // spread the results into variables
     return new BattleScreen(s, inv, v)
 }
 ----
 
-All three I/O calls run concurrently. The `all` combinator waits until
-all results are available. If one or more threads fail, all threads complete
-normally, and the first exception that occurred is thrown unwrapped.
-(See `AsyncScope` later in Example 6 if fail-fast semantics is appropriate.)
+Here, `async { … }` creates an async closure — a reusable
+block that doesn't run until you call it.
+Invoking `stats()`, `inventory()`, and `villain()` each launches its respective block concurrently and returns an `Awaitable`. The `all` combinator produces another `Awaitable` that completes when every task has finished. If any task fails, the remaining tasks still run to completion, and the first exception is thrown unwrapped. (For fail-fast semantics — cancelling siblings as soon as one fails — see `AsyncScope` in Example 6.)
 
 === How this compares to Java's `StructuredTaskScope`
 
@@ -360,7 +358,8 @@ In simple cases, you can also use `completeOnTimeout`:
 
 [source,groovy]
 ----
-var loot = await Awaitable.completeOnTimeout(raidDungeon(heroes, rooms), [], 30, SECONDS)
+var boobyPrize = ['an old boot']
+var loot = await Awaitable.completeOnTimeout(raidDungeon(heroes, rooms), boobyPrize, 30, SECONDS)
 ----
 
 === Complementing JDK structured concurrency
@@ -449,11 +448,10 @@ both can coexist in the same codebase.
 
 The examples above are only a taste. The complete proposal also includes
 async closures and lambdas, the `@Async` annotation (for Java-style
-declarations), `Awaitable` combinators (`any`, `allSettled`, `delay`,
-`orTimeoutMillis`), `AsyncContext` for propagating trace and tenant
-metadata across thread hops, cancellation support, and a pluggable
-adapter registry for custom async types. The full spec is available in
-the
+declarations), other `Awaitable` combinators (`any`, `allSettled`, `delay`),
+more details about `AsyncContext` for propagating trace and tenant metadata across
+thread hops, cancellation support, and a pluggable adapter registry for
+custom async types. The full spec is available in the
 https://github.com/apache/groovy/blob/GROOVY-9381_3/src/spec/doc/core-async-await.adoc[draft documentation].
 
 == We'd love your feedback
@@ -489,5 +487,5 @@ threads make it scale.
 * https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381 — Tracking issue]
 * https://github.com/apache/groovy/blob/GROOVY-9381_3/src/spec/doc/core-async-await.adoc[Draft spec documentation]
 * https://openjdk.org/jeps/525[JEP 525 — Structured Concurrency (Sixth Preview)]
-* https://groovy-lang.org/blog/gpars-meets-virtual-threads.html[GPars meets Virtual Threads]
+* https://groovy.apache.org/blog/gpars-meets-virtual-threads[GPars meets Virtual Threads]
 * http://gpars.org/[GPars]
