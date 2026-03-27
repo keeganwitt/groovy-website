@@ -1,4 +1,4 @@
-= Async/await for Groovy
+= Async/await for Groovy&trade;
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2026-03-27T16:30:00+00:00
 :keywords: async, await, concurrency, virtual-threads
