@@ -152,9 +152,203 @@ to revert back to GrapeIvy.
 
 *If you have customized Ivy settings:* Your `~/.groovy/grapeConfig.xml` is only honoured by GrapeIvy. If switching to GrapeMaven, you will need to reconfigure any custom repositories or settings using `@GrabResolver` annotations or programmatically via the `Grape.addResolver()` API.
 
+== HttpBuilder: Lightweight HTTP Client DSL (incubating)
+
+Groovy 6 introduces a new `groovy-http-builder` module
+(https://issues.apache.org/jira/browse/GROOVY-11879[GROOVY-11879])
+providing a declarative DSL over the JDK's `java.net.http.HttpClient`.
+It is designed for scripting and simple automation,
+filling the gap left by the earlier HttpBuilder/HttpBuilder-NG libraries.
+
+=== Quick start
+
+Create a client with a base URI and start making requests:
+
+[source,groovy]
+----
+import static groovy.http.HttpBuilder.http
+
+def client = http('https://api.github.com')
+def result = client.get('/repos/apache/groovy')
+assert result.json.license.name == 'Apache License 2.0'
+----
+
+=== Configuring the client
+
+Use a configuration closure to set default headers, timeouts, and redirect behavior:
+
+[source,groovy]
+----
+import groovy.http.HttpBuilder
+import java.time.Duration
+
+def client = HttpBuilder.http {
+    baseUri 'https://api.example.com'
+    header 'User-Agent', 'my-app/1.0'
+    connectTimeout Duration.ofSeconds(5)
+    followRedirects true
+}
+----
+
+=== JSON POST
+
+[source,groovy]
+----
+def result = client.post('/api/items') {
+    json([name: 'book', qty: 2])
+}
+assert result.status == 200
+assert result.json.ok
+----
+
+=== Form POST
+
+[source,groovy]
+----
+def result = client.post('/login') {
+    form(username: 'admin', password: 's3cret')
+}
+assert result.status == 200
+----
+
+=== Query parameters
+
+[source,groovy]
+----
+def result = client.get('/api/items') {
+    query page: 1, size: 10
+}
+----
+
+=== XML responses
+
+[source,groovy]
+----
+def result = client.get('/api/repo.xml')
+assert result.xml.license.text() == 'Apache License 2.0'
+----
+
+=== HTML scraping with jsoup
+
+When https://jsoup.org/[jsoup] is on the classpath,
+HTML responses are automatically parsed into a jsoup `Document`:
+
+[source,groovy]
+----
+@Grab('org.jsoup:jsoup:1.22.1')
+import static groovy.http.HttpBuilder.http
+
+def client = http('https://example.com')
+def result = client.get('/page')
+def heading = result.html.select('h1').text()
+----
+
+=== Response parsing
+
+`HttpResult` provides convenient accessors for common content types:
+
+- `result.json` -- parsed via `JsonSlurper`
+- `result.xml` -- parsed via `XmlSlurper`
+- `result.html` -- parsed via jsoup (if available)
+- `result.parsed` -- auto-dispatches based on the response `Content-Type`
+- `result.body` -- the raw response body as a `String`
+
+== AST Transforms in More Places (incubating)
+
+Groovy 6 extends the AST transformation infrastructure to support
+annotations on loop statements -- for-in, classic for, while, and do-while
+(https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878]).
+Since the JVM does not support annotations on statements in bytecode,
+these are purely source-level transforms: the annotation drives
+compile-time code generation and is then discarded.
+
+Two initial transforms take advantage of this capability:
+
+=== `@Invariant` on loops
+
+The existing `@Invariant` annotation from `groovy-contracts` can now be
+placed on loops to assert a condition at the start of each iteration.
+Violations throw a `LoopInvariantViolation`.
+
+[source,groovy]
+----
+int sum = 0
+@Invariant({ sum <= 100 })
+for (int i in 1..5) {
+    sum += i
+}
+assert sum == 15
+----
+
+This works with all loop types:
+
+[source,groovy]
+----
+// classic for loop
+int product = 1
+@Invariant({ product >= 1 })
+for (int i = 1; i <= 5; i++) {
+    product *= i
+}
+assert product == 120
+
+// while loop
+int n = 10
+@Invariant({ n >= 0 })
+while (n > 0) {
+    n--
+}
+assert n == 0
+
+// do-while loop
+int count = 0
+@Invariant({ count >= 0 })
+do {
+    count++
+} while (count < 3)
+assert count == 3
+----
+
+Multiple invariants can be stacked on a single loop:
+
+[source,groovy]
+----
+int sum = 0
+@Invariant({ sum >= 0 })
+@Invariant({ sum <= 100 })
+for (int i in 1..5) {
+    sum += i
+}
+assert sum == 15
+----
+
+=== `@Parallel` on for-in loops
+
+The `@Parallel` transform runs each iteration of a for-in loop
+in its own thread:
+
+[source,groovy]
+----
+@Parallel
+for (int i in 1..4) {
+    println i ** 2
+}
+// Output (non-deterministic order): 1, 16, 9, 4
+----
+
+NOTE: `@Parallel` is an incubating transform favoring simplicity.
+Production use should consider proper concurrency mechanisms.
+
+=== Writing custom statement-level transforms
+
+Any source-retention AST transform can now target `STATEMENT_TARGET`.
+The transform's `visit` method receives the `AnnotationNode` and the
+`Statement` (a `LoopingStatement`) as its AST node pair, following the
+same contract as existing class/method/field-level transforms.
+
 == Under exploration
 
-* Annotations in more places (source only), e.g. @Parallel, @Invariant on for loops
+
 * Java compatibility: Module import declarations, additional destructuring
 * Improve REPL further (think nushell)
 * Performance
