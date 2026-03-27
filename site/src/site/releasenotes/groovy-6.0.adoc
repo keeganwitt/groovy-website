@@ -98,8 +98,6 @@ assert firstLetters.groupByMany() == [o:[1], t:[2, 3], f:[4, 5]]
 
 == Grape: Dual Engine Support
 
-NOTE: This section is still under development and is subject to change or movement to another Groovy version. The final details of the Grape dual engine support may differ from what is described here.
-
 Groovy 6 introduces a major evolution of the Grape dependency management system with the addition of a second built-in engine implementation alongside the existing Apache Ivy-based engine.
 
 === What's new
@@ -142,7 +140,9 @@ Most existing `@Grab` scripts remain unchanged and work with both engines, as th
 
 ==== GrapeMaven to GrapeIvy
 
-- In most cases, switching from GrapeMaven to GrapeIvy is straightforward. GrapeIvy's defaults are more permissive, so scripts that work with GrapeMaven typically work unchanged with GrapeIvy.
+- In most cases, switching from GrapeMaven to GrapeIvy is straightforward. GrapeIvy's defaults are more permissive, so scripts that work with GrapeMaven typically work unchanged with GrapeIvy. GrapeMaven is new, so we don't expect many users to need to
+switch back, but we mention it here for users who start migrating and might want
+to revert back to GrapeIvy.
 
 === Migration guide
 
@@ -155,7 +155,6 @@ Most existing `@Grab` scripts remain unchanged and work with both engines, as th
 == Under exploration
 
 * Annotations in more places (source only), e.g. @Parallel, @Invariant on for loops
-* Grapes/Grab users can choose Maven Resolver or Ivy
 * Java compatibility: Module import declarations, additional destructuring
 * Improve REPL further (think nushell)
 * Performance
@@ -163,12 +162,32 @@ Most existing `@Grab` scripts remain unchanged and work with both engines, as th
 * Further subprojects, e.g. maybe GPars
 * async/await like functionality
 
+[[Groovy6.0-breaking]]
+== Breaking changes
+
+=== Removal of Security Manager support
+
+Java's Security Manager has been deprecated for removal by
+https://openjdk.org/jeps/411[JEP 411],
+which argues that it is rarely used to secure modern applications
+and that security is better achieved through other mechanisms
+such as containers and operating system security.
+
+Groovy 6 removes its use of `AccessController.doPrivileged` calls
+and related Security Manager infrastructure
+(https://issues.apache.org/jira/browse/GROOVY-10581[GROOVY-10581]).
+Code that relied on Groovy's Security Manager integration
+should adopt alternative security mechanisms.
+Groovy 5 still includes such support on JDK versions that support it.
+
+=== Other changes
+
 [[Groovy6.0-requirements]]
 == JDK requirements
 
 Groovy 6 requires JDK17+ to build and JDK17 is the
 minimum version of the JRE that we support.
-Groovy 6 has been tested on JDK versions 17 through 25.
+Groovy 6 has been tested on JDK versions 17 through 26.
 
 [[Groovy6.0-more-info]]
 == More information
