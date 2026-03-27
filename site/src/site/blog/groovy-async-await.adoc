@@ -161,8 +161,10 @@ async prepareBattle(heroId, visibleVillainId) {
 }
 ----
 
-All three I/O calls run concurrently. The `all` combinator waits
-for every result, failing fast if any task throws.
+All three I/O calls run concurrently. The `all` combinator waits until
+all results are available. If one or more threads fail, all threads complete
+normally, and the first exception that occurred is thrown unwrapped.
+(See `AsyncScope` later in Example 6 if fail-fast semantics is appropriate.)
 
 === How this compares to Java's `StructuredTaskScope`
 
