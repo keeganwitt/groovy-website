@@ -154,8 +154,7 @@ async prepareBattle(heroId, visibleVillainId) {
     var inventory = async { fetchInventory(heroId) }
     var villain   = async { fetchVillain(visibleVillainId) }
 
-    var result = await Awaitable.all(stats(), inventory(), villain())
-    var (s, inv, v) = result*.get()  // spread the results into variables
+    var (s, inv, v) = await Awaitable.all(stats(), inventory(), villain())
     return new BattleScreen(s, inv, v)
 }
 ----
@@ -189,7 +188,23 @@ syntactic sugar (`await`, `all`) and integrates with the same
 `async`/`await` model used everywhere else, whereas Java's API
 is deliberately lower-level and imperative. We'll see more on
 how Groovy's `AsyncScope` complements JDK structured concurrency
-in <<_example_6_the_raid_party_structured_concurrency_with_asyncscope, Example 6>>.
+in <<_example_6_the_raid_party, Example 6>>.
+
+Note that this isn't an exact equivalent of our Groovy example.
+The async factory-like closures are reusable. To more closely mirror
+the Java version we could use `Awaitable.go`:
+
+[source,groovy]
+----
+async prepareBattle(heroId, visibleVillainId) {
+    var stats     = Awaitable.go { fetchHeroStats(heroId) }
+    var inventory = Awaitable.go { fetchInventory(heroId) }
+    var villain   = Awaitable.go { fetchVillain(visibleVillainId) }
+
+    await Awaitable.all(stats, inventory, villain)
+    return new BattleScreen(stats.get(), inventory.get(), villain.get())
+}
+----
 
 == Example 3: dungeon waves — async streams with `yield return` and `for await`
 
@@ -305,6 +320,7 @@ the Groovy equivalent of Go's `for range ch`. You can also race
 channel operations with `Awaitable.any(...)`, serving a similar
 role to Go's `select` statement.
 
+[#_example_6_the_raid_party]
 == Example 6: the raid party — structured concurrency with `AsyncScope`
 
 A raid sends multiple heroes to scout different dungeon rooms
