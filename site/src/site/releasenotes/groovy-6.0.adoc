@@ -336,6 +336,9 @@ for (int i in 1..4) {
 // Output (non-deterministic order): 1, 16, 9, 4
 ----
 
+When running on JDK 21+, `@Parallel` will use virtual threads
+for lightweight concurrency; on earlier JDKs it falls back to platform threads.
+
 NOTE: `@Parallel` is an incubating transform favoring simplicity.
 Production use should consider proper concurrency mechanisms.
 
@@ -355,6 +358,18 @@ same contract as existing class/method/field-level transforms.
 * Spec improvements
 * Further subprojects, e.g. maybe GPars
 * async/await like functionality
+
+== Platform Logging
+
+Groovy 6 replaces direct `System.err` output with the JDK's
+Platform Logging API (`java.lang.System.Logger`)
+for internal errors and warnings
+(https://issues.apache.org/jira/browse/GROOVY-11886[GROOVY-11886]).
+This means Groovy's diagnostic messages can now be controlled
+through standard JVM logging configuration.
+By default, messages still appear on the console via `java.util.logging`,
+but users can plug in any logging framework (SLF4J, Log4j2, etc.)
+by providing a `System.LoggerFinder` implementation on the classpath.
 
 [[Groovy6.0-breaking]]
 == Breaking changes
