@@ -98,6 +98,19 @@ assert firstLetters == [1:['o'], 2:['t'], 3:['t'], 4:['f'], 5:['f']]
 assert firstLetters.groupByMany() == [o:[1], t:[2, 3], f:[4, 5]]
 ----
 
+The `isSorted` method
+(https://issues.apache.org/jira/browse/GROOVY-11891[GROOVY-11891])
+checks whether the elements of an Iterable, Iterator, array, or Map
+are in sorted order. It works with natural ordering, a `Comparator`,
+or a `Closure`:
+
+[source,groovy]
+----
+assert [1, 2, 3].isSorted()
+assert !([3, 1, 2].isSorted())
+assert ['hi', 'hey', 'hello'].isSorted { it.length() }
+----
+
 == Grape: Dual Engine Support
 
 Groovy 6 introduces a major evolution of the Grape dependency management system
