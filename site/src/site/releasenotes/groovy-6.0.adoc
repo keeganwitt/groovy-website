@@ -419,7 +419,7 @@ that merges two pre-sorted lists:
 
 [source,groovy]
 ----
-@Ensures({ result == result.sort() })
+@Ensures({ result.isSorted() })
 List insertionSort(List in1, List in2) {
     var out = []
     var count = in1.size() + in2.size()
