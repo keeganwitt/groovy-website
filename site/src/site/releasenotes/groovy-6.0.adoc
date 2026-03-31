@@ -371,6 +371,31 @@ By default, messages still appear on the console via `java.util.logging`,
 but users can plug in any logging framework (SLF4J, Log4j2, etc.)
 by providing a `System.LoggerFinder` implementation on the classpath.
 
+=== Configuring logging
+
+Groovy's command-line tools resolve logging configuration
+in the following order (first match wins):
+
+1. A file specified via `-Djava.util.logging.config.file=...`
+2. A user configuration at `~/.groovy/logging.properties`
+   (auto-discovered by Groovy at startup)
+3. The JDK default at `$JAVA_HOME/conf/logging.properties`
+
+For example, to enable verbose Grape logging, create
+`~/.groovy/logging.properties` with:
+
+[source,properties]
+----
+handlers = java.util.logging.ConsoleHandler
+java.util.logging.ConsoleHandler.level = ALL
+groovy.grape.Grape.level = FINE
+----
+
+Loggers are organized by module (Core, Grape, Ant, Console, GroovyDoc,
+JSON, Servlet, Swing, Testing) -- see the
+https://groovy-lang.org/logging.html[logging guide]
+for the full list of logger names and their levels.
+
 [[Groovy6.0-breaking]]
 == Breaking changes
 

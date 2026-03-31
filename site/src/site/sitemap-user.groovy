@@ -124,6 +124,7 @@ documentation {
     }
 
     section ('Tools','fa-gears') {
+        item 'groovy - the Groovy command-line',           'groovy',          'tools-groovy'
         item 'groovyc - the Groovy compiler',               'groovyc',          'tools-groovyc'
         item 'groovydoc - the Groovy documentation generator',               'groovydoc',          'groovydoc'
         item 'groovysh - the Groovy repl-like shell',       'groovysh',         'groovysh'
