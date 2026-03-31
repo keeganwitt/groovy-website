@@ -25,7 +25,9 @@ TBD
 
 Groovy provides over 2000 extension methods to 150+ JDK classes to enhance JDK functionality, with new methods added in Groovy 6. These methods reduce dependency on third-party libraries for common tasks, and make code more intuitive. Let's explore some highlights from those new methods.
 
-Several variants of `groupByMany` exist for grouping lists and maps of items.
+Several variants of `groupByMany`
+(https://issues.apache.org/jira/browse/GROOVY-11808[GROOVY-11808])
+exist for grouping lists and maps of items.
 
 The most common form takes a closure (or lambda) which converts from some item
 into a list of keys to group by (in this case group words by the vowels they contain):
@@ -98,7 +100,9 @@ assert firstLetters.groupByMany() == [o:[1], t:[2, 3], f:[4, 5]]
 
 == Grape: Dual Engine Support
 
-Groovy 6 introduces a major evolution of the Grape dependency management system with the addition of a second built-in engine implementation alongside the existing Apache Ivy-based engine.
+Groovy 6 introduces a major evolution of the Grape dependency management system
+(https://issues.apache.org/jira/browse/GROOVY-11871[GROOVY-11871])
+with the addition of a second built-in engine implementation alongside the existing Apache Ivy-based engine.
 
 === What's new
 
@@ -262,65 +266,22 @@ Since the JVM does not support annotations on statements in bytecode,
 these are purely source-level transforms: the annotation drives
 compile-time code generation and is then discarded.
 
-Two initial transforms take advantage of this capability:
-
-=== `@Invariant` on loops
-
-The existing `@Invariant` annotation from `groovy-contracts` can now be
-placed on loops to assert a condition at the start of each iteration.
-Violations throw a `LoopInvariantViolation`.
+Several transforms take advantage of this capability.
+The `@Invariant` and `@Decreases` annotations from `groovy-contracts`
+can be placed on loops to assert invariant conditions and termination:
 
 [source,groovy]
 ----
-int sum = 0
-@Invariant({ sum <= 100 })
-for (int i in 1..5) {
-    sum += i
-}
-assert sum == 15
-----
-
-This works with all loop types:
-
-[source,groovy]
-----
-// classic for loop
 int product = 1
 @Invariant({ product >= 1 })
+@Decreases({ 6 - i })
 for (int i = 1; i <= 5; i++) {
     product *= i
 }
 assert product == 120
-
-// while loop
-int n = 10
-@Invariant({ n >= 0 })
-while (n > 0) {
-    n--
-}
-assert n == 0
-
-// do-while loop
-int count = 0
-@Invariant({ count >= 0 })
-do {
-    count++
-} while (count < 3)
-assert count == 3
 ----
 
-Multiple invariants can be stacked on a single loop:
-
-[source,groovy]
-----
-int sum = 0
-@Invariant({ sum >= 0 })
-@Invariant({ sum <= 100 })
-for (int i in 1..5) {
-    sum += i
-}
-assert sum == 15
-----
+See the <<groovy-contracts>> section for more details and examples.
 
 === `@Parallel` on for-in loops
 
@@ -348,6 +309,138 @@ Any source-retention AST transform can now target `STATEMENT_TARGET`.
 The transform's `visit` method receives the `AnnotationNode` and the
 `Statement` (a `LoopingStatement`) as its AST node pair, following the
 same contract as existing class/method/field-level transforms.
+
+[[groovy-contracts]]
+== Groovy-Contracts Enhancements (incubating)
+
+The `groovy-contracts` module receives several enhancements in Groovy 6.
+
+=== Contracts in scripts
+
+Contract annotations now work in Groovy scripts, not just inside classes
+(https://issues.apache.org/jira/browse/GROOVY-11885[GROOVY-11885]).
+`@Requires` and `@Ensures` can be placed on script methods,
+and `@Invariant` can be placed on an import statement to apply
+as a class-level invariant for the script:
+
+[source,groovy]
+----
+@Invariant({ balance >= 0 })
+import groovy.transform.Field
+import groovy.contracts.Invariant
+
+@Field Integer balance = 5
+
+@Requires({ balance >= amount })
+def withdraw(int amount) { balance -= amount }
+
+def deposit(int amount) { balance += amount }
+
+deposit(5)       // balance = 10, OK
+withdraw(20)     // throws ClassInvariantViolation (balance would be -5)
+----
+
+=== `@Invariant` on loops
+
+The existing `@Invariant` annotation can now be
+placed on loops to assert a condition at the start of each iteration.
+Violations throw a `LoopInvariantViolation`.
+
+[source,groovy]
+----
+int sum = 0
+@Invariant({ sum <= 100 })
+for (int i in 1..5) {
+    sum += i
+}
+assert sum == 15
+----
+
+This works with all loop types (for-in, classic for, while, do-while),
+and multiple invariants can be stacked on a single loop:
+
+[source,groovy]
+----
+int sum = 0
+@Invariant({ sum >= 0 })
+@Invariant({ sum <= 100 })
+for (int i in 1..5) {
+    sum += i
+}
+assert sum == 15
+----
+
+=== `@Decreases` on loops
+
+The new `@Decreases` annotation
+(https://issues.apache.org/jira/browse/GROOVY-11890[GROOVY-11890])
+specifies a loop termination measure
+(also known as a loop _variant_ in formal methods).
+The annotation takes a closure returning a value (or list of values)
+that must strictly decrease on every iteration while remaining non-negative.
+Since a non-negative integer that strictly decreases on every iteration
+must eventually reach zero, this gives confidence that the loop terminates.
+
+[source,groovy]
+----
+int n = 10
+@Decreases({ n })
+while (n > 0) {
+    n--
+}
+----
+
+For loops with multiple quantities that change, a list can be returned
+for lexicographic comparison -- the first position where values differ
+must show a decrease:
+
+[source,groovy]
+----
+int outer = 2, inner = 3
+@Decreases({ [outer, inner] })
+while (outer > 0) {
+    if (inner > 0) {
+        inner--
+    } else {
+        outer--
+        inner = 3
+    }
+}
+----
+
+If any iteration fails to decrease the measure,
+a `LoopVariantViolation` is thrown immediately.
+
+=== Combining contracts
+
+These annotations can be combined to build strong confidence
+in the correctness of an algorithm. Consider this insertion sort
+that merges two pre-sorted lists:
+
+[source,groovy]
+----
+@Ensures({ result == result.sort() })
+List insertionSort(List in1, List in2) {
+    var out = []
+    var count = in1.size() + in2.size()
+    @Invariant({ in1.size() + in2.size() + out.size() == count })
+    @Decreases({ [in1.size(), in2.size()] })
+    while (in1 || in2) {
+        if (!in1) return out + in2
+        if (!in2) return out + in1
+        out += (in1[0] < in2[0]) ? in1.pop() : in2.pop()
+    }
+    out
+}
+----
+
+The `@Ensures` postcondition verifies that the result is sorted.
+The `@Invariant` asserts that no elements are lost or gained --
+the total number of elements across all three lists stays constant
+throughout the loop. The `@Decreases` annotation uses a lexicographic
+measure over the two input list sizes, giving us confidence that
+the loop terminates: on each iteration at least one input list
+shrinks, and they can never grow.
 
 == Under exploration
 
@@ -395,6 +488,27 @@ Loggers are organized by module (Core, Grape, Ant, Console, GroovyDoc,
 JSON, Servlet, Swing, Testing) -- see the
 https://groovy-lang.org/logging.html[logging guide]
 for the full list of logger names and their levels.
+
+== Improved Annotation Validation
+
+Groovy 6 closes gaps in annotation target validation
+(https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884]).
+Previously, annotations could be placed on import statements and
+loop statements without validation -- for example, `@Deprecated import java.lang.String`
+would compile without error even though `@Deprecated` does not target imports.
+
+The compiler now enforces that only annotations explicitly declaring
+Groovy-specific targets are permitted in these positions.
+A new `@ExtendedTarget` meta-annotation with an `ExtendedElementType` enum
+defines two Groovy-only targets:
+
+- `IMPORT` -- for annotations valid on import statements (e.g. `@Grab`, `@Newify`, `@BaseScript`)
+- `LOOP` -- for annotations valid on loop statements (e.g. `@Invariant`, `@Decreases`, `@Parallel`)
+
+Annotations without the appropriate `@ExtendedTarget` declaration
+are now flagged as compile errors when applied to these constructs.
+This may be a breaking change for code that previously relied on
+the lenient behavior.
 
 [[Groovy6.0-breaking]]
 == Breaking changes
