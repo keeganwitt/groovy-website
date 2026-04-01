@@ -211,6 +211,28 @@ async prepareBattle(heroId, visibleVillainId) {
 }
 ----
 
+=== The flip side: `Awaitable.any` — first one wins
+
+Where `all` waits for _every_ task, `any` returns as soon as the
+_first_ one completes — a race. Imagine a capture-the-flag battle
+where the hero and villain both dash for the flag:
+
+[source,groovy]
+----
+async captureTheFlag(hero, villain, flag) {
+    var heroGrab    = async { hero.grab(flag) }
+    var villainGrab = async { villain.grab(flag) }
+
+    var winner = await Awaitable.any(heroGrab(), villainGrab())
+    println "$winner.name captured the flag!"
+}
+----
+
+The loser's task still runs to completion in the background
+(use `AsyncScope` if you want the loser cancelled immediately).
+This is the same "race" pattern as JavaScript's `Promise.race`
+or Go's `select`.
+
 == Example 3: dungeon waves — async streams with `yield return` and `for await`
 
 A dungeon sends waves of enemies at the hero. Each wave is fetched
