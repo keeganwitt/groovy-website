@@ -1,0 +1,454 @@
+= Compile-time null safety for Groovy&trade;
+Paul King <paulk-asert|PMC_Member>
+:revdate: 2026-04-02T10:00:00+00:00
+:keywords: null safety, type checking, static analysis, annotations
+:description: This post looks at a proposed type-checking extension for Groovy \
+which catches null-safety violations at compile time.
+
+== Introduction
+
+A proposed enhancement, targeted for Groovy 6,
+adds compile-time null-safety analysis as a type-checking extension
+(https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894],
+https://github.com/apache/groovy/pull/2426[PR \#2426]).
+Inspired by the
+https://checkerframework.org/manual/#nullness-checker[Checker Framework],
+https://jspecify.dev/[JSpecify], and similar tools in Kotlin and C#,
+the proposal catches null dereferences, unsafe assignments, and
+missing null checks _before_ your code ever runs.
+
+The extension plugs into Groovy's existing `@TypeChecked`
+infrastructure — no new compiler plugins, no separate build step,
+just an annotation on the classes or methods you want checked.
+You can also use a
+https://docs.groovy-lang.org/latest/html/documentation/#_configscript_example_static_compilation_by_default[compiler configuration script]
+to apply it across your entire codebase without needing
+to explicitly add the `@TypeChecked` annotations.
+
+This post walks through a series of bite-sized examples showing
+what the day-to-day experience would feel like.
+To make things concrete, the examples follow a running theme:
+building the backend for _The Groovy Shelf_, a fictitious online
+bookshop where customers browse, reserve, and review books.
+
+== Two levels of strictness
+
+The proposal provides two checkers. Pick the level that suits
+your code:
+
+[cols="2,3,3", options="header"]
+|===
+| Checker | Behaviour | Best for
+
+| `NullChecker`
+| Checks code annotated with `@Nullable` / `@NonNull` (or equivalents). Unannotated code passes without error.
+| Existing projects adopting null safety incrementally.
+
+| `StrictNullChecker`
+| Everything `NullChecker` does, _plus_ flow-sensitive tracking — even unannotated `def x = null; x.toString()` is flagged.
+| New code or modules where you want full coverage.
+|===
+
+Both are enabled through `@TypeChecked`:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class RelaxedCode { /* … */ }
+
+@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+class StrictCode { /* … */ }
+----
+
+For code bases with a mix of strictness requirements, apply the
+appropriate checker per class or per method.
+
+== The problem: the billion-dollar mistake at runtime
+
+Tony Hoare famously called null references his
+https://www.infoq.com/presentations/Null-References-The-Billion-Dollar-Mistake-Tony-Hoare/["billion-dollar mistake"].
+In Groovy and Java, nothing stops you from writing:
+
+[source,groovy]
+----
+String name = null
+println name.toUpperCase()   // NullPointerException at runtime
+----
+
+The code compiles, the tests might even pass if they don't hit that
+path, and the exception surfaces in production. The NullChecker
+proposal moves this class of error to compile time.
+
+== Example 1: looking up a book — `@Nullable` parameters
+
+A customer searches for a book by title. The title might come from
+a form field that wasn't filled in, so the parameter is `@Nullable`:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+Book findBook(@Nullable String title) {
+    if (title != null) {
+        return catalog.search(title.trim())   // ok: inside null guard
+    }
+    return Book.FEATURED
+}
+----
+
+The checker verifies that `title` is only dereferenced inside the
+null guard. Remove the `if` and you get a compile-time error:
+
+[source]
+----
+[Static type checking] - Potential null dereference: 'title' is @Nullable
+----
+
+No runtime surprise — the mistake is caught before the code ships.
+
+== Example 2: greeting a customer — catching null arguments
+
+When a customer places an order, we greet them by name.
+The name is `@NonNull` — it must always be provided:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class OrderService {
+    static String greet(@NonNull String name) {
+        "Welcome back, $name!"
+    }
+    static void main(String[] args) {
+        greet(null)   // compile error
+    }
+}
+----
+
+[source]
+----
+[Static type checking] - Cannot pass null to @NonNull parameter 'name' of 'greet'
+----
+
+The checker also catches returning `null` from a `@NonNull` method
+and assigning `null` to a `@NonNull` field — the same principle
+applied consistently across assignments, parameters, and returns.
+
+== Example 3: safe access patterns — the checker is smart
+
+Groovy already offers the safe-navigation operator (`?.`) for
+working with nullable values. The NullChecker understands it,
+along with several other patterns:
+
+*Safe navigation:*
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+String displayTitle(@Nullable String title) {
+    title?.toUpperCase()                       // ok: safe navigation
+}
+----
+
+*Null guards:*
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+String formatTitle(@Nullable String title) {
+    if (title != null) {
+        return title.toUpperCase()             // ok: null guard
+    }
+    return 'Untitled'
+}
+----
+
+*Early exit:*
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+String formatTitle(@Nullable String title) {
+    if (title == null) return 'Untitled'       // early exit
+    title.toUpperCase()                        // ok: title is non-null here
+}
+----
+
+*Elvis assignment:*
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+static main(args) {
+    def title = null
+    title ?= 'Untitled'
+    title.toUpperCase()                        // ok: elvis cleared nullable state
+}
+----
+
+The checker performs the same kind of narrowing that a human reader
+does: once you've ruled out null — whether by an `if`, an early
+`return`, a `throw`, or an elvis assignment — the variable is safe.
+
+== Example 4: non-null by default — less annotation noise
+
+Annotating every parameter and field gets tedious. Class-level
+defaults let you flip the polarity: everything is `@NonNull` unless
+you say otherwise with `@Nullable`:
+
+[source,groovy]
+----
+@NonNullByDefault
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class BookService {
+    String name                                // implicitly @NonNull
+
+    static String formatISBN(String isbn) {    // isbn is implicitly @NonNull
+        "ISBN: $isbn"
+    }
+
+    static void main(String[] args) {
+        formatISBN(null)                       // compile error
+    }
+}
+----
+
+[source]
+----
+[Static type checking] - Cannot pass null to @NonNull parameter 'isbn' of 'formatISBN'
+----
+
+The checker recognises several class-level annotations for this:
+
+* `@NonNullByDefault` (SpotBugs, Eclipse JDT)
+* `@NullMarked` (https://jspecify.dev/[JSpecify])
+* `@ParametersAreNonnullByDefault` (JSR-305 — parameters only)
+
+JSpecify's `@NullUnmarked` can be applied to a nested class to opt
+out of a surrounding `@NullMarked` scope.
+
+=== Integration with `@NullCheck`
+
+Groovy's existing `@NullCheck` annotation generates _runtime_ null
+checks for method parameters. The NullChecker complements this by
+catching violations at _compile_ time:
+
+[source,groovy]
+----
+@NullCheck
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class Greeter {
+    static String greet(String name) {
+        "Hello, $name!"
+    }
+    static void main(String[] args) {
+        greet(null)                            // caught at compile time
+    }
+}
+----
+
+With `@NullCheck` on the class, the checker treats all non-primitive
+parameters as effectively `@NonNull`. You still get the runtime
+guard as a safety net, but now you also get a compile-time error
+alerting you before the code ever executes. Parameters explicitly
+annotated `@Nullable` override this behaviour.
+
+== Example 5: lazy initialisation — `@MonotonicNonNull` and `@Lazy`
+
+Some fields start as `null` but, once initialised, should never be
+`null` again. The `@MonotonicNonNull` annotation expresses this
+"write once, then non-null forever" contract:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class RecommendationEngine {
+    @MonotonicNonNull String cachedResult
+
+    String getRecommendation() {
+        if (cachedResult != null) {
+            return cachedResult.toUpperCase()   // ok: null guard
+        }
+        cachedResult = 'Groovy in Action'
+        return cachedResult.toUpperCase()       // ok: just assigned non-null
+    }
+}
+----
+
+The checker treats `@MonotonicNonNull` fields as nullable (requiring
+a null guard before use) but prevents re-assignment to `null` after
+initialisation:
+
+[source,groovy]
+----
+void reset() {
+    cachedResult = 'something'
+    cachedResult = null                        // compile error
+}
+----
+
+[source]
+----
+[Static type checking] - Cannot assign null to @MonotonicNonNull variable 'cachedResult' after non-null assignment
+----
+
+Groovy's `@Lazy` annotation is implicitly treated as
+`@MonotonicNonNull`. Since `@Lazy` generates a getter that handles
+initialisation automatically, property access through the getter is
+always safe and won't trigger null dereference warnings.
+
+== Example 6: going strict — flow-sensitive analysis
+
+The standard `NullChecker` only flags issues involving annotated
+code — unannotated code passes silently. The `StrictNullChecker`
+goes further, tracking nullability through assignments and control
+flow even without annotations:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+static main(args) {
+    def x = null
+    x.toString()                               // compile error
+}
+----
+
+[source]
+----
+[Static type checking] - Potential null dereference: 'x' may be null
+----
+
+The checker tracks nullability through ternary expressions, elvis
+expressions, method return values, and reassignments. Assigning a
+non-null value clears the nullable state:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+static main(args) {
+    def x = null
+    x = 'hello'
+    assert x.toString() == 'hello'             // ok: reassigned non-null
+}
+----
+
+This is ideal for new modules where you want comprehensive null
+coverage from the start, without annotating every declaration.
+
+== Annotation compatibility
+
+The checker matches annotations by _simple name_, not by fully-qualified
+class name. This means it works with annotations from any library:
+
+[cols="2,3", options="header"]
+|===
+| Library | Annotations
+
+| https://jspecify.dev/[JSpecify]
+| `@Nullable`, `@NullMarked`, `@NullUnmarked`
+
+| JSR-305 (`javax.annotation`)
+| `@Nullable`, `@Nonnull`, `@ParametersAreNonnullByDefault`
+
+| JetBrains
+| `@Nullable`, `@NotNull`
+
+| SpotBugs / FindBugs
+| `@Nullable`, `@NonNull`, `@NonNullByDefault`
+
+| Checker Framework
+| `@Nullable`, `@NonNull`, `@MonotonicNonNull`
+|===
+
+If you prefer not to add an external dependency, you can define
+your own minimal annotations — the checker only cares about the
+simple name:
+
+[source,groovy]
+----
+@Target([ElementType.PARAMETER, ElementType.METHOD, ElementType.FIELD])
+@Retention(RetentionPolicy.CLASS)
+@interface Nullable {}
+
+@Target([ElementType.PARAMETER, ElementType.METHOD, ElementType.FIELD])
+@Retention(RetentionPolicy.CLASS)
+@interface NonNull {}
+----
+
+== How this compares to Java approaches
+
+Java developers wanting compile-time null safety currently reach
+for external tools — the
+https://checkerframework.org/manual/#nullness-checker[Checker Framework],
+https://errorprone.info/[Error Prone], or IDE-specific inspections
+(IntelliJ, Eclipse). Each brings its own setup, annotation flavour,
+and build integration.
+
+Groovy's NullChecker offers several advantages:
+
+* **Zero setup.** It's a type-checking extension — add one
+  annotation and you're done. No annotation processor configuration,
+  no extra compiler flags, no Gradle plugin.
+* **Works with any annotation library.** Simple-name matching means
+  you can use JSpecify, JSR-305, JetBrains, SpotBugs, Checker
+  Framework, or your own — interchangeably.
+* **Understands Groovy idioms.** Safe navigation (`?.`), elvis
+  assignment (`?=`), `@Lazy` fields, and Groovy truth are all
+  recognised. A Java-only tool can't help here.
+* **Two-tier strictness.** Start with annotation-only checking on
+  existing code, then enable flow-sensitive mode for new modules —
+  no all-or-nothing migration.
+* **Complements `@NullCheck`.** Catch violations at compile time
+  while keeping the runtime guard as a safety net.
+
+== The full picture
+
+The examples above cover the most common scenarios. The complete
+proposal also includes detection of nullable method return value
+dereferences, `@Nullable` values flowing into `@NonNull` parameters
+through variables, nullable propagation in ternary and elvis
+expressions, and integration with JSpecify's `@NullMarked` /
+`@NullUnmarked` scoping. The full spec is available in the
+https://github.com/apache/groovy/pull/2426[PR].
+
+For complementary null-related checks — such as detecting broken
+null-check logic, unnecessary null guards before `instanceof`, or
+`Boolean` methods returning `null` — consider using
+https://codenarc.org/[CodeNarc]'s null-related rules alongside
+these type checkers.
+
+== We'd love your feedback
+
+The NullChecker feature is currently a proposal in
+https://github.com/apache/groovy/pull/2426[PR #2426]
+(tracking issue
+https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]).
+Null safety is a foundational concern, and we want to get the
+design right.
+
+* *Comment* on the https://github.com/apache/groovy/pull/2426[PR] or
+  the https://issues.apache.org/jira/browse/GROOVY-11894[JIRA issue]
+  with your thoughts, use cases, or design suggestions.
+* *Vote* on the JIRA issue if you'd like to see this feature land.
+
+Your feedback helps us gauge interest and shape the final design.
+
+== Conclusion
+
+Through our _Groovy Shelf_ bookshop examples we've seen how the
+proposed NullChecker catches null dereferences, unsafe assignments,
+and missing null checks at compile time — from looking up books
+with nullable titles, to enforcing non-null parameters, recognising
+Groovy's safe-navigation idioms, applying class-level defaults with
+`@NonNullByDefault`, handling lazy initialisation with
+`@MonotonicNonNull`, and tracking nullability through control flow
+with the `StrictNullChecker`. The setup is minimal, the annotation
+compatibility is broad, and the two-tier strictness model lets you
+adopt null safety at your own pace.
+
+== References
+
+* https://github.com/apache/groovy/pull/2426[PR #2426 — NullChecker type-checking extension]
+* https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894 — Tracking issue]
+* https://jspecify.dev/[JSpecify — Standard Java annotations for null safety]
+* https://checkerframework.org/manual/#nullness-checker[Checker Framework — Nullness Checker]
+* https://groovy-lang.org/objectorientation.html#_safe_navigation_operator[Groovy safe navigation operator]
+* https://codenarc.org/[CodeNarc]
