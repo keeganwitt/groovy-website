@@ -154,14 +154,18 @@ async prepareBattle(heroId, visibleVillainId) {
     var inventory = async { fetchInventory(heroId) }
     var villain   = async { fetchVillain(visibleVillainId) }
 
-    var (s, inv, v) = await Awaitable.all(stats(), inventory(), villain())
+    var (s, inv, v) = await stats(), inventory(), villain()
     return new BattleScreen(s, inv, v)
 }
 ----
 
 Here, `async { … }` creates an async closure — a reusable
 block that doesn't run until you call it.
-Invoking `stats()`, `inventory()`, and `villain()` each launches its respective block concurrently and returns an `Awaitable`. The `all` combinator produces another `Awaitable` that completes when every task has finished. If any task fails, the remaining tasks still run to completion, and the first exception is thrown unwrapped. (For fail-fast semantics — cancelling siblings as soon as one fails — see `AsyncScope` in Example 6.)
+Invoking `stats()`, `inventory()`, and `villain()` each launches its respective block concurrently and returns an `Awaitable`.
+
+The `await stats(), inventory(), villain()` statement is a shorthand for
+`await Awaitable.all(stats(), inventory(), villain())`.
+The `all` combinator produces another `Awaitable` that completes when every task has finished. If any task fails, the remaining tasks still run to completion, and the first exception is thrown unwrapped. (For fail-fast semantics — cancelling siblings as soon as one fails — see `AsyncScope` in Example 6.)
 
 === How this compares to Java's `StructuredTaskScope`
 
@@ -191,8 +195,9 @@ how Groovy's `AsyncScope` complements JDK structured concurrency
 in <<_example_6_the_raid_party, Example 6>>.
 
 Note that this isn't an exact equivalent of our Groovy example.
-The async factory-like closures are reusable. To more closely mirror
-the Java version we could use `Awaitable.go`:
+The async factory-like closures are reusable. If you don't need that
+flexibility, you can also use `Awaitable.go` to launch a one-off task.
+This more closely mirrors the Java version:
 
 [source,groovy]
 ----
@@ -201,7 +206,7 @@ async prepareBattle(heroId, visibleVillainId) {
     var inventory = Awaitable.go { fetchInventory(heroId) }
     var villain   = Awaitable.go { fetchVillain(visibleVillainId) }
 
-    await Awaitable.all(stats, inventory, villain)
+    await stats, inventory, villain
     return new BattleScreen(stats.get(), inventory.get(), villain.get())
 }
 ----
