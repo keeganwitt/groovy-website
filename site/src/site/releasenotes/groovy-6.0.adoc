@@ -111,7 +111,61 @@ assert !([3, 1, 2].isSorted())
 assert ['hi', 'hey', 'hello'].isSorted { it.length() }
 ----
 
-== Grape: Dual Engine Support
+== Selectively Disabling Extension Methods
+
+The `groovy.extension.disable` system property has been enhanced
+(https://issues.apache.org/jira/browse/GROOVY-11892[GROOVY-11892]),
+to allow finer-grained control over which
+Groovy extension methods are disabled. Previously, setting
+`-Dgroovy.extension.disable=groupBy` would disable _all_ overloads
+of `groupBy`. Now, specific overloads can be targeted by
+receiver type or full parameter signature:
+
+[cols="1,2",options="header"]
+|===
+| Syntax | Effect
+
+| `groupBy`
+| Disables all `groupBy` overloads
+
+| `groupBy(MutableList)`
+| Disables only the overload for `MutableList` receivers
+
+| `groupBy,countBy`
+| Disables all overloads of both methods
+|===
+
+Type names can be simple (`Set`) or fully qualified (`java.util.Set`).
+
+This is particularly useful when integrating with libraries like
+https://eclipse.dev/collections/[Eclipse Collections] that define
+methods with the same name as Groovy's extension methods but return
+different types. For example, Groovy's `groupBy` returns lists or maps
+from the standard collections library, but Eclipse Collections' `groupBy` returns a `Multimap`.
+By disabling the Groovy overload only for Lists,
+we can still use Groovy's `groupBy` on `java.util.Map` instances.
+
+[source,groovy]
+----
+// disable groupBy only for Lists
+// (well, all iterables but only for the Closure variant)
+// -Dgroovy.extension.disable=groupBy(Iterable,Closure)
+
+var fruits = Lists.mutable.of('🍎', '🍌', '🍎', '🍇', '🍌')
+
+// Eclipse Collections groupBy → returns a Multimap
+assert fruits.groupBy { it } ==
+        Multimaps.mutable.list.empty()
+                .withKeyMultiValues('🍎', '🍎', '🍎')
+                .withKeyMultiValues('🍌', '🍌', '🍌')
+                .withKeyMultiValues('🍇', '🍇')
+
+// Groovy's groupBy still works on Maps
+def result = [a:1,b:2,c:3,d:4].groupBy { it.value % 2 }
+assert result == [0:[b:2, d:4], 1:[a:1, c:3]]
+----
+
+== Grape: Dual Engine Support (Incubating)
 
 Groovy 6 introduces a major evolution of the Grape dependency management system
 (https://issues.apache.org/jira/browse/GROOVY-11871[GROOVY-11871])
