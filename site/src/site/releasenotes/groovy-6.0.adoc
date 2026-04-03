@@ -556,6 +556,14 @@ JSON, Servlet, Swing, Testing) -- see the
 https://groovy-lang.org/logging.html[logging guide]
 for the full list of logger names and their levels.
 
+== GroovyConsole: Script Arguments
+
+GroovyConsole now supports setting script arguments directly from the UI
+(https://issues.apache.org/jira/browse/GROOVY-11895[GROOVY-11895]).
+Previously, users had to manually set `args` within their script
+as a workaround. A new _Set Script Arguments_ option in the _Script_ menu
+lets you specify space-separated arguments that are passed to the script.
+
 == Improved Annotation Validation
 
 Groovy 6 closes gaps in annotation target validation
