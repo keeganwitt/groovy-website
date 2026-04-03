@@ -1,0 +1,443 @@
+= Async/await for Groovy&trade;
+Paul King <paulk-asert|PMC_Member>
+:revdate: 2026-04-03T10:00:00+00:00
+:draft: true
+:keywords: async, await, concurrency, virtual-threads
+:description: This post introduces Groovy's simplified async/await feature — write concurrent code that reads like synchronous code, with virtual thread support, generators, channels, and structured concurrency.
+
+== Introduction
+
+Groovy 6 adds native `async`/`await` as a language-level feature
+(https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381]).
+Write asynchronous code in a sequential, readable style —
+with support for generators, deferred cleanup, Go-style channels,
+structured concurrency, and framework adapters for Reactor and RxJava.
+
+On JDK 21+, async tasks automatically leverage
+https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Thread.html#ofVirtual()[virtual threads]
+for optimal scalability. On JDK 17–20, a cached thread pool provides
+correct behavior as a fallback.
+
+To make the features concrete, the examples follow a running theme:
+building the backend for _Groovy Quest_, a fictitious online game
+where heroes battle villains across dungeons.
+
+== Getting started
+
+=== The problem: callback complexity
+
+A player logs in and we need to load their quest: look up
+their hero ID, fetch the hero's class, then load their active quest.
+With `CompletableFuture` the logic gets buried under plumbing:
+
+[source,java]
+----
+// Java with CompletableFuture
+CompletableFuture<Quest> quest =
+    lookupHeroId(loginToken)
+        .thenCompose(id -> fetchHeroClass(id))
+        .thenCompose(heroClass -> loadActiveQuest(heroClass))
+        .exceptionally(e -> Quest.DEFAULT);
+----
+
+Each `.thenCompose()` adds a nesting level, exception recovery is
+separated from the code that causes it, and the control flow reads
+inside-out.
+
+=== Loading a hero — reads like synchronous code
+
+With `async`/`await`, the same logic becomes:
+
+[source,groovy]
+----
+Quest loadHeroQuest(String loginToken) {
+    var heroId    = await lookupHeroId(loginToken)
+    var heroClass = await fetchHeroClass(heroId)
+    return await loadActiveQuest(heroClass)
+}
+----
+
+Variables are declared at the point of use. The return value is obvious.
+No callbacks, no lambdas, no chained combinators. The method is a
+regular method — the caller decides whether to run it asynchronously:
+
+[source,groovy]
+----
+// Run asynchronously:
+def quest = await async { loadHeroQuest(token) }
+
+// Or call directly (blocking — fine on virtual threads):
+def quest = loadHeroQuest(token)
+----
+
+=== Exception handling — just `try`/`catch`
+
+What about the `.exceptionally(e -> Quest.DEFAULT)` fallback from
+the Java version?
+
+[source,groovy]
+----
+Quest loadHeroQuest(String loginToken) {
+    try {
+        var heroId    = await lookupHeroId(loginToken)
+        var heroClass = await fetchHeroClass(heroId)
+        return await loadActiveQuest(heroClass)
+    } catch (NoActiveQuestException e) {
+        return Quest.DEFAULT
+    }
+}
+----
+
+`await` unwraps `CompletionException` automatically, so you catch
+the _original_ exception type. Error handling reads exactly like
+synchronous code.
+
+== Running tasks in parallel
+
+=== Preparing for battle — `Awaitable.all`
+
+Before a battle, the game loads the hero's stats, inventory, and
+the villain — all in parallel:
+
+[source,groovy]
+----
+def prepareBattle(heroId, visibleVillainId) {
+    var stats     = async { fetchHeroStats(heroId) }
+    var inventory = async { fetchInventory(heroId) }
+    var villain   = async { fetchVillain(visibleVillainId) }
+
+    var (s, inv, v) = await Awaitable.all(stats, inventory, villain)
+    return new BattleScreen(s, inv, v)
+}
+----
+
+Each `async { ... }` starts immediately on a background thread.
+The `await stats, inventory, villain` expression waits for all three
+to complete — it's shorthand for `await Awaitable.all(stats, inventory, villain)`.
+Parentheses also work: `await(stats, inventory, villain)`.
+
+==== How this compares to Java's `StructuredTaskScope`
+
+Java's structured concurrency preview
+(https://openjdk.org/jeps/525[JEP 525]) provides a similar
+capability:
+
+[source,java]
+----
+// Java with StructuredTaskScope (JDK 25 preview API)
+try (var scope = StructuredTaskScope.open()) {
+    var statsTask     = scope.fork(() -> fetchHeroStats(heroId));
+    var inventoryTask = scope.fork(() -> fetchInventory(heroId));
+    var villainTask   = scope.fork(() -> fetchVillain(villainId));
+    scope.join();
+    return new BattleScreen(
+        statsTask.get(), inventoryTask.get(), villainTask.get());
+}
+----
+
+Both approaches bind task lifetimes to a scope. Groovy adds syntactic
+sugar (`await`, `all`) and integrates with the same model used
+everywhere else, whereas Java's API is deliberately lower-level.
+Groovy's `AsyncScope` (covered later) brings the full structured
+concurrency model.
+
+=== Capture the flag — `Awaitable.any`
+
+Where `all` waits for _every_ task, `any` returns the _first_ to
+complete — a race:
+
+[source,groovy]
+----
+def captureTheFlag(hero, villain, flag) {
+    var heroGrab    = async { hero.grab(flag) }
+    var villainGrab = async { villain.grab(flag) }
+
+    var winner = await Awaitable.any(heroGrab, villainGrab)
+    println "$winner.name captured the flag!"
+}
+----
+
+The loser's task still runs to completion in the background
+(use `AsyncScope` for fail-fast cancellation).
+
+=== Other combinators
+
+* **`Awaitable.first(a, b, c)`** — returns the first _successful_
+  result, ignoring individual failures. Like JavaScript's
+  `Promise.any()`. Useful for hedged requests and graceful degradation.
+* **`Awaitable.allSettled(a, b)`** — waits for all tasks to settle
+  (succeed or fail) without throwing. Returns an `AwaitResult` list
+  with `success`, `value`, and `error` fields.
+
+== Generators and streaming
+
+=== Dungeon waves — `yield return` and `for await`
+
+A dungeon sends waves of enemies. Each wave is generated on demand
+and the hero fights them as they arrive:
+
+[source,groovy]
+----
+def generateWaves(String dungeonId) {
+    async {
+        var depth = 1
+        while (depth <= dungeonDepth(dungeonId)) {
+            yield return spawnEnemies(dungeonId, depth)
+            depth++
+        }
+    }
+}
+
+def runDungeon(hero, dungeonId) {
+    for await (wave in generateWaves(dungeonId)) {
+        wave.each { villain -> hero.fight(villain) }
+    }
+}
+----
+
+The producer yields each wave on demand. The consumer pulls with
+`for await`. Natural *back-pressure* — the producer blocks on each
+`yield return` until the consumer is ready. No queues, signals, or
+synchronization.
+
+Since generators return a standard `Iterable`, regular `for` loops
+and Groovy collection methods (`collect`, `findAll`, `take`) also
+work — `for await` is optional for generators but required for
+reactive types (Flux, Observable).
+
+== Deferred cleanup — `defer`
+
+Before entering a dungeon, the hero summons a familiar and opens a
+portal. Both must be cleaned up when the quest ends. `defer` schedules
+cleanup in LIFO order, like
+https://go.dev/blog/defer-panic-and-recover[Go's `defer`]:
+
+[source,groovy]
+----
+def enterDungeon(hero, dungeonId) {
+    def task = async {
+        var familiar = hero.summonFamiliar()
+        defer familiar.dismiss()
+
+        var portal = openPortal(dungeonId)
+        defer portal.close()
+
+        hero.explore(portal, familiar)
+    }
+    await task
+}
+----
+
+Deferred actions always run — even when an exception occurs.
+This is cleaner than nested `try`/`finally` blocks when multiple
+resources are acquired at different points.
+
+== Diving deeper
+
+=== Channels — the villain spawner
+
+In a boss fight, a villain factory spawns enemies while the hero
+fights them. Channels provide Go-style decoupled communication:
+
+[source,groovy]
+----
+def bossFight(hero, bossArena) {
+    var enemies = AsyncChannel.create(3)  // buffered channel
+
+    // Villain spawner — runs concurrently
+    async {
+        for (type in bossArena.spawnOrder) {
+            await enemies.send(new Villain(type))
+        }
+        enemies.close()
+    }
+
+    // Hero fights each enemy as it arrives
+    var xp = 0
+    for await (villain in enemies) {
+        xp += hero.fight(villain)
+    }
+    return xp
+}
+----
+
+Channels support unbuffered (rendezvous) and buffered modes.
+`for await` iterates until the channel is closed and drained.
+Channels implement `Iterable`, so regular `for` loops work too.
+
+=== Structured concurrency — the raid party
+
+A raid sends heroes to scout different rooms. If anyone falls, the
+raid retreats. `AsyncScope` binds child task lifetimes to a scope:
+
+[source,groovy]
+----
+def raidDungeon(List<Hero> party, List<Room> rooms) {
+    AsyncScope.withScope { scope ->
+        var missions = unique(party, rooms).collect { hero, room ->
+            scope.async { hero.scout(room) }
+        }
+        missions.collect { await it }  // all loot gathered
+    }
+}
+----
+
+By default, `AsyncScope` uses **fail-fast** semantics: if any task
+fails, siblings are cancelled immediately. The scope guarantees all
+children have completed when `withScope` returns.
+
+==== Timeouts
+
+A raid with a time limit:
+
+[source,groovy]
+----
+def raidWithTimeLimit(List<Hero> party, List<Room> rooms) {
+    try {
+        await Awaitable.orTimeoutMillis(
+            async { raidDungeon(party, rooms) }, 30_000)
+    } catch (TimeoutException e) {
+        party.each { it.retreat() }
+        return []
+    }
+}
+----
+
+Or with a fallback value:
+
+[source,groovy]
+----
+var loot = await Awaitable.completeOnTimeoutMillis(
+    async { raidDungeon(heroes, rooms) }, ['an old boot'], 30_000)
+----
+
+==== Complementing JDK structured concurrency
+
+`AsyncScope` shares the same design goals as Java's
+`StructuredTaskScope` but adds:
+
+* **`async`/`await` integration** — `scope.async { ... }` and
+  `await` instead of `fork()` + `join()`.
+* **Works on JDK 17+** — uses `ThreadLocal` (virtual threads on 21+).
+* **Composes with other features** — `defer`, `for await`, channels,
+  and combinators all work inside a scope.
+* **Groovy-idiomatic API** — `AsyncScope.withScope { scope -> … }`
+  with a closure, no `try`-with-resources boilerplate.
+
+=== Framework adapters
+
+`await` natively understands `CompletableFuture`, `CompletionStage`,
+`Future`, and any type with a registered `AwaitableAdapter`.
+
+Drop-in adapter modules are provided:
+
+* **`groovy-reactor`** — `await` on `Mono`, `for await` over `Flux`
+* **`groovy-rxjava`** — `await` on `Single`/`Maybe`/`Completable`,
+  `for await` over `Observable`/`Flowable`
+
+Without the adapter:
+[source,groovy]
+----
+def result = Single.just('hello').toCompletionStage().toCompletableFuture().join()
+----
+
+With `groovy-rxjava` on the classpath:
+[source,groovy]
+----
+def result = await Awaitable.from(Single.just('hello'))
+----
+
+== Best practices
+
+=== Prefer returning values over shared mutation
+
+Async closures run on separate threads. Mutating shared variables
+is a race condition:
+
+[source,groovy]
+----
+// UNSAFE
+var count = 0
+def tasks = (1..100).collect { async { count++ } }
+tasks.each { await it }
+// count may not be 100!
+----
+
+Return values and collect results instead:
+
+[source,groovy]
+----
+// SAFE
+def tasks = (1..100).collect { n -> async { n } }
+def results = await Awaitable.all(*tasks)
+assert results.sum() == 5050
+----
+
+When shared mutable state is unavoidable, use the appropriate
+concurrency-aware type — `AtomicInteger` for a shared counter,
+or thread-safe types from `java.util.concurrent`.
+
+=== Choosing the right tool
+
+[cols="2,3", options="header"]
+|===
+| Feature | Use when...
+
+| `async`/`await`
+| Sequential steps with I/O or blocking work.
+
+| `Awaitable.all` / `any` / `first`
+| Launch independent tasks, collect all, race them, or take first success.
+
+| `yield return` / `for await`
+| Producing or consuming a stream of values.
+
+| `defer`
+| Guaranteed cleanup without nested `try`/`finally`.
+
+| `AsyncChannel`
+| Producer/consumer communication between tasks.
+
+| `AsyncScope`
+| Child task lifetimes tied to a scope with fail-fast cancellation.
+
+| Framework adapters
+| Transparent `await` / `for await` with Reactor or RxJava types.
+|===
+
+== How it relates to GPars and virtual threads
+
+Readers of the
+https://groovy.apache.org/blog/gpars-meets-virtual-threads[GPars meets virtual threads]
+blog post will recall that GPars provides parallel collections,
+actors, agents, and dataflow concurrency.
+
+Async/await complements GPars rather than replacing it. GPars
+excels at data-parallel operations and actor-based designs.
+Async/await targets sequential-looking code that is actually
+asynchronous, with language-level support for streams, cleanup,
+structured concurrency, and framework bridging.
+
+Both approaches benefit from virtual threads on JDK 21+, and
+both can coexist in the same codebase.
+
+== Conclusion
+
+Through our _Groovy Quest_ examples we've seen how async/await lets
+you write concurrent code that reads like synchronous code — from
+loading a hero's quest, to preparing a battle in parallel, streaming
+dungeon waves, cleaning up summoned familiars, coordinating a boss
+fight over channels, and rallying a raid party with structured
+concurrency.
+
+The design philosophy is simple: closures run on real threads (virtual
+when available), stack traces are preserved, exceptions propagate
+naturally, and there's no function coloring. The caller decides what's
+concurrent — not the method signature.
+
+== References
+
+* https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381 — Tracking issue]
+* https://openjdk.org/jeps/525[JEP 525 — Structured Concurrency]
+* https://groovy.apache.org/blog/gpars-meets-virtual-threads[GPars meets Virtual Threads]
+* http://gpars.org/[GPars]
