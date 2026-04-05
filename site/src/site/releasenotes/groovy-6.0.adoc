@@ -25,6 +25,8 @@ TBD
 
 Groovy provides over 2000 extension methods to 150+ JDK classes to enhance JDK functionality, with new methods added in Groovy 6. These methods reduce dependency on third-party libraries for common tasks, and make code more intuitive. Let's explore some highlights from those new methods.
 
+=== Collections and arrays
+
 Several variants of `groupByMany`
 (https://issues.apache.org/jira/browse/GROOVY-11808[GROOVY-11808])
 exist for grouping lists and maps of items.
@@ -109,6 +111,107 @@ or a `Closure`:
 assert [1, 2, 3].isSorted()
 assert !([3, 1, 2].isSorted())
 assert ['hi', 'hey', 'hello'].isSorted { it.length() }
+----
+
+=== Process handling
+
+Groovy's existing process methods predate Java's `ProcessBuilder`.
+Groovy 6 adds several new methods to alleviate some of the pain points
+of the existing functionality and make using `ProcessBuilder` more Groovy-friendly
+(https://issues.apache.org/jira/browse/GROOVY-11901[GROOVY-11901]).
+
+Previously, process execution often involved manually handling input/output streams,
+waiting for the process to complete, and dealing with exit codes.
+The `waitForResult` method manages all the parts and returns a `ProcessResult` object:
+
+[source,groovy]
+----
+var result = 'echo Hello World'.execute().waitForResult()
+assert result.output == 'Hello World\n'
+assert result.exitValue == 0
+----
+
+A timeout variant forcibly destroys the process
+if it doesn't complete within the specified duration:
+
+[source,groovy]
+----
+var result = 'sleep 60'.execute().waitForResult(5, TimeUnit.SECONDS)
+----
+
+The `execute` method now also supports named parameters for process
+configuration, including options like `dir`, `env`,
+`redirectErrorStream`, `inheritIO`, and file redirection:
+
+[source,groovy]
+----
+var result = 'ls'.execute(dir: '/tmp', redirectErrorStream: true)
+----
+
+The `toProcessBuilder` method converts a String, String array,
+or List into a `ProcessBuilder`, giving access to its full
+fluent API for more advanced configuration:
+
+[source,groovy]
+----
+var ls = 'ls'.toProcessBuilder()
+    .directory(new File('/tmp'))
+    .redirectErrorStream(true)
+    .start()
+----
+
+Earlier Groovy versions support the `|` operator to simulate OS pipelines via thread-based stream copying, and providing a handle to the last stage of the pipeline.
+The `pipeline` method improves this by leveraging `ProcessBuilder#startPipeline()`
+to create native OS pipelines from a list of
+commands, and supports proper handles for all pipeline stages, not just the last one:
+
+[source,groovy]
+----
+var processes = ['ps aux', 'grep java', 'wc -l'].pipeline()
+----
+
+As a small convenience, the `onExit` method registers a closure to execute asynchronously
+when a process terminates:
+
+[source,groovy]
+----
+'some command'.execute().onExit { proc ->
+    println "Exited with: ${proc.exitValue()}"
+}
+----
+
+=== Asynchronous file I/O
+
+The `groovy-nio` module adds asynchronous file I/O extension methods
+on `java.nio.file.Path`
+(https://issues.apache.org/jira/browse/GROOVY-11902[GROOVY-11902]).
+These methods leverage `AsynchronousFileChannel` for non-blocking
+file operations and return `CompletableFuture` results.
+
+Reading methods:
+
+[source,groovy]
+----
+import java.nio.file.Path
+
+var path = Path.of('data.txt')
+var textFuture = path.textAsync           // CompletableFuture<String>
+var bytesFuture = path.bytesAsync         // CompletableFuture<byte[]>
+----
+
+Writing methods:
+
+[source,groovy]
+----
+path.writeAsync('Hello async!')           // CompletableFuture<Void>
+path.writeBytesAsync(bytes)               // CompletableFuture<Void>
+----
+
+These futures support natural composition using `CompletableFuture` methods:
+
+[source,groovy]
+----
+path.textAsync.thenApply { it.toUpperCase() }.thenAccept { println it }
 ----
 
 == Selectively Disabling Extension Methods
