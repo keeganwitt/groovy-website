@@ -612,6 +612,147 @@ measure over the two input list sizes, giving us confidence that
 the loop terminates: on each iteration at least one input list
 shrinks, and they can never grow.
 
+== Optional Null Checking
+
+Groovy's type checking is extensible, allowing you to strengthen
+type checking beyond what the standard checker provides.
+Groovy 6 adds two optional null-safety type checkers
+(https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894])
+that detect null-related errors at compile time.
+
+=== NullChecker
+
+The `NullChecker` extension validates code annotated with
+`@Nullable`, `@NonNull`, and `@MonotonicNonNull` annotations.
+It recognizes these annotations by simple name from any package
+(JSpecify, JSR-305, JetBrains, SpotBugs, Checker Framework, or your own).
+
+A simple example showing a null guard:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+int safeLength(@Nullable String text) {
+    if (text != null) {
+        return text.length()                       // ok: null guard
+    }
+    return -1
+}
+
+assert safeLength('hello') == 5
+assert safeLength(null) == -1
+----
+
+Without the null guard, dereferencing a `@Nullable` parameter
+produces a compile-time error:
+
+[source,groovy]
+----
+def greet = { @Nullable String name ->
+    name.toUpperCase()                             // potential null dereference
+}
+----
+
+----
+[Static type checking] - Potential null dereference: 'name' is @Nullable
+----
+
+The checker also recognises safe navigation and early-exit patterns:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+String process(@Nullable String input) {
+    if (input == null) return 'default'            // early exit
+    input.toUpperCase()                            // ok: input is non-null here
+}
+----
+
+Passing `null` to a `@NonNull` parameter, returning `null` from a
+`@NonNull` method, or assigning `null` to a `@NonNull` field are
+all flagged:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class Greeter {
+    @NonNull String name
+
+    @NonNull static String greet(@NonNull String name) {
+        return null                                // Cannot return null from @NonNull method
+    }
+    static void main(String[] args) {
+        greet(null)                                // Cannot pass null to @NonNull parameter
+    }
+}
+----
+
+The `@MonotonicNonNull` annotation marks fields that start as `null`
+but, once assigned a non-null value, must never become `null` again --
+useful for lazy initialisation:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class LazyService {
+    @MonotonicNonNull String cachedValue
+
+    String getValue() {
+        if (cachedValue != null) {
+            return cachedValue.toUpperCase()        // ok: null guard
+        }
+        cachedValue = 'computed'
+        return cachedValue.toUpperCase()            // ok: just assigned non-null
+    }
+}
+----
+
+The `@NullCheck` AST transform also integrates with the checker --
+applying `@NullCheck` to a class makes all parameters implicitly
+`@NonNull`, and the checker enforces this at compile time:
+
+[source,groovy]
+----
+@NullCheck
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class Greeter {
+    static String greet(String name) {
+        "Hello, $name!"
+    }
+    static void main(String[] args) {
+        greet(null)                                // caught at compile time
+    }
+}
+----
+
+=== StrictNullChecker
+
+The `StrictNullChecker` extends the annotation-based checks with
+flow-sensitive analysis. It tracks variables assigned `null`,
+left uninitialized, or resulting from expressions with a `null` branch,
+and flags their dereferences -- even without annotations:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+static main(args) {
+    def x = null
+    x.toString()                                   // Potential null dereference: 'x' may be null
+}
+----
+
+It also recognises when a variable is reassigned to a non-null value:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+static main(args) {
+    def x = null
+    x = 'hello'
+    assert x.toString() == 'hello'                 // ok: reassigned non-null
+}
+----
+
 == Under exploration
 
 
