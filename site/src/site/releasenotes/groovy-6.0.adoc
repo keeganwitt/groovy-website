@@ -808,6 +808,42 @@ Previously, users had to manually set `args` within their script
 as a workaround. A new _Set Script Arguments_ option in the _Script_ menu
 lets you specify space-separated arguments that are passed to the script.
 
+== JUnit 6 Support
+
+Groovy 6 updates its testing support to include JUnit 6
+(https://issues.apache.org/jira/browse/GROOVY-11788[GROOVY-11788]).
+JUnit 6 (Jupiter 6.x) is the latest evolution of JUnit,
+building upon the JUnit 5 platform.
+
+=== Using JUnit 6 with Groovy
+
+For most users, no special Groovy module is needed --
+simply add the standard JUnit Jupiter dependencies to your
+Gradle or Maven project and write tests in Groovy as usual:
+
+[source,groovy]
+----
+// build.gradle
+testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
+----
+
+=== The groovy-test-junit6 module
+
+The new `groovy-test-junit6` module
+provides additional capabilities for users who need them:
+
+* **Running individual test scripts** -- execute a Groovy test file
+  directly as a script without a full build tool setup
+* **Conditional test execution annotations** -- scripting support
+  for JUnit Jupiter's conditional execution annotations
+  (https://issues.apache.org/jira/browse/GROOVY-11887[GROOVY-11887]),
+  allowing conditions to be expressed as Groovy scripts
+* **Convenient dependency management** -- a single dependency that
+  transitively pulls in compatible JUnit 6 libraries
+
+Similarly, the existing `groovy-test-junit5` module continues
+to provide the same capabilities for JUnit 5 users.
+
 == Improved Annotation Validation
 
 Groovy 6 closes gaps in annotation target validation
