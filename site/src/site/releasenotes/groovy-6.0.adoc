@@ -885,6 +885,23 @@ Groovy 5 still includes such support on JDK versions that support it.
 
 === Other changes
 
+* Annotation target validation is now enforced for import and loop statements.
+Annotations without an appropriate `@ExtendedTarget` declaration are flagged
+as compile errors when applied to these constructs. Code that previously placed
+arbitrary annotations on imports or loops without error may need updating.
+(https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884])
+* The inner class `methodMissing` and `propertyMissing` protocol was redesigned.
+Some scenarios that previously allowed access to an outer class's members
+through an inner class instance (e.g. accessing outer fields via an object expression,
+outer class `invokeMethod`/MOP overloads from anonymous inner classes)
+may no longer work.
+(https://issues.apache.org/jira/browse/GROOVY-11853[GROOVY-11853])
+* When multiple `set(String, ...)` method overloads exist, Groovy now selects
+the best-matching overload based on the value type rather than always using
+the same method. This fixes incorrect `GroovyCastException` errors at runtime
+but may change which setter is invoked if your code relied on the previous behavior.
+(https://issues.apache.org/jira/browse/GROOVY-11829[GROOVY-11829])
+
 [[Groovy6.0-requirements]]
 == JDK requirements
 
