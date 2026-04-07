@@ -148,8 +148,7 @@ concurrency model.
 
 === Capture the flag — `Awaitable.any`
 
-Where `all` waits for _every_ task, `any` returns the _first_ to
-complete — a race:
+Where `all` waits for _every_ task, `any` returns when _any_ task completes — a race:
 
 [source,groovy]
 ----
@@ -162,8 +161,10 @@ def captureTheFlag(hero, villain, flag) {
 }
 ----
 
+If the winner threw an exception, it propagates immediately.
 The loser's task still runs to completion in the background
 (use `AsyncScope` for fail-fast cancellation).
+If you want to ignore failures and take the first success, use `Awaitable.first` instead.
 
 === Other combinators
 
