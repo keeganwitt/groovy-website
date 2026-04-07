@@ -68,37 +68,7 @@ assert grouped == [
 ]
 ----
 
-There is also a version that works directly with maps where the map value is
-already a list:
-
-[source,groovy]
-----
-def citiesLived = [
-    Alice: ['NY', 'LA'],
-    Bob: ['NY'],
-    Cara: ['LA', 'CHI']
-]
-
-def grouped = citiesLived.groupByMany()
-
-assert grouped == [
-   NY  : ['Alice', 'Bob'],
-   LA  : ['Alice', 'Cara'],
-   CHI : ['Cara']
-]
-----
-
-Another map example, with a `collectValues` step to get the map into the form we want:
-
-[source,groovy]
-----
-var nums = [1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five']
-
-var firstLetters = nums.collectValues(s -> [s[0]])
-assert firstLetters == [1:['o'], 2:['t'], 3:['t'], 4:['f'], 5:['f']]
-
-assert firstLetters.groupByMany() == [o:[1], t:[2, 3], f:[4, 5]]
-----
+Variants also exist for maps where the value is already a list.
 
 The `isSorted` method
 (https://issues.apache.org/jira/browse/GROOVY-11891[GROOVY-11891])
@@ -436,22 +406,10 @@ Since the JVM does not support annotations on statements in bytecode,
 these are purely source-level transforms: the annotation drives
 compile-time code generation and is then discarded.
 
-Several transforms take advantage of this capability.
-The `@Invariant` and `@Decreases` annotations from `groovy-contracts`
-can be placed on loops to assert invariant conditions and termination:
-
-[source,groovy]
-----
-int product = 1
-@Invariant({ product >= 1 })
-@Decreases({ 6 - i })
-for (int i = 1; i <= 5; i++) {
-    product *= i
-}
-assert product == 120
-----
-
-See the <<groovy-contracts>> section for more details and examples.
+Several transforms take advantage of this capability,
+including `@Invariant` and `@Decreases` from `groovy-contracts`
+(see the <<groovy-contracts>> section for details)
+and the `@Parallel` transform described below.
 
 === `@Parallel` on for-in loops
 
@@ -703,7 +661,7 @@ allowing extensions to accept configuration arguments
 directly in the `@TypeChecked` annotation.
 Several new type checking extensions take advantage of this capability.
 
-=== Optional null checking
+=== Optional Null Checking
 
 Groovy 6 adds an optional null-safety type checker
 (https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894])
@@ -892,34 +850,21 @@ item.fulfil(20)
 assert item.availableQuantity() == old_available + 50 - 30 + 20
 ----
 
-*With annotations*, each step is self-contained:
+*With annotations*, reasoning is *4 linear steps* -- one per method call.
+Each `@Modifies` declaration immediately answers what changed and what didn't,
+and `@Ensures` gives exact post-state. No method body needs to be read.
+For example, when reasoning about `fulfil(20)`, `@Modifies` on `updatePrice`
+proves it didn't touch `reservedQuantity` -- so the precondition can be
+checked using the value from `reserve`, without re-reading any prior method.
 
-* `restock(50)` -- `@Modifies({ quantity, auditLog })` proves
-  `reservedQuantity` and `unitPrice` are unchanged.
-  `@Ensures` gives the exact new `quantity`. No need to read the method body.
-* `reserve(30)` -- `@Modifies({ reservedQuantity, auditLog })` proves
-  `quantity` is carried forward from `restock`. `@Pure` on
-  `availableQuantity()` lets us evaluate the precondition directly.
-* `updatePrice(9.99)` -- `@Modifies({ unitPrice, auditLog })` proves
-  `quantity` and `reservedQuantity` are untouched.
-  This call is completely independent of the inventory logic --
-  no cross-concern reasoning needed.
-* `fulfil(20)` -- We know `reservedQuantity` exactly from `reserve`
-  (it wasn't touched by `updatePrice` -- `@Modifies` proves this).
-  `@Ensures` gives exact new values.
-* `availableQuantity()` -- `@Pure`: deterministic, no side effects.
-  We know both `quantity` and `reservedQuantity` exactly.
-
-*Total reasoning: 4 linear steps, each self-contained.*
-No need to read any method body. No need to consider what
-`updatePrice` might have done to `quantity`.
-
-*Without annotations*, the AI must read every method body and
-all transitive callees, then re-verify the entire state after
-each step. With _n_ fields and _m_ method calls, this creates
-_O(n × m)_ "did this call change this field?" questions --
-each requiring method body analysis. With annotations, those
-questions are answered by reading the `@Modifies` declarations.
+*Without annotations*, reasoning becomes *16+ verification steps*:
+4 method calls × 4 mutable fields = 16 "did this call change this field?"
+questions, each requiring reading the method body and all its callees.
+Worse, later calls force re-verification of earlier ones -- to check
+`fulfil`'s precondition, the AI must re-confirm that both `updatePrice`
+_and_ `restock` left `reservedQuantity` alone.
+In general, this grows as _O(fields × calls × call_depth)_ --
+which is where AI starts hallucinating or saying "I'd need to see more context."
 
 [cols="3,2,3",options="header"]
 |===
@@ -949,16 +894,6 @@ questions are answered by reading the `@Modifies` declarations.
 | *No* -- `auditLog` not in any `@Ensures` about quantities
 | Must trace `auditLog` usage everywhere
 |===
-
-== Under exploration
-
-
-* Java compatibility: Module import declarations, additional destructuring
-* Improve REPL further (think nushell)
-* Performance
-* Spec improvements
-* Further subprojects, e.g. maybe GPars
-* async/await like functionality
 
 == Platform Logging
 
@@ -1041,6 +976,7 @@ provides additional capabilities for users who need them:
 Similarly, the existing `groovy-test-junit5` module continues
 to provide the same capabilities for JUnit 5 users.
 
+[[annotation-validation]]
 == Improved Annotation Validation
 
 Groovy 6 closes gaps in annotation target validation
@@ -1059,8 +995,8 @@ defines two Groovy-only targets:
 
 Annotations without the appropriate `@ExtendedTarget` declaration
 are now flagged as compile errors when applied to these constructs.
-This may be a breaking change for code that previously relied on
-the lenient behavior.
+This is a <<Groovy6.0-breaking,breaking change>> for code that
+previously relied on the lenient behavior.
 
 [[Groovy6.0-breaking]]
 == Breaking changes
@@ -1082,10 +1018,8 @@ Groovy 5 still includes such support on JDK versions that support it.
 
 === Other changes
 
-* Annotation target validation is now enforced for import and loop statements.
-Annotations without an appropriate `@ExtendedTarget` declaration are flagged
-as compile errors when applied to these constructs. Code that previously placed
-arbitrary annotations on imports or loops without error may need updating.
+* Annotation target validation is now enforced for import and loop statements
+(see <<annotation-validation>>).
 (https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884])
 * The inner class `methodMissing` and `propertyMissing` protocol was redesigned.
 Some scenarios that previously allowed access to an outer class's members
@@ -1098,6 +1032,15 @@ the best-matching overload based on the value type rather than always using
 the same method. This fixes incorrect `GroovyCastException` errors at runtime
 but may change which setter is invoked if your code relied on the previous behavior.
 (https://issues.apache.org/jira/browse/GROOVY-11829[GROOVY-11829])
+
+== Under exploration
+
+* Java compatibility: Module import declarations, additional destructuring
+* Improve REPL further (think nushell)
+* Performance
+* Spec improvements
+* Further subprojects, e.g. maybe GPars
+* async/await like functionality
 
 [[Groovy6.0-requirements]]
 == JDK requirements
