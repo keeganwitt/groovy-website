@@ -59,15 +59,20 @@ Quest loadHeroQuest(String loginToken) {
 
 Variables are declared at the point of use. The return value is obvious.
 No callbacks, no lambdas, no chained combinators. The method is a
-regular method — the caller decides whether to run it asynchronously:
+regular method and called in the regular way:
 
 [source,groovy]
 ----
-// Run asynchronously:
-def quest = await async { loadHeroQuest(token) }
-
-// Or call directly (blocking — fine on virtual threads):
+// Call directly (blocking — fine on virtual threads):
 def quest = loadHeroQuest(token)
+----
+
+The caller can choose to run it asynchronously if they want:
+
+[source,groovy]
+----
+// Or run asynchronously:
+def quest = await async { loadHeroQuest(token) }
 ----
 
 === Exception handling — just `try`/`catch`
@@ -106,7 +111,7 @@ def prepareBattle(heroId, visibleVillainId) {
     var inventory = async { fetchInventory(heroId) }
     var villain   = async { fetchVillain(visibleVillainId) }
 
-    var (s, inv, v) = await Awaitable.all(stats, inventory, villain)
+    var (s, inv, v) = await stats, inventory, villain
     return new BattleScreen(s, inv, v)
 }
 ----
@@ -169,6 +174,33 @@ result, ignoring individual failures. Like JavaScript's
 (succeed or fail) without throwing. Returns an `AwaitResult` list
 with `success`, `value`, and `error` fields.
 
+=== Combinator summary
+
+[cols="1,2,2,2", options="header"]
+|===
+| Combinator | Completes when | On failure | Use case
+
+| `Awaitable.all`
+| All succeed
+| Fails immediately on first failure (fail-fast)
+| Gather results from independent tasks
+
+| `Awaitable.allSettled`
+| All complete (success or fail)
+| Never throws; failures captured in `AwaitResult` list
+| Inspect every outcome, e.g. partial-success reporting
+
+| `Awaitable.any`
+| First task completes (success or failure)
+| Propagates the first completion's result or error
+| Latency-sensitive races, fastest-response wins
+
+| `Awaitable.first`
+| First task succeeds, or all fail
+| Throws only when every source fails (aggregate error)
+| Hedged requests, graceful degradation with fallbacks
+|===
+
 == Generators and streaming
 
 === Dungeon waves — `yield return` and `for await`
@@ -189,21 +221,36 @@ def generateWaves(String dungeonId) {
 }
 
 def runDungeon(hero, dungeonId) {
+    for (wave in generateWaves(dungeonId)) {
+        wave.each { villain -> hero.fight(villain) }
+    }
+}
+----
+
+The producer yields each wave on demand. The consumer pulls with a normal for loop.
+Natural *back-pressure* — the producer blocks on each
+`yield return` until the consumer is ready. No queues, signals, or
+synchronization.
+
+Since generators return a standard `Iterable`, regular `for` loops as shown above
+and other Groovy collection methods (`collect`, `findAll`, `take`) also work.
+
+Other reactive libraries have different mechanisms for returning streaming results.
+You can always use their native methods but Groovy's `for await` provides some
+syntactic sugar to make it more seamless:
+
+[source,groovy]
+----
+def runDungeon(hero, dungeonId) {
     for await (wave in generateWaves(dungeonId)) {
         wave.each { villain -> hero.fight(villain) }
     }
 }
 ----
 
-The producer yields each wave on demand. The consumer pulls with
-`for await`. Natural *back-pressure* — the producer blocks on each
-`yield return` until the consumer is ready. No queues, signals, or
-synchronization.
-
-Since generators return a standard `Iterable`, regular `for` loops
-and Groovy collection methods (`collect`, `findAll`, `take`) also
-work — `for await` is optional for generators but required for
-reactive types (Flux, Observable).
+The consumer pulls with `for await` instead of `for` but no other changes are required.
+You can optionally use `for await` with the builtin generators, but it's required for
+other reactive types (Flux, Observable) if you want the Groovy async friendly experience.
 
 == Deferred cleanup — `defer`
 
@@ -418,8 +465,11 @@ Async/await targets sequential-looking code that is actually
 asynchronous, with language-level support for streams, cleanup,
 structured concurrency, and framework bridging.
 
-Both approaches benefit from virtual threads on JDK 21+, and
-both can coexist in the same codebase.
+GPars' `callAsync()` and `asyncFun()` return futures that work
+naturally with `await` and the `Awaitable` combinators, so you
+can mix and match both styles in the same codebase.
+
+Both approaches benefit from virtual threads on JDK 21+.
 
 == Conclusion
 
