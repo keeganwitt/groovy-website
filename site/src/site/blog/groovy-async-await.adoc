@@ -1,7 +1,7 @@
 = Async/await for Groovy&trade;
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2026-03-27T16:30:00+00:00
-:updated: 2026-04-06T23:30:00+00:00
+:updated: 2026-04-06T23:35:00+00:00
 :keywords: async, await, concurrency, virtual-threads
 :description: Groovy's async/await: write concurrent code that reads like synchronous code, with virtual thread support, generators, channels, & structured concurrency.
 
