@@ -581,6 +581,87 @@ while (outer > 0) {
 If any iteration fails to decrease the measure,
 a `LoopVariantViolation` is thrown immediately.
 
+=== `@Modifies` frame conditions
+
+The new `@Modifies` annotation
+(https://issues.apache.org/jira/browse/GROOVY-11909[GROOVY-11909])
+declares which fields a method is allowed to change --
+known as a _frame condition_ in formal methods.
+Everything not listed is guaranteed to remain unchanged.
+This eliminates a major source of uncertainty when reasoning
+about method behavior: you no longer need to read the method
+body to know what _didn't_ change.
+
+[source,groovy]
+----
+@Invariant({ quantity >= 0 && quantity <= maxCapacity })
+@Invariant({ reservedQuantity >= 0 && reservedQuantity <= quantity })
+@Invariant({ unitPrice > 0 })
+class InventoryItem {
+    final String sku
+    final int maxCapacity
+    BigDecimal unitPrice
+    int quantity
+    int reservedQuantity
+    List<String> auditLog = []
+
+    @Requires({ amount > 0 })
+    @Requires({ quantity + amount <= maxCapacity })
+    @Ensures({ quantity == old.quantity + amount })
+    @Ensures({ reservedQuantity == old.reservedQuantity })
+    @Modifies({ [this.quantity, this.auditLog] })
+    void restock(int amount) {
+        quantity += amount
+        auditLog.add("Restocked $amount at ${LocalDateTime.now()}")
+    }
+
+    @Requires({ amount > 0 && amount <= availableQuantity() })
+    @Ensures({ reservedQuantity == old.reservedQuantity + amount })
+    @Modifies({ [this.reservedQuantity, this.auditLog] })
+    void reserve(int amount) {
+        reservedQuantity += amount
+        auditLog.add("Reserved $amount at ${LocalDateTime.now()}")
+    }
+
+    @Requires({ amount > 0 && amount <= reservedQuantity })
+    @Ensures({ quantity == old.quantity - amount })
+    @Ensures({ reservedQuantity == old.reservedQuantity - amount })
+    @Modifies({ [this.quantity, this.reservedQuantity, this.auditLog] })
+    void fulfil(int amount) {
+        reservedQuantity -= amount
+        quantity -= amount
+        auditLog.add("Fulfilled $amount at ${LocalDateTime.now()}")
+    }
+
+    @Requires({ newPrice > 0 })
+    @Ensures({ unitPrice == newPrice })
+    @Modifies({ [this.unitPrice, this.auditLog] })
+    void updatePrice(BigDecimal newPrice) {
+        auditLog.add("Price ${unitPrice} -> ${newPrice}")
+        unitPrice = newPrice
+    }
+
+    @Pure
+    int availableQuantity() {
+        quantity - reservedQuantity
+    }
+
+    @Pure
+    BigDecimal totalValue() {
+        unitPrice * quantity
+    }
+}
+----
+
+The `@Modifies` closure returns a list of field references that the method
+may mutate. The `@Pure` annotation is shorthand for `@Modifies({ [] })` --
+the method changes nothing. Together with `@Requires` and `@Ensures`,
+`@Modifies` completes a _full behavioral specification_:
+what a method needs, what it promises, and what it leaves alone.
+
+See the <<modifies-checker>> section below for how the `ModifiesChecker`
+verifies these frame conditions at compile time.
+
 === Combining contracts
 
 These annotations can be combined to build strong confidence
@@ -612,15 +693,24 @@ measure over the two input list sizes, giving us confidence that
 the loop terminates: on each iteration at least one input list
 shrinks, and they can never grow.
 
-== Optional Null Checking
+== Type Checking Extensions
 
 Groovy's type checking is extensible, allowing you to strengthen
 type checking beyond what the standard checker provides.
-Groovy 6 adds two optional null-safety type checkers
-(https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894])
-that detect null-related errors at compile time.
+Groovy 6 adds support for _parameterized_ type checking extensions
+(https://issues.apache.org/jira/browse/GROOVY-11908[GROOVY-11908]),
+allowing extensions to accept configuration arguments
+directly in the `@TypeChecked` annotation.
+Several new type checking extensions take advantage of this capability.
 
-=== NullChecker
+=== Optional null checking
+
+Groovy 6 adds an optional null-safety type checker
+(https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894])
+that detects null-related errors at compile time.
+It supports a `strict` mode that enables additional flow-sensitive analysis.
+
+==== NullChecker
 
 The `NullChecker` extension validates code annotated with
 `@Nullable`, `@NonNull`, and `@MonotonicNonNull` annotations.
@@ -725,16 +815,16 @@ class Greeter {
 }
 ----
 
-=== StrictNullChecker
+==== Strict mode
 
-The `StrictNullChecker` extends the annotation-based checks with
-flow-sensitive analysis. It tracks variables assigned `null`,
+Passing `strict: true` to the `NullChecker` extends the annotation-based
+checks with flow-sensitive analysis. It tracks variables assigned `null`,
 left uninitialized, or resulting from expressions with a `null` branch,
 and flags their dereferences -- even without annotations:
 
 [source,groovy]
 ----
-@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
 static main(args) {
     def x = null
     x.toString()                                   // Potential null dereference: 'x' may be null
@@ -745,13 +835,119 @@ It also recognises when a variable is reassigned to a non-null value:
 
 [source,groovy]
 ----
-@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
 static main(args) {
     def x = null
     x = 'hello'
     assert x.toString() == 'hello'                 // ok: reassigned non-null
 }
 ----
+
+This is an example of using the parameterized type checking extensions
+support -- the `strict: true` argument is passed directly in the
+extension string rather than requiring a separate extension class.
+
+[[modifies-checker]]
+=== ModifiesChecker
+
+The `ModifiesChecker` type checking extension
+(https://issues.apache.org/jira/browse/GROOVY-11910[GROOVY-11910])
+verifies `@Modifies` frame conditions at compile time.
+It checks that methods annotated with `@Modifies` only assign to the
+fields declared in the annotation, and that `@Pure` methods make
+no field assignments at all.
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.ModifiesChecker')
+@Invariant({ count >= 0 })
+class Counter {
+    int count
+
+    @Modifies({ [this.count] })
+    void increment() { count++ }            // ok: count is declared
+
+    @Pure
+    int value() { count }                   // ok: no mutations
+
+    @Modifies({ [this.count] })
+    void oops() { count++; other = 1 }      // compile error: 'other' not in @Modifies
+}
+----
+
+==== How `@Modifies` reduces AI reasoning
+
+Annotations like `@Modifies` and `@Pure` dramatically reduce
+the reasoning effort needed -- by both humans and AI -- to understand
+method interactions. Consider a sequence of calls on the
+`InventoryItem` class <<groovy-contracts,shown earlier>>:
+
+[source,groovy]
+----
+item.restock(50)
+item.reserve(30)
+item.updatePrice(9.99)
+item.fulfil(20)
+assert item.availableQuantity() == old_available + 50 - 30 + 20
+----
+
+*With annotations*, each step is self-contained:
+
+* `restock(50)` -- `@Modifies({ quantity, auditLog })` proves
+  `reservedQuantity` and `unitPrice` are unchanged.
+  `@Ensures` gives the exact new `quantity`. No need to read the method body.
+* `reserve(30)` -- `@Modifies({ reservedQuantity, auditLog })` proves
+  `quantity` is carried forward from `restock`. `@Pure` on
+  `availableQuantity()` lets us evaluate the precondition directly.
+* `updatePrice(9.99)` -- `@Modifies({ unitPrice, auditLog })` proves
+  `quantity` and `reservedQuantity` are untouched.
+  This call is completely independent of the inventory logic --
+  no cross-concern reasoning needed.
+* `fulfil(20)` -- We know `reservedQuantity` exactly from `reserve`
+  (it wasn't touched by `updatePrice` -- `@Modifies` proves this).
+  `@Ensures` gives exact new values.
+* `availableQuantity()` -- `@Pure`: deterministic, no side effects.
+  We know both `quantity` and `reservedQuantity` exactly.
+
+*Total reasoning: 4 linear steps, each self-contained.*
+No need to read any method body. No need to consider what
+`updatePrice` might have done to `quantity`.
+
+*Without annotations*, the AI must read every method body and
+all transitive callees, then re-verify the entire state after
+each step. With _n_ fields and _m_ method calls, this creates
+_O(n × m)_ "did this call change this field?" questions --
+each requiring method body analysis. With annotations, those
+questions are answered by reading the `@Modifies` declarations.
+
+[cols="3,2,3",options="header"]
+|===
+| What must be verified | With annotations | Without annotations
+
+| Does `restock` change `reservedQuantity`?
+| *No* -- `@Modifies` proves it
+| Must read body + all callees
+
+| Does `updatePrice` change `quantity`?
+| *No* -- `@Modifies` proves it
+| Must read body + all callees
+
+| Is `availableQuantity()` side-effect-free?
+| *Yes* -- `@Pure` proves it
+| Must read body, check for overrides
+
+| Is `fulfil(20)` precondition met?
+| Derive from `@Ensures` chain
+| Replay all mutations manually
+
+| Can calls be reordered safely?
+| `restock`/`updatePrice` independent (`@Modifies` sets don't overlap on inventory fields)
+| Must analyze all pairs for interference
+
+| Does `auditLog.add()` affect calculations?
+| *No* -- `auditLog` not in any `@Ensures` about quantities
+| Must trace `auditLog` usage everywhere
+|===
 
 == Under exploration
 
