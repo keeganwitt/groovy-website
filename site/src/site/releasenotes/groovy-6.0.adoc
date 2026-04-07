@@ -863,6 +863,7 @@ no field assignments at all.
 @Invariant({ count >= 0 })
 class Counter {
     int count
+    String label
 
     @Modifies({ [this.count] })
     void increment() { count++ }            // ok: count is declared
@@ -871,7 +872,7 @@ class Counter {
     int value() { count }                   // ok: no mutations
 
     @Modifies({ [this.count] })
-    void oops() { count++; other = 1 }      // compile error: 'other' not in @Modifies
+    void oops() { count++; label = 'x' }   // compile error: 'label' not in @Modifies
 }
 ----
 
