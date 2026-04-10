@@ -895,6 +895,53 @@ which is where AI starts hallucinating or saying "I'd need to see more context."
 | Must trace `auditLog` usage everywhere
 |===
 
+=== PurityChecker
+
+The `PurityChecker` type checking extension
+(https://issues.apache.org/jira/browse/GROOVY-11914[GROOVY-11914])
+enforces functional purity at compile time. It verifies that methods
+annotated with `@Pure` have no side effects -- no field mutations,
+no I/O, no non-determinism -- and reports violations as compile errors.
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.PurityChecker')
+class ScoreCalculator {
+    int bonus = 10
+
+    @Pure
+    int doubled() { bonus * 2 }             // ok: reads only
+
+    @Pure
+    int increment() { bonus++; bonus }      // compile error: @Pure violation — field assignment
+}
+----
+
+The checker also recognises `@SideEffectFree`, `@Contract(pure = true)`,
+and `@Memoized` as effectively pure, and warns when a pure method calls
+an unchecked method whose purity cannot be verified.
+
+Since some "impure" operations are routine in practice,
+the checker accepts an `allows` parameter to selectively permit
+specific categories of side effects:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.PurityChecker(allows: "LOGGING|METRICS")')
+class GameEngine {
+    @Pure
+    int computeScore(int base) {
+        println "computing score"            // ok: LOGGING allowed
+        base * 2
+    }
+}
+----
+
+The configurable categories are `LOGGING` (println, SLF4J, JUL, Log4j),
+`METRICS` (Micrometer, OpenTelemetry), `IO` (file, network, database),
+and `NONDETERMINISM` (random, time-dependent calls).
+This is another example of parameterized type checking extensions in action.
+
 == Platform Logging
 
 Groovy 6 replaces direct `System.err` output with the JDK's
