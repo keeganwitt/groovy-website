@@ -1045,6 +1045,76 @@ are now flagged as compile errors when applied to these constructs.
 This is a <<Groovy6.0-breaking,breaking change>> for code that
 previously relied on the lenient behavior.
 
+== GINQ Enhancements
+
+=== `groupby` ... `into`
+
+GINQ's `groupby` clause now supports an `into` keyword
+(https://issues.apache.org/jira/browse/GROOVY-11915[GROOVY-11915])
+that binds each group to a named variable,
+giving direct access to the grouped elements
+within the `select` or `having` clause:
+
+[source,groovy]
+----
+GQ {
+    from n in [1, 11, 111, 8, 80]
+    groupby (n % 2 == 0 ? 'even' : 'odd') into g
+    select g.key, g.count() as count, g.sum(n -> n) as sum, g.toList() as numbers
+}
+----
+
+----
++------+-------+-----+--------------+
+| key  | count | sum | numbers      |
++------+-------+-----+--------------+
+| even | 2     | 88  | [8, 80]      |
+| odd  | 3     | 123 | [1, 11, 111] |
++------+-------+-----+--------------+
+----
+
+=== Set operators: `union`, `intersect`, `minus`, `unionall`
+
+GINQ now supports SQL-style set operators
+(https://issues.apache.org/jira/browse/GROOVY-11919[GROOVY-11919])
+for combining query results:
+
+[source,groovy]
+----
+def java  = ['Alice', 'Bob', 'Carol']
+def groovy = ['Bob', 'Carol', 'Dave']
+
+assert GQL {
+    from n in java select n
+    union
+    from n in groovy select n
+} == ['Alice', 'Bob', 'Carol', 'Dave']          // everyone
+
+assert GQL {
+    from n in java select n
+    intersect
+    from n in groovy select n
+} == ['Bob', 'Carol']                            // know both
+
+assert GQL {
+    from n in java select n
+    minus
+    from n in groovy select n
+} == ['Alice']                                   // Java only
+----
+
+The `unionall` variant is like `union` but retains duplicates.
+
+== Other Module Changes
+
+* *groovy-sql*: The `DataSet` class now correctly handles
+non-literal expressions in queries
+(https://issues.apache.org/jira/browse/GROOVY-5373[GROOVY-5373]).
+* *groovy-jmx*: Removed dead IIOP support and refreshed documentation
+(https://issues.apache.org/jira/browse/GROOVY-11921[GROOVY-11921]).
+* *groovy-servlet*: Jakarta EE 11 compatibility
+(https://issues.apache.org/jira/browse/GROOVY-11922[GROOVY-11922]).
+
 [[Groovy6.0-breaking]]
 == Breaking changes
 
