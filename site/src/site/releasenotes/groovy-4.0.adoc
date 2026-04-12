@@ -1104,19 +1104,20 @@ if you wanted. In Groovy 4, the old Antlr2 based parser is removed.
 Please use older versions of Groovy if you require the old parser.
 
 [[Groovy4.0-indy-only]]
-=== Classic bytecode generation removal
+=== Invokedynamic bytecode enabled by default
 
 For many versions, Groovy could generate classic _call-site based_ bytecode
 or bytecode targeting the JDK7+ invoke dynamic ("indy") bytecode instructions.
 You could switch between them with a compiler switch and we had two sets of
 jars ("normal" and "-indy") built with and without the switch enabled.
-In Groovy 4.0, only bytecode using the latter approach can be generated.
-There is now one set of jars and they happen to be indy flavored.
+In Groovy 4.0, invokedynamic bytecode generation is enabled by default.
+There is now one set of jars and they are compiled with indy enabled.
+It is still possible to disable invokedynamic for user code by setting the
+system property `groovy.target.indy` to `false` or by setting the
+`indy` compiler optimization option to `false`.
 
 Currently, the Groovy runtime still contains any necessary support for
 classes compiled using older versions of Groovy.
-Please use Groovy versions up to 3.x if you need to generate the older
-style bytecode.
 
 This work was originally planned for Groovy 3.0, but there were numerous places
 where "indy" code was noticeably slower than "classic" bytecode.
