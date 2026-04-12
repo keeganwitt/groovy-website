@@ -1,5 +1,11 @@
 import generator.DocUtils
-import org.asciidoctor.ast.DocumentHeader
+import org.asciidoctor.ast.Document
+
+modelTypes = {
+    Document doc
+    String title
+    String notes
+}
 
 title = doc.structuredDoctitle.main
 
@@ -50,8 +56,9 @@ layout 'layouts/main.groovy', true,
                                     i(authors.join(', '))
                                 }
                             }
-                            if (doc.attributes.revisionInfo?.date) {
-                                p("Last update: ${doc.attributes.revisionInfo.date} (${doc.attributes.revisionInfo.remark?:'no comment'})")
+                            def revInfo = doc.revisionInfo
+                            if (revInfo?.date) {
+                                p("Last update: ${revInfo.date} (${revInfo.remark?:'no comment'})")
                             }
                             hr()
                             yieldUnescaped notesAsHTML

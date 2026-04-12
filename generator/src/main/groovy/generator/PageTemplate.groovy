@@ -22,6 +22,8 @@ import groovy.text.markup.BaseTemplate
 import groovy.text.markup.MarkupTemplateEngine
 import groovy.text.markup.TemplateConfiguration
 import groovy.transform.CompileStatic
+import org.asciidoctor.Attributes
+import org.asciidoctor.Options
 
 @CompileStatic
 abstract class PageTemplate extends BaseTemplate {
@@ -62,13 +64,16 @@ abstract class PageTemplate extends BaseTemplate {
      */
     String asciidocText(String body, Map options=[:]) {
         def asciidoctor = AsciidoctorFactory.instance
-        def attributes = options.attributes
-        if (!attributes) {
-            attributes = [:]
-            options.put('attributes', attributes)
+        def attrsBuilder = Attributes.builder()
+                .attribute('source-highlighter', 'prettify')
+        def existingAttrs = options.attributes
+        if (existingAttrs instanceof Map) {
+            existingAttrs.each { k, v -> attrsBuilder.attribute(k.toString(), v) }
         }
-        attributes['source-highlighter'] = 'prettify'
-        asciidoctor.convert(body,options)
+        def opts = Options.builder()
+                .attributes(attrsBuilder.build())
+                .build()
+        asciidoctor.convert(body, opts)
     }
 
     String latestDocURL(String target) {
