@@ -7,7 +7,7 @@
 [horizontal,options="compact"]
 *Number*:: GEP-16
 *Title*:: `val` keyword for final declarations
-*Version*:: 2
+*Version*:: 4
 *Type*:: Feature
 *Status*:: Draft
 *Leader*:: Paul King
@@ -386,7 +386,7 @@ https://github.com/apache/groovy/tree/valSpike
 
 == Update history
 
-1 (2026-04-12) Initial draft
-2 (2026-04-12) Added Java interop edge cases, spike implementation summary
-3 (2026-04-12) Added field naming edge case, Gradle motivation
+1 (2026-04-12) Initial draft +
+2 (2026-04-12) Added Java interop edge cases, spike implementation summary +
+3 (2026-04-12) Added field naming edge case, Gradle motivation +
 4 (2026-04-12) Added cast expression edge case, split code stats, linked spike branch and JIRA
