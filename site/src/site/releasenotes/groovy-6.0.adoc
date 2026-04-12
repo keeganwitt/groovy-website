@@ -1105,6 +1105,204 @@ assert GQL {
 
 The `unionall` variant is like `union` but retains duplicates.
 
+== CSV Module (incubating)
+
+Groovy 6 adds a new `groovy-csv` module
+(https://issues.apache.org/jira/browse/GROOVY-11923[GROOVY-11923])
+for reading and writing https://datatracker.ietf.org/doc/html/rfc4180[CSV (RFC 4180)] data.
+
+=== Reading CSV
+
+`CsvSlurper` parses CSV text into a list of maps, keyed by column headers:
+
+[source,groovy]
+----
+def csv = new CsvSlurper().parseText('name,age\nAlice,30\nBob,25')
+assert csv.size() == 2
+assert csv[0].name == 'Alice'
+assert csv[0].age == '30'
+----
+
+The separator and quote characters can be customised, and quoted fields
+follow RFC 4180 rules (embedded commas, newlines, and doubled quotes).
+
+=== Writing CSV
+
+`CsvBuilder` converts collections of maps to CSV:
+
+[source,groovy]
+----
+def data = [
+    [name: 'Alice', age: 30],
+    [name: 'Bob', age: 25]
+]
+def csv = CsvBuilder.toCsv(data)
+assert csv.contains('name,age')
+assert csv.contains('Alice,30')
+----
+
+=== Typed parsing and writing
+
+When Jackson is on the classpath, `CsvSlurper` can parse CSV directly
+into typed objects, and `CsvBuilder` can write typed objects to CSV.
+This is particularly useful for CSV since all values are strings --
+Jackson handles conversion to numeric, date, and other types automatically:
+
+[source,groovy]
+----
+class Sale {
+    String customer
+    BigDecimal amount
+}
+
+def sales = new CsvSlurper().parseAs(Sale, 'customer,amount\nAcme,1500.00\nGlobex,250.50')
+assert sales[0].customer == 'Acme'
+assert sales[0].amount == 1500.00
+----
+
+== TOML and YAML Consistency Improvements
+
+The `groovy-toml` and `groovy-yaml` modules now support typed parsing
+and typed writing, bringing them in line with the typed support
+available in the `groovy-csv` and `groovy-json` modules.
+
+=== Typed parsing
+
+`TomlSlurper` and `YamlSlurper` gain `parseTextAs` and `parseAs` methods
+(https://issues.apache.org/jira/browse/GROOVY-11925[GROOVY-11925],
+https://issues.apache.org/jira/browse/GROOVY-11926[GROOVY-11926])
+that parse content directly into typed objects using Jackson databinding.
+Standard Jackson annotations such as `@JsonProperty` and `@JsonFormat`
+are supported for property mapping and type conversion.
+Variants accepting a `Reader`, `InputStream`, `File`, or `Path` are also provided:
+
+[source,groovy]
+----
+class Config {
+    String name
+    int port
+}
+
+def config = new TomlSlurper().parseTextAs(Config, 'name = "app"\nport = 8080')
+assert config.name == 'app'
+assert config.port == 8080
+----
+
+=== Typed writing
+
+`TomlBuilder.toToml(object)` and `YamlBuilder.toYaml(object)` serialize
+typed objects directly to TOML or YAML respectively:
+
+[source,groovy]
+----
+def toml = TomlBuilder.toToml(new Config(name: 'app', port: 8080))
+assert toml.contains('name = "app"')
+----
+
+== CSV Module (incubating)
+
+Groovy 6 adds a new `groovy-csv` module
+(https://issues.apache.org/jira/browse/GROOVY-11923[GROOVY-11923])
+for reading and writing https://datatracker.ietf.org/doc/html/rfc4180[CSV (RFC 4180)] data.
+
+=== Reading CSV
+
+`CsvSlurper` parses CSV text into a list of maps, keyed by column headers:
+
+[source,groovy]
+----
+def csv = new CsvSlurper().parseText('name,age\nAlice,30\nBob,25')
+assert csv.size() == 2
+assert csv[0].name == 'Alice'
+assert csv[0].age == '30'
+----
+
+The separator and quote characters can be customised, and quoted fields
+follow RFC 4180 rules (embedded commas, newlines, and doubled quotes).
+
+=== Writing CSV
+
+`CsvBuilder` converts collections of maps to CSV:
+
+[source,groovy]
+----
+def data = [
+    [name: 'Alice', age: 30],
+    [name: 'Bob', age: 25]
+]
+def csv = CsvBuilder.toCsv(data)
+assert csv.contains('name,age')
+assert csv.contains('Alice,30')
+----
+
+== Typed Parsing and Writing for CSV, TOML, and YAML
+
+The `groovy-csv`, `groovy-toml`, and `groovy-yaml` modules now all support
+typed parsing and typed writing using Jackson databinding
+(https://issues.apache.org/jira/browse/GROOVY-11923[GROOVY-11923],
+https://issues.apache.org/jira/browse/GROOVY-11925[GROOVY-11925],
+https://issues.apache.org/jira/browse/GROOVY-11926[GROOVY-11926]).
+Standard Jackson annotations such as `@JsonProperty` and `@JsonFormat`
+are supported for property mapping and type conversion.
+
+As part of this work, `Reader` and `InputStream` closing in
+`TomlSlurper` and `YamlSlurper` was adjusted to follow standard
+conventions -- the caller is responsible for closing resources they
+create. Previously, some parsing methods closed the supplied stream
+or reader prematurely, which was a bug but could be a
+<<Groovy6.0-breaking,breaking change>> if code relied on that behavior.
+
+=== Typed parsing
+
+`CsvSlurper`, `TomlSlurper`, and `YamlSlurper` each provide `parseTextAs`
+and `parseAs` methods that parse content directly into typed objects.
+For TOML and YAML, variants accepting a `Reader`, `InputStream`, `File`,
+or `Path` are also provided:
+
+NOTE: For simple cases, Groovy's `as` coercion already works with the
+untyped result, e.g. `new TomlSlurper().parseText(toml) as ServerConfig`.
+The new `parseTextAs`/`parseAs` methods use Jackson databinding, which
+supports richer annotation-driven mapping via `@JsonProperty`,
+`@JsonFormat`, etc.
+
+[source,groovy]
+----
+class Sale {
+    String customer
+    BigDecimal amount
+}
+
+// CSV
+def sales = new CsvSlurper().parseAs(Sale, 'customer,amount\nAcme,1500.00\nGlobex,250.50')
+assert sales[0].customer == 'Acme'
+assert sales[0].amount == 1500.00
+
+// TOML
+class Config {
+    String name
+    int port
+}
+def config = new TomlSlurper().parseTextAs(Config, 'name = "app"\nport = 8080')
+assert config.name == 'app'
+assert config.port == 8080
+----
+
+=== Typed writing
+
+`CsvBuilder.toCsv(items, type)`, `TomlBuilder.toToml(object)`, and
+`YamlBuilder.toYaml(object)` serialize typed objects directly:
+
+[source,groovy]
+----
+def products = [new Product(name: 'Widget', price: 9.99),
+                new Product(name: 'Gadget', price: 24.50)]
+def csv = CsvBuilder.toCsv(products, Product)
+assert csv.contains('Widget,9.99')
+
+def toml = TomlBuilder.toToml(new Config(name: 'app', port: 8080))
+assert toml.contains('name = "app"')
+----
+
 == Other Module Changes
 
 * *groovy-sql*: The `DataSet` class now correctly handles
@@ -1149,6 +1347,11 @@ the best-matching overload based on the value type rather than always using
 the same method. This fixes incorrect `GroovyCastException` errors at runtime
 but may change which setter is invoked if your code relied on the previous behavior.
 (https://issues.apache.org/jira/browse/GROOVY-11829[GROOVY-11829])
+* `TomlSlurper` and `YamlSlurper` no longer prematurely close `Reader`
+and `InputStream` arguments passed to parsing methods. Callers are now
+responsible for closing resources they create, following standard conventions.
+(https://issues.apache.org/jira/browse/GROOVY-11925[GROOVY-11925],
+https://issues.apache.org/jira/browse/GROOVY-11926[GROOVY-11926])
 
 == Under exploration
 
