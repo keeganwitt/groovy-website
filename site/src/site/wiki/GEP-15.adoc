@@ -95,10 +95,14 @@ When the compiler encounters `x += y`:
 4. If `x` is `final` and no `plusAssign` exists, report a compile error
    (in `@CompileStatic` mode).
 
-When both `plusAssign` and `plus` exist on the same type, `plusAssign`
-takes precedence. This is the pragmatic choice for Groovy since it lacks
-Kotlin's `val`/`var` distinction. If a class author defined `plusAssign`,
-they intended it to be used for `+=`.
+When both `plusAssign` and `plus` exist on the same
+type, `plusAssign` takes precedence.
+Languages like Kotlin apply an ambiguity resolution rule
+where the selection between `plusAssign` and `plus`
+depends on the mutability of the receiver (`val` vs `var`).
+This is not typical for Groovy method selection.
+If a class author defined `plusAssign`,
+they intend it to be used for `+=`.
 
 === Design considerations
 
@@ -155,7 +159,7 @@ bus.listeners <<= "listener1"  // calls listeners.leftShiftAssign("listener1")
 In `@CompileStatic` mode, the type checker resolves `plusAssign` at
 compile time using `findMethod()`. If found, it records the target method
 on the expression via node metadata and the bytecode generator emits a
-direct method call -- no dup, no store-back.
+direct method call with no reassignment to the variable.
 
 If not found, the existing desugaring to `x = x.plus(y)` applies.
 
@@ -163,7 +167,7 @@ If not found, the existing desugaring to `x = x.plus(y)` applies.
 
 In dynamic Groovy, the runtime checks for `plusAssign` via the Meta-Object
 Protocol (MOP). If `respondsTo(target, "plusAssign", arg)` succeeds, it is
-called. Otherwise, the fallback to `plus` + reassignment applies.
+called. Otherwise, the fallback to `plus` with reassignment applies.
 
 This requires a new runtime helper method (e.g., in `ScriptBytecodeAdapter`)
 that encapsulates the try-assign-then-fallback logic.
