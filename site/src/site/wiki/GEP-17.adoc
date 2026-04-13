@@ -1,0 +1,210 @@
+= GEP-17: Consistent handling of internal properties via `@Internal`
+
+:icons: font
+
+.Metadata
+****
+[horizontal,options="compact"]
+*Number*:: GEP-17
+*Title*:: Consistent handling of internal properties via `@Internal`
+*Version*:: 1
+*Type*:: Feature
+*Status*:: Draft
+*Leader*:: Paul King
+*Created*:: 2026-04-13
+*Last modification*&#160;:: 2026-04-13
+*JIRA*:: https://issues.apache.org/jira/browse/GROOVY-11928[GROOVY-11928]
+****
+
+== Abstract
+
+This GEP defines a consistent mechanism for designating class
+members as _internal_ -- meaning they should be excluded from
+property introspection, serialization, and AST-transform-generated
+code such as `@ToString`, `@EqualsAndHashCode`, and `@TupleConstructor`.
+
+The mechanism uses the existing `@groovy.transform.Internal` annotation
+(introduced in Groovy 2.5.3) and extends its scope from a compile-time
+hint to a first-class runtime-honoured marker.
+
+== Motivation
+
+Groovy AST transforms frequently generate fields with `$` in the name
+(e.g. `$hash$code` from `@EqualsAndHashCode`, `$fieldName` from `@Lazy`,
+`$reentrantlock` from `@ReadWriteLock`). These fields are implementation
+details that should not appear in `toString()` output, equality comparisons,
+JSON serialization, or property listings.
+
+Historically, filtering was done inconsistently:
+
+- *AST transforms* used a name-based convention: `deemedInternalName(name)`
+  checked `name.contains("$")`. Each consuming transform applied this
+  check independently via `shouldSkip`/`shouldSkipUndefinedAware`.
+- *Runtime* (`MetaClassImpl.getProperties()`) had no filtering for
+  internal properties at all. This meant `JsonOutput.toJson()` and
+  `println` could expose `$`-containing fields.
+- *`BeanUtils.getAllProperties()`* (compile-time) checked `@Internal`
+  on getter methods, but `MetaClassImpl` did not.
+- *User-defined internal properties* without `$` in the name had
+  no way to opt in to the filtering.
+
+This inconsistency led to bugs where internal fields leaked into
+serialized output, and AST transform authors had to independently
+remember to add `$` filtering.
+
+== Design
+
+=== The `@Internal` annotation
+
+The existing annotation serves as the single source of truth:
+
+[source,java]
+----
+@Target({ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.FIELD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Internal { }
+----
+
+=== Compile-time: AST transforms
+
+==== Producers -- transforms that generate internal fields
+
+Transforms that create fields intended to be hidden from users
+should annotate them with `@Internal`:
+
+[source,java]
+----
+FieldNode hashField = cNode.addField("$hash$code", ACC_PRIVATE | ACC_SYNTHETIC, ...);
+markAsInternal(hashField);  // from AnnotatedNodeUtils
+----
+
+The utility methods are in `org.apache.groovy.ast.tools.AnnotatedNodeUtils`:
+
+- `markAsInternal(T node)` -- adds `@Internal` annotation (idempotent)
+- `isInternal(AnnotatedNode node)` -- checks for `@Internal` annotation
+- `deemedInternal(AnnotatedNode node)` -- checks both `@Internal`
+  annotation and `$` name convention (backward compatible)
+
+==== Consumers -- transforms that iterate properties
+
+Transforms that iterate over properties or fields to generate code
+(e.g. `@ToString`, `@EqualsAndHashCode`) should use the node-aware
+skip methods from `AbstractASTTransformation`:
+
+[source,java]
+----
+// Old way (name-based only):
+if (shouldSkipUndefinedAware(pNode.getName(), excludes, includes, allNames)) continue;
+
+// New way (checks @Internal annotation + $ convention):
+if (shouldSkipUndefinedAware(pNode, excludes, includes, allNames)) continue;
+----
+
+The `allNames` parameter continues to mean "include internal properties",
+matching the behaviour of `@ToString(allNames=true)`.
+
+=== Runtime: `MetaClassImpl.getProperties()`
+
+`MetaClassImpl.getProperties()` now checks for `@Internal` on:
+
+- `CachedField` entries: checks `field.isAnnotationPresent(Internal.class)`
+- `MetaBeanProperty` entries: checks the backing field, getter, and
+  setter for `@Internal`
+
+This means `@Internal`-annotated properties are automatically excluded from:
+
+- `JsonOutput.toJson()`
+- `FormatHelper.format()` (used by `println`, string interpolation)
+- `obj.properties` (the Groovy properties map)
+- Any code that iterates `metaClass.properties`
+
+Direct property access (`obj.secret = x`, `obj.secret`) still works.
+
+=== User-facing usage
+
+Users can annotate their own fields to exclude them from
+introspection and serialization:
+
+[source,groovy]
+----
+import groovy.transform.Internal
+import groovy.transform.ToString
+
+@ToString
+class Account {
+    String name
+    @Internal String internalTag
+}
+
+def a = new Account(name: 'test', internalTag: 'x')
+assert a.toString() == 'Account(test)'           // internalTag excluded
+assert a.internalTag == 'x'                       // direct access still works
+----
+
+=== Backward compatibility
+
+The `$` name convention is preserved. `deemedInternal(node)` checks
+both `@Internal` and `name.contains("$")`, so existing code that
+relies on `$`-named fields being filtered continues to work.
+
+The `deemedInternalName(String)` method remains available for callers
+that only have a name string (e.g. `java.beans.PropertyDescriptor`).
+
+== Current status
+
+=== Proposed (PR#2467 targeting Groovy 6.0)
+
+[cols="1,2",options="header"]
+|===
+| Component | Status
+
+| `AnnotatedNodeUtils.markAsInternal/isInternal/deemedInternal`
+| Done
+
+| `AbstractASTTransformation.shouldSkip(node, ...)`
+| Done -- node-aware overloads
+
+| `MetaClassImpl.getProperties()` -- respects `@Internal`
+| Done
+
+| `@EqualsAndHashCode` -- marks `$hash$code` as `@Internal`
+| Done
+
+| `@Lazy` -- marks backing field as `@Internal`
+| Done
+
+| `@ReadWriteLock` -- marks lock fields as `@Internal`
+| Done
+
+| `@ToString`, `@EqualsAndHashCode`, `@TupleConstructor`, `@MapConstructor`, `@Builder`, `@Delegate`
+| Done -- use node-aware skip methods
+
+| `@Immutable` -- uses `deemedInternal(fNode)`
+| Done
+|===
+
+=== Future work
+
+[cols="1,2",options="header"]
+|===
+| Component | Notes
+
+| Trait system (`TraitComposer`)
+| Trait-generated `$Trait$` fields should be marked `@Internal`
+
+| Compiler internals (`Verifier`)
+| Audit which compiler-generated `$` fields surface in `getProperties()`
+
+| `deemedInternalName` deprecation
+| Once all producers annotate with `@Internal`, the `$` name check
+  could be deprecated (not urgent -- backward compat)
+|===
+
+== References
+
+- https://issues.apache.org/jira/browse/GROOVY-11928[GROOVY-11928] --
+  MetaClassImpl.getProperties() should respect @Internal annotation
+- https://issues.apache.org/jira/browse/GROOVY-11516[GROOVY-11516] --
+  Improve consistency of treatment for internal properties (superseded)
+- https://github.com/apache/groovy/pull/2118[PR #2118] -- Original
+  draft PR (name-based `$` filtering, closed in favour of annotation approach)
