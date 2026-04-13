@@ -238,6 +238,33 @@ def result = [a:1,b:2,c:3,d:4].groupBy { it.value % 2 }
 assert result == [0:[b:2, d:4], 1:[a:1, c:3]]
 ----
 
+== Customisable Object Display with `groovyToString`
+
+Groovy 6 introduces a `groovyToString()` protocol
+(https://issues.apache.org/jira/browse/GROOVY-11893[GROOVY-11893])
+that lets classes control how their instances appear in string
+interpolation, `println`, collection formatting, and other display contexts.
+
+When a class defines a `groovyToString()` method returning `String`,
+Groovy uses it instead of `toString()` for display purposes:
+
+[source,groovy]
+----
+class Foo {
+    String toString() { 'some foo' }
+    String groovyToString() { 'some bar' }
+}
+
+assert "${new Foo()}" == 'some bar'
+assert [foo: new Foo()].toString() == '[foo:some bar]'
+----
+
+Groovy also provides built-in `groovyToString` extension methods for
+collections, maps, ranges, and primitive arrays, giving them their
+familiar Groovy formatting (e.g. `[1, 2, 3]` for `int[]` rather than
+Java's `[I@hashcode`). These can be selectively disabled using the
+`groovy.extension.disable` system property if needed.
+
 == Grape: Dual Engine Support (Incubating)
 
 Groovy 6 introduces a major evolution of the Grape dependency management system
