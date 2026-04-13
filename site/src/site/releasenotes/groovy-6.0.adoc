@@ -21,18 +21,178 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 TBD
 
+== Native Async/Await (incubating)
+
+Groovy 6 adds native `async`/`await` support
+(https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381]),
+enabling developers to write concurrent code in a sequential, readable style --
+no callbacks, no `CompletableFuture` chains, no manual thread management.
+On JDK 21+, tasks automatically leverage virtual threads.
+
+See also the https://groovy.apache.org/blog/groovy-async-await[async/await blog post]
+for a detailed walkthrough.
+
+=== Before and after
+
+Without `async`/`await`, concurrent code requires chaining futures:
+
+[source,groovy]
+----
+// Before: CompletableFuture chains
+def future = CompletableFuture.supplyAsync { loadUserProfile(id) }
+    .thenCompose { profile -> CompletableFuture.supplyAsync { loadQuests(profile) } }
+    .thenApply { quests -> quests.find { it.active } }
+
+def quest = future.join()
+----
+
+With `async`/`await`, the same logic reads like synchronous code:
+
+[source,groovy]
+----
+// After: sequential style, concurrent execution
+def quest = await async {
+    def profile = await async { loadUserProfile(id) }
+    def quests = await async { loadQuests(profile) }
+    quests.find { it.active }
+}
+----
+
+Exception handling works with standard `try`/`catch` -- no `.exceptionally()` chains.
+
+=== Parallel tasks and combinators
+
+Launch tasks concurrently and coordinate results:
+
+[source,groovy]
+----
+def a = async { fetchFromServiceA() }
+def b = async { fetchFromServiceB() }
+def c = async { fetchFromServiceC() }
+
+// Wait for all three
+def (resultA, resultB, resultC) = await(a, b, c)
+----
+
+=== Generators with `yield return`
+
+An `async` closure containing `yield return` becomes a lazy generator --
+it produces values on demand with natural back-pressure:
+
+[source,groovy]
+----
+def fibonacci = async {
+    long a = 0, b = 1
+    while (true) {
+        yield return a
+        (a, b) = [b, a + b]
+    }
+}
+
+assert fibonacci.take(8).collect() == [0, 1, 1, 2, 3, 5, 8, 13]
+----
+
+=== Channels
+
+Go-style inter-task communication. A producer sends values into a channel;
+a consumer receives them:
+
+[source,groovy]
+----
+def ch = AsyncChannel.create(5)  // buffered channel
+
+async {
+    for (i in 1..10) ch.send(i)
+    ch.close()
+}
+
+for (val in ch) { println val }  // prints 1..10
+----
+
+=== Structured concurrency
+
+`AsyncScope` binds the lifetime of child tasks to a scope -- when the scope
+exits, all children are guaranteed complete or cancelled:
+
+[source,groovy]
+----
+AsyncScope.run {
+    def users = async { loadUsers() }
+    def config = async { loadConfig() }
+    processResults(await(users), await(config))
+}
+// Both tasks guaranteed complete here
+----
+
+=== Feature summary
+
+[cols="1,3", options="header"]
+|===
+| Feature | Description
+
+| `async { }` / `await`
+| Start background tasks; collect results in sequential style
+
+| Virtual threads
+| Automatic on JDK 21+; cached thread pool fallback on JDK 17--20
+
+| `Awaitable.all()`, multi-arg `await(a, b, c)`
+| Wait for all tasks to complete
+
+| `Awaitable.any()`
+| Race -- first to complete wins
+
+| `Awaitable.first()`
+| First _success_ wins (ignores individual failures)
+
+| `Awaitable.allSettled()`
+| Wait for all; inspect each outcome individually
+
+| `yield return`
+| Lazy generators with back-pressure
+
+| `AsyncChannel`
+| Buffered and unbuffered Go-style channels
+
+| `for await`
+| Iterate over async sources (generators, channels, reactive streams)
+
+| `defer`
+| LIFO cleanup actions, runs on scope exit regardless of success/failure
+
+| `AsyncScope`
+| Structured concurrency -- child lifetime bounded by scope
+
+| Timeouts
+| `Awaitable.timeout(duration)` and `Awaitable.timeout(duration, fallback)`
+
+| `Awaitable.delay()`
+| Non-blocking pause
+
+| `CompletableFuture` / `Future` interop
+| `await` works directly with JDK async types
+
+| Framework adapters (SPI)
+| `groovy-reactor` (Mono/Flux), `groovy-rxjava` (Single/Observable)
+
+| Executor configuration
+| Pluggable; default auto-selects virtual threads or cached pool
+|===
+
 == Extension method additions and improvements
 
-Groovy provides over 2000 extension methods to 150+ JDK classes to enhance JDK functionality, with new methods added in Groovy 6. These methods reduce dependency on third-party libraries for common tasks, and make code more intuitive. Let's explore some highlights from those new methods.
+Groovy provides over 2000 extension methods to 150+ JDK classes to enhance
+JDK functionality, with new methods added in Groovy 6.
 
-=== Collections and arrays
+=== `groupByMany` — multi-key grouping
 
 Several variants of `groupByMany`
 (https://issues.apache.org/jira/browse/GROOVY-11808[GROOVY-11808])
-exist for grouping lists and maps of items.
+exist for grouping lists, arrays, and maps of items by multiple keys --
+similar to Eclipse Collections' `groupByEach` and a natural fit for
+many-to-many relationships that SQL handles with `GROUP BY`.
 
-The most common form takes a closure (or lambda) which converts from some item
-into a list of keys to group by (in this case group words by the vowels they contain):
+The most common form takes a closure that maps each item to a list of keys:
 
 [source,groovy]
 ----
@@ -46,143 +206,100 @@ assert words.groupByMany(s -> vowelsOf(s)) == [
 ]
 ----
 
-The most general form takes two closures, one to transform the item to some list of keys for grouping,
-the other to transform the grouped value if needed:
+For maps whose values are already lists, a no-args variant groups keys by their values:
 
 [source,groovy]
 ----
-record Person(String name, List<String> citiesLived) { }
-
-def people = [
-    new Person('Alice', ['NY', 'LA']),
-    new Person('Bob', ['NY']),
-    new Person('Cara', ['LA', 'CHI'])
+var availability = [
+    '🍎': ['Spring'],
+    '🍌': ['Spring', 'Summer', 'Autumn', 'Winter'],
+    '🍇': ['Spring', 'Autumn'],
+    '🍒': ['Autumn'],
+    '🍑': ['Spring']
 ]
 
-def grouped = people.groupByMany(Person::name, Person::citiesLived)
-
-assert grouped == [
-    NY  : ['Alice', 'Bob'],
-    LA  : ['Alice', 'Cara'],
-    CHI : ['Cara']
+assert availability.groupByMany() == [
+    Winter: ['🍌'],
+    Autumn: ['🍌', '🍇', '🍒'],
+    Summer: ['🍌'],
+    Spring: ['🍎', '🍌', '🍇', '🍑']
 ]
 ----
 
-Variants also exist for maps where the value is already a list.
-
-The `isSorted` method
-(https://issues.apache.org/jira/browse/GROOVY-11891[GROOVY-11891])
-checks whether the elements of an Iterable, Iterator, array, or Map
-are in sorted order. It works with natural ordering, a `Comparator`,
-or a `Closure`:
-
-[source,groovy]
-----
-assert [1, 2, 3].isSorted()
-assert !([3, 1, 2].isSorted())
-assert ['hi', 'hey', 'hello'].isSorted { it.length() }
-----
+A two-closure form also exists for transforming both keys and values.
+See the https://groovy.apache.org/blog/fruity-eclipse-grouping[groupByMany blog post]
+for more examples including Eclipse Collections interop.
 
 === Process handling
 
-Groovy's existing process methods predate Java's `ProcessBuilder`.
-Groovy 6 adds several new methods to alleviate some of the pain points
-of the existing functionality and make using `ProcessBuilder` more Groovy-friendly
-(https://issues.apache.org/jira/browse/GROOVY-11901[GROOVY-11901]).
-
-Previously, process execution often involved manually handling input/output streams,
-waiting for the process to complete, and dealing with exit codes.
-The `waitForResult` method manages all the parts and returns a `ProcessResult` object:
+`waitForResult` replaces the manual stream/exit-code dance with a single call
+(https://issues.apache.org/jira/browse/GROOVY-11901[GROOVY-11901]):
 
 [source,groovy]
 ----
 var result = 'echo Hello World'.execute().waitForResult()
 assert result.output == 'Hello World\n'
 assert result.exitValue == 0
-----
 
-A timeout variant forcibly destroys the process
-if it doesn't complete within the specified duration:
-
-[source,groovy]
-----
+// With timeout
 var result = 'sleep 60'.execute().waitForResult(5, TimeUnit.SECONDS)
-----
-
-The `execute` method now also supports named parameters for process
-configuration, including options like `dir`, `env`,
-`redirectErrorStream`, `inheritIO`, and file redirection:
-
-[source,groovy]
-----
-var result = 'ls'.execute(dir: '/tmp', redirectErrorStream: true)
-----
-
-The `toProcessBuilder` method converts a String, String array,
-or List into a `ProcessBuilder`, giving access to its full
-fluent API for more advanced configuration:
-
-[source,groovy]
-----
-var ls = 'ls'.toProcessBuilder()
-    .directory(new File('/tmp'))
-    .redirectErrorStream(true)
-    .start()
-----
-
-Earlier Groovy versions support the `|` operator to simulate OS pipelines via thread-based stream copying, and providing a handle to the last stage of the pipeline.
-The `pipeline` method improves this by leveraging `ProcessBuilder#startPipeline()`
-to create native OS pipelines from a list of
-commands, and supports proper handles for all pipeline stages, not just the last one:
-
-[source,groovy]
-----
-var processes = ['ps aux', 'grep java', 'wc -l'].pipeline()
-----
-
-As a small convenience, the `onExit` method registers a closure to execute asynchronously
-when a process terminates:
-
-[source,groovy]
-----
-'some command'.execute().onExit { proc ->
-    println "Exited with: ${proc.exitValue()}"
-}
 ----
 
 === Asynchronous file I/O
 
-The `groovy-nio` module adds asynchronous file I/O extension methods
-on `java.nio.file.Path`
+The `groovy-nio` module adds async file operations on `Path` that return
+`CompletableFuture` results
 (https://issues.apache.org/jira/browse/GROOVY-11902[GROOVY-11902]).
-These methods leverage `AsynchronousFileChannel` for non-blocking
-file operations and return `CompletableFuture` results.
-
-Reading methods:
+These compose naturally with Groovy 6's `async`/`await`:
 
 [source,groovy]
 ----
 import java.nio.file.Path
 
-var path = Path.of('data.txt')
-var textFuture = path.textAsync           // CompletableFuture<String>
-var bytesFuture = path.bytesAsync         // CompletableFuture<byte[]>
+// Read two files concurrently
+def a = Path.of('config.json').textAsync
+def b = Path.of('data.csv').textAsync
+def (config, data) = await(a, b)
 ----
 
-Writing methods:
+=== Other new extension methods
 
-[source,groovy]
-----
-path.writeAsync('Hello async!')           // CompletableFuture<Void>
-path.writeBytesAsync(bytes)               // CompletableFuture<Void>
-----
+[cols="2,3,1", options="header"]
+|===
+| Method | Description | Ticket
 
-These futures support natural composition using `CompletableFuture` methods:
+| `isSorted()`
+| Check whether elements of an Iterable, Iterator, array, or Map
+are in sorted order. Supports natural ordering, `Comparator`, or `Closure`.
+| https://issues.apache.org/jira/browse/GROOVY-11891[GROOVY-11891]
 
-[source,groovy]
-----
-path.textAsync.thenApply { it.toUpperCase() }.thenAccept { println it }
-----
+| `execute(dir:, env:, ...)`
+| Named parameters for process configuration: `dir`, `env`,
+`redirectErrorStream`, `inheritIO`, file redirection.
+| https://issues.apache.org/jira/browse/GROOVY-11901[GROOVY-11901]
+
+| `toProcessBuilder()`
+| Convert a String, String array, or List into a `ProcessBuilder`
+for fluent process configuration.
+| https://issues.apache.org/jira/browse/GROOVY-11901[GROOVY-11901]
+
+| `pipeline()`
+| Create native OS pipelines from a list of commands via
+`ProcessBuilder#startPipeline()`.
+| https://issues.apache.org/jira/browse/GROOVY-11901[GROOVY-11901]
+
+| `onExit { }`
+| Register a closure to execute asynchronously when a process terminates.
+| https://issues.apache.org/jira/browse/GROOVY-11901[GROOVY-11901]
+
+| `textAsync` / `bytesAsync`
+| Asynchronous file reading on `Path`, returning `CompletableFuture`.
+| https://issues.apache.org/jira/browse/GROOVY-11902[GROOVY-11902]
+
+| `writeAsync()` / `writeBytesAsync()`
+| Asynchronous file writing on `Path`, returning `CompletableFuture`.
+| https://issues.apache.org/jira/browse/GROOVY-11902[GROOVY-11902]
+|===
 
 == Selectively Disabling Extension Methods
 
@@ -323,17 +440,19 @@ to revert back to GrapeIvy.
 
 *If you have customized Ivy settings:* Your `~/.groovy/grapeConfig.xml` is only honoured by GrapeIvy. If switching to GrapeMaven, you will need to reconfigure any custom repositories or settings using `@GrabResolver` annotations or programmatically via the `Grape.addResolver()` API.
 
-== HttpBuilder: Lightweight HTTP Client DSL (incubating)
+== HttpBuilder: HTTP Client Module (incubating)
 
 Groovy 6 introduces a new `groovy-http-builder` module
-(https://issues.apache.org/jira/browse/GROOVY-11879[GROOVY-11879])
-providing a declarative DSL over the JDK's `java.net.http.HttpClient`.
-It is designed for scripting and simple automation,
+(https://issues.apache.org/jira/browse/GROOVY-11879[GROOVY-11879],
+https://issues.apache.org/jira/browse/GROOVY-11924[GROOVY-11924])
+providing both an imperative DSL and a declarative annotation-driven
+client over the JDK's `java.net.http.HttpClient`.
+It is designed for scripting, automation, and typed API clients,
 filling the gap left by the earlier HttpBuilder/HttpBuilder-NG libraries.
 
-=== Quick start
+=== Imperative DSL
 
-Create a client with a base URI and start making requests:
+A closure-based DSL for quick scripting:
 
 [source,groovy]
 ----
@@ -344,125 +463,134 @@ def result = client.get('/repos/apache/groovy')
 assert result.json.license.name == 'Apache License 2.0'
 ----
 
-=== Configuring the client
+Responses auto-parse by content type: `result.json`, `result.xml`,
+`result.html` (via jsoup), or `result.parsed` for auto-dispatch.
 
-Use a configuration closure to set default headers, timeouts, and redirect behavior:
+=== Declarative client
+
+Define a typed interface and Groovy generates the implementation at
+compile time. Parameters are mapped by convention -- no annotations
+needed for the common case:
 
 [source,groovy]
 ----
-import groovy.http.HttpBuilder
-import java.time.Duration
+@HttpBuilderClient('https://api.example.com')
+interface UserApi {
+    @Get('/users/{id}')
+    User getUser(String id)             // path param: {id}
 
-def client = HttpBuilder.http {
-    baseUri 'https://api.example.com'
-    header 'User-Agent', 'my-app/1.0'
-    connectTimeout Duration.ofSeconds(5)
-    followRedirects true
+    @Get('/users')
+    List<User> search(String name)      // implied query param: ?name=...
+
+    @Post('/users')
+    User create(@Body Map user)         // JSON body
+
+    @Post('/login')
+    @Form
+    Map login(String username, String password)  // form-encoded
+}
+
+def api = UserApi.create()
+def user = api.getUser('42')
+----
+
+=== Async support
+
+Both sides offer native async via `HttpClient.sendAsync()` -- no
+extra threads consumed while waiting:
+
+[source,groovy]
+----
+// Imperative
+def future = client.getAsync('/slow-endpoint')
+def result = future.get()
+
+// Declarative
+@HttpBuilderClient('https://api.example.com')
+interface AsyncApi {
+    @Get('/data/{id}')
+    CompletableFuture<Map> getData(String id)
 }
 ----
 
-=== JSON POST
+If the `groovy-async` module is on the classpath, these are
+automatically `await`-able: `def data = await api.getDataAsync('42')`.
 
-[source,groovy]
-----
-def result = client.post('/api/items') {
-    json([name: 'book', qty: 2])
-}
-assert result.status == 200
-assert result.json.ok
-----
+=== Feature summary
 
-=== Form POST
+[cols="2,1,1", options="header"]
+|===
+| Feature | Imperative | Declarative
 
-[source,groovy]
-----
-def result = client.post('/login') {
-    form(username: 'admin', password: 's3cret')
-}
-assert result.status == 200
-----
+| HTTP methods (GET, POST, PUT, DELETE, PATCH)
+| All
+| All (`@Get`, `@Post`, `@Put`, `@Delete`, `@Patch`)
 
-=== Query parameters
+| JSON body / response
+| `json()` / `result.json`
+| `@Body` / return-type driven
 
-[source,groovy]
-----
-def result = client.get('/api/items') {
-    query page: 1, size: 10
-}
-----
+| Form-encoded body
+| `form()`
+| `@Form`
 
-=== XML responses
+| Plain text body
+| `text()`
+| `@BodyText`
 
-[source,groovy]
-----
-def result = client.get('/api/repo.xml')
-assert result.xml.license.text() == 'Apache License 2.0'
-----
+| XML / HTML response
+| `result.xml` / `result.html`
+| `GPathResult` / jsoup `Document` return type
 
-=== HTML scraping with jsoup
+| Typed response objects
+| Manual (`result.json as User`)
+| Automatic (return type driven)
 
-When https://jsoup.org/[jsoup] is on the classpath,
-HTML responses are automatically parsed into a jsoup `Document`:
+| Query parameters
+| `query()`
+| Implied from parameter name (or `@Query`)
 
-[source,groovy]
-----
-@Grab('org.jsoup:jsoup:1.22.1')
-import static groovy.http.HttpBuilder.http
+| Path parameters
+| Manual
+| Auto-mapped via `{name}` placeholders
 
-def client = http('https://example.com')
-def result = client.get('/page')
-def heading = result.html.select('h1').text()
-----
+| Headers
+| `header()` in config/request
+| `@Header` on interface/method
 
-=== Response parsing
+| Async
+| `getAsync()`, `postAsync()`, etc.
+| `CompletableFuture<T>` return type
 
-`HttpResult` provides convenient accessors for common content types:
+| Timeouts (connect / request)
+| Config DSL
+| `connectTimeout`, `requestTimeout` on `@HttpBuilderClient`
 
-- `result.json` -- parsed via `JsonSlurper`
-- `result.xml` -- parsed via `XmlSlurper`
-- `result.html` -- parsed via jsoup (if available)
-- `result.parsed` -- auto-dispatches based on the response `Content-Type`
-- `result.body` -- the raw response body as a `String`
+| Per-method timeout
+| Per-request `timeout()`
+| `@Timeout(seconds)`
 
-=== Declarative HTTP client
+| Redirect following
+| Config DSL
+| `followRedirects` on `@HttpBuilderClient`
 
-An annotation-driven declarative HTTP client
-(https://issues.apache.org/jira/browse/GROOVY-11924[GROOVY-11924])
-is also available, inspired by similar features in Micronaut and Retrofit.
-Annotate an interface with `@HttpBuilderClient` and method-level
-annotations like `@Get`, `@Post`, `@Put`, `@Delete`, and `@Patch`:
+| Error handling
+| Manual (check `result.status()`)
+| Auto-throw; custom exception via `throws` clause
 
-[source,groovy]
-----
-@HttpBuilderClient('https://api.github.com')
-interface GitHubApi {
-    @Get('/repos/{owner}/{repo}')
-    def getRepo(String owner, String repo)
-
-    @Post('/repos/{owner}/{repo}/issues')
-    @Header(name = 'Accept', value = 'application/json')
-    def createIssue(String owner, String repo, @Body Map issue)
-}
-----
+| JDK client access (auth, SSL, proxy)
+| `clientConfig { builder -> ... }`
+| `create { clientConfig { ... } }`
+|===
 
 == AST Transforms in More Places (incubating)
 
 Groovy 6 extends the AST transformation infrastructure to support
 annotations on loop statements -- for-in, classic for, while, and do-while
 (https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878]).
-Since the JVM does not support annotations on statements in bytecode,
-these are purely source-level transforms: the annotation drives
-compile-time code generation and is then discarded.
-
-Several transforms take advantage of this capability,
-including `@Invariant` and `@Decreases` from `groovy-contracts`
-(see the <<groovy-contracts>> section for details)
-and the `@Parallel` transform described below.
-
-=== `@Parallel` on for-in loops
-
-The `@Parallel` transform runs each iteration of a for-in loop
-in its own thread:
+Several transforms take advantage of this, including `@Invariant` and
+`@Decreases` from `groovy-contracts` (see <<groovy-contracts>>)
+and `@Parallel`:
 
 [source,groovy]
 ----
@@ -473,18 +601,9 @@ for (int i in 1..4) {
 // Output (non-deterministic order): 1, 16, 9, 4
 ----
 
-When running on JDK 21+, `@Parallel` will use virtual threads
-for lightweight concurrency; on earlier JDKs it falls back to platform threads.
-
-NOTE: `@Parallel` is an incubating transform favoring simplicity.
-Production use should consider proper concurrency mechanisms.
-
-=== Writing custom statement-level transforms
-
-Any source-retention AST transform can now target `STATEMENT_TARGET`.
-The transform's `visit` method receives the `AnnotationNode` and the
-`Statement` (a `LoopingStatement`) as its AST node pair, following the
-same contract as existing class/method/field-level transforms.
+On JDK 21+, `@Parallel` uses virtual threads; on earlier JDKs it falls back
+to platform threads. Custom statement-level transforms can target
+`STATEMENT_TARGET` following the same contract as class/method/field-level transforms.
 
 [[groovy-contracts]]
 == Groovy-Contracts Enhancements (incubating)
@@ -1099,9 +1218,7 @@ previously relied on the lenient behavior.
 
 GINQ's `groupby` clause now supports an `into` keyword
 (https://issues.apache.org/jira/browse/GROOVY-11915[GROOVY-11915])
-that binds each group to a named variable,
-giving direct access to the grouped elements
-within the `select` or `having` clause:
+that binds each group to a named variable with aggregate access:
 
 [source,groovy]
 ----
@@ -1121,11 +1238,11 @@ GQ {
 +------+-------+-----+--------------+
 ----
 
-=== Set operators: `union`, `intersect`, `minus`, `unionall`
+=== Set operators
 
-GINQ now supports SQL-style set operators
+SQL-style set operators
 (https://issues.apache.org/jira/browse/GROOVY-11919[GROOVY-11919])
-for combining query results:
+for combining query results: `union`, `intersect`, `minus`, and `unionall`:
 
 [source,groovy]
 ----
@@ -1136,22 +1253,8 @@ assert GQL {
     from n in java select n
     union
     from n in groovy select n
-} == ['Alice', 'Bob', 'Carol', 'Dave']          // everyone
-
-assert GQL {
-    from n in java select n
-    intersect
-    from n in groovy select n
-} == ['Bob', 'Carol']                            // know both
-
-assert GQL {
-    from n in java select n
-    minus
-    from n in groovy select n
-} == ['Alice']                                   // Java only
+} == ['Alice', 'Bob', 'Carol', 'Dave']
 ----
-
-The `unionall` variant is like `union` but retains duplicates.
 
 == CSV Module (incubating)
 
@@ -1210,91 +1313,64 @@ assert sales[0].amount == 1500.00
 
 == Typed Parsing and Writing Across Format Modules
 
-Groovy 6 brings typed parsing and writing support across all
-data format modules -- JSON, XML, CSV, TOML, and YAML -- giving
-a consistent way to convert between structured data and typed objects.
-
-=== JSON typed coercion
-
-Since `JsonSlurper` parses JSON values into their natural JVM types
-(`Integer`, `BigDecimal`, `Boolean`, `List`, `Map`), Groovy's built-in
-`as` coercion works directly for converting parsed JSON into typed objects,
-including nested objects and enums:
+Groovy 6 brings typed parsing support across all data format modules,
+giving a consistent way to convert structured data into typed objects.
+Given a target class:
 
 [source,groovy]
 ----
-class ServerConfig {
-    String host
-    int port
-    boolean debug
-}
-
-def config = new JsonSlurper().parseText(
-    '{"host":"localhost","port":8080,"debug":true}'
-) as ServerConfig
-assert config.host == 'localhost'
-assert config.port == 8080
+class ServerConfig { String host; int port; boolean debug }
 ----
 
-For advanced cases (typed collections, date parsing, `@JsonProperty`),
-use `jackson-databind` directly via `new ObjectMapper().readValue(json, Type)`.
-
-=== CSV, TOML, and YAML typed parsing
-
-`CsvSlurper`, `TomlSlurper`, and `YamlSlurper` each provide `parseTextAs`
-and `parseAs` methods
-(https://issues.apache.org/jira/browse/GROOVY-11923[GROOVY-11923],
-https://issues.apache.org/jira/browse/GROOVY-11925[GROOVY-11925],
-https://issues.apache.org/jira/browse/GROOVY-11926[GROOVY-11926])
-that parse content directly into typed objects using Jackson databinding.
-Standard Jackson annotations such as `@JsonProperty` and `@JsonFormat`
-are supported for property mapping and type conversion:
+Each format can parse directly into it:
 
 [source,groovy]
 ----
-class Config {
-    String name
-    int port
-}
+// JSON — as coercion (no extra deps)
+def config = new JsonSlurper().parseText(json) as ServerConfig
 
-def config = new TomlSlurper().parseTextAs(Config, 'name = "app"\nport = 8080')
-assert config.name == 'app'
-assert config.port == 8080
+// TOML — Jackson-backed parseTextAs
+def config = new TomlSlurper().parseTextAs(ServerConfig, toml)
+
+// XML — Jackson-backed parseTextAs
+def config = new XmlParser().parseTextAs(ServerConfig, xml)
 ----
 
-NOTE: For simple cases, Groovy's `as` coercion already works with the
-untyped result, e.g. `new TomlSlurper().parseText(toml) as Config`.
-The `parseTextAs`/`parseAs` methods use Jackson databinding for richer
-annotation-driven mapping.
+[cols="1,2,2", options="header"]
+|===
+| Format | Typed Parsing | Typed Writing
 
-`CsvBuilder.toCsv(items, type)`, `TomlBuilder.toToml(object)`, and
-`YamlBuilder.toYaml(object)` serialize typed objects directly.
+| JSON
+| `as` coercion (no deps); `ObjectMapper` for advanced cases
+| `JsonOutput.toJson()`
 
-=== XML typed parsing
+| CSV
+(https://issues.apache.org/jira/browse/GROOVY-11923[GROOVY-11923])
+| `CsvSlurper.parseAs(Type, csv)` (Jackson)
+| `CsvBuilder.toCsv(items, Type)`
 
-`XmlParser` gains `toMap()`, `parseTextAs`, and `parseAs` methods
-(https://issues.apache.org/jira/browse/GROOVY-11927[GROOVY-11927]).
-`Node.toMap()` converts an XML node tree into a nested `Map<String, Object>`
-with zero dependencies, and works with Groovy's `as` coercion for
-String-typed target properties. The `parseTextAs` and `parseAs` methods
-provide full type conversion via Jackson's `ObjectMapper.convertValue`
-(requires `jackson-databind` on the classpath at runtime):
+| TOML
+(https://issues.apache.org/jira/browse/GROOVY-11925[GROOVY-11925])
+| `TomlSlurper.parseTextAs(Type, toml)` (Jackson)
+| `TomlBuilder.toToml(object)`
 
-[source,groovy]
-----
-def config = new XmlParser().parseTextAs(ServerConfig, '''
-    <server>
-        <host>localhost</host>
-        <port>8080</port>
-        <debug>true</debug>
-    </server>''')
-assert config.host == 'localhost'
-assert config.port == 8080
-----
+| YAML
+(https://issues.apache.org/jira/browse/GROOVY-11926[GROOVY-11926])
+| `YamlSlurper.parseTextAs(Type, yaml)` (Jackson)
+| `YamlBuilder.toYaml(object)`
 
-For the full Jackson XML experience (e.g. `@JacksonXmlText`,
-`@JacksonXmlElementWrapper`), use `jackson-dataformat-xml` directly:
-`new XmlMapper().readValue(xmlString, ServerConfig)`.
+| XML
+(https://issues.apache.org/jira/browse/GROOVY-11927[GROOVY-11927])
+| `XmlParser.parseTextAs(Type, xml)` (optional Jackson);
+`Node.toMap()` + `as` coercion (no deps)
+| --
+|===
+
+NOTE: For CSV, TOML, YAML, and XML, the `parseTextAs`/`parseAs` methods use
+Jackson databinding and support `@JsonProperty`, `@JsonFormat`, etc.
+For simple cases, Groovy's `as` coercion works without Jackson.
+For XML, `jackson-dataformat-xml` can be used directly for full
+Jackson XML annotation support.
 
 == Other Module Changes
 
