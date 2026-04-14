@@ -359,6 +359,16 @@ pre {
     color: var(--text-main);
 }
 
+table.tableblock.grid-all {
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
+table.tableblock.grid-all th,
+table.tableblock.grid-all td {
+    border: 1px solid var(--table-border);
+}
+
 /* Doc embed */
 .doc-embed {
     border-color: var(--border-light);
