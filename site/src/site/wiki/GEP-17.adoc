@@ -6,13 +6,13 @@
 ****
 [horizontal,options="compact"]
 *Number*:: GEP-17
-*Title*:: Consistent handling of internal properties via `@Internal`
+*Title*:: Design Note: Consistent handling of internal properties via `@Internal`
 *Version*:: 1
 *Type*:: Feature
 *Status*:: Draft
 *Leader*:: Paul King
 *Created*:: 2026-04-13
-*Last modification*&#160;:: 2026-04-13
+*Last modification*&#160;:: 2026-04-14
 *JIRA*:: https://issues.apache.org/jira/browse/GROOVY-11928[GROOVY-11928]
 ****
 
@@ -152,7 +152,7 @@ that only have a name string (e.g. `java.beans.PropertyDescriptor`).
 
 == Current status
 
-=== Proposed (PR#2467 targeting Groovy 6.0)
+=== Infrastructure (done -- PR#2467)
 
 [cols="1,2",options="header"]
 |===
@@ -161,44 +161,90 @@ that only have a name string (e.g. `java.beans.PropertyDescriptor`).
 | `AnnotatedNodeUtils.markAsInternal/isInternal/deemedInternal`
 | Done
 
-| `AbstractASTTransformation.shouldSkip(node, ...)`
-| Done -- node-aware overloads
+| Node-aware `shouldSkip`/`shouldSkipUndefinedAware` overloads
+| Done -- in `AbstractASTTransformation`
 
 | `MetaClassImpl.getProperties()` -- respects `@Internal`
 | Done
-
-| `@EqualsAndHashCode` -- marks `$hash$code` as `@Internal`
-| Done
-
-| `@Lazy` -- marks backing field as `@Internal`
-| Done
-
-| `@ReadWriteLock` -- marks lock fields as `@Internal`
-| Done
-
-| `@ToString`, `@EqualsAndHashCode`, `@TupleConstructor`, `@MapConstructor`, `@Builder`, `@Delegate`
-| Done -- use node-aware skip methods
-
-| `@Immutable` -- uses `deemedInternal(fNode)`
-| Done
 |===
 
-=== Future work
+=== Consumers -- transforms that iterate properties (done -- PR#2467)
+
+All use node-aware skip methods that check both `@Internal` and `$` convention:
+`@ToString`, `@EqualsAndHashCode`, `@TupleConstructor`, `@MapConstructor`,
+`@Builder`, `@Delegate`, `@Immutable`.
+
+=== Producers -- transforms that create internal fields
 
 [cols="1,2",options="header"]
 |===
+| Component | Status
+
+| `@EqualsAndHashCode` -- marks `$hash$code`
+| Done (PR#2467)
+
+| `@Lazy` -- marks backing field
+| Done (PR#2467)
+
+| `@ReadWriteLock` -- marks lock fields
+| Done (PR#2467)
+
+| `@ToString` -- marks `$to$string` cache field
+| Done
+
+| `@Synchronized` -- marks `$LOCK` and `$lock`
+| Done
+
+| `TraitComposer` -- marks trait implementation fields
+| Done -- these fields (e.g. `com_example_Named__name`) do not
+  contain `$`, so the name convention never caught them.
+  This was the only case where internal fields were leaking
+  into `metaClass.properties`.
+|===
+
+=== Cleanup
+
+Removed `markAsInternal` and `deemedInternal` wrapper methods from
+`AbstractASTTransformation`. Call sites now import directly from
+`AnnotatedNodeUtils`, avoiding method shadowing issues.
+
+=== Deferred -- compiler internals
+
+[cols="1,3",options="header"]
+|===
 | Component | Notes
 
-| Trait system (`TraitComposer`)
-| Trait-generated `$Trait$` fields should be marked `@Internal`
+| `Verifier` (`__$stMC`)
+| Adding `@Internal` causes NPE in `ExtendedVerifier.visitAnnotations`
+  during nested compilation contexts (triggered by `evaluateExpression`
+  in static type checking) where `this.source` is null.
+  Needs a null guard in `ExtendedVerifier` or an alternative mechanism.
 
-| Compiler internals (`Verifier`)
-| Audit which compiler-generated `$` fields surface in `getProperties()`
-
-| `deemedInternalName` deprecation
-| Once all producers annotate with `@Internal`, the `$` name check
-  could be deprecated (not urgent -- backward compat)
+| `InnerClassVisitor` (`this$0`)
+| Adding `@Internal` causes duplicate annotation errors in some
+  inner class scenarios. Needs investigation of the annotation
+  duplication path.
 |===
+
+Both continue to rely on the `$` naming convention via
+`deemedInternal()` / `deemedInternalName()`.
+
+=== Path to deprecating the `$` fallback
+
+The `$` name convention (`deemedInternalName`) cannot be deprecated
+immediately, even once all Groovy's own producers use `@Internal`.
+Third-party frameworks and AST transforms that generate `$`-named
+fields also rely on this convention. The deprecation path is:
+
+1. *Document* the `@Internal` annotation as the recommended approach
+   for framework authors (this GEP serves as that design note).
+2. *Allow time* for framework authors to adopt `@Internal` in their
+   own transforms and generated code.
+3. *Deprecate* `deemedInternalName()` in a future version once
+   adoption is sufficient.
+4. *Remove* the `$` fallback eventually, potentially retaining a
+   more surgical check for specific known compiler fields
+   (e.g. `__$stMC`) if they cannot be annotated.
 
 == References
 
