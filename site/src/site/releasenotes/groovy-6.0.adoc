@@ -759,6 +759,8 @@ for fluent process configuration.
 
 | `onExit { }`
 | Register a closure to execute asynchronously when a process terminates.
+`Process.onExit()` returns a `CompletableFuture`, so it composes
+naturally with `await`.
 | https://issues.apache.org/jira/browse/GROOVY-11901[GROOVY-11901]
 
 | `textAsync` / `bytesAsync`
