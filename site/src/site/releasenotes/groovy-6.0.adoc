@@ -179,6 +179,475 @@ AsyncScope.run {
 | Pluggable; default auto-selects virtual threads or cached pool
 |===
 
+== HttpBuilder: HTTP Client Module (incubating)
+
+Groovy 6 introduces a new `groovy-http-builder` module
+(https://issues.apache.org/jira/browse/GROOVY-11879[GROOVY-11879],
+https://issues.apache.org/jira/browse/GROOVY-11924[GROOVY-11924])
+providing both an imperative DSL and a declarative annotation-driven
+client over the JDK's `java.net.http.HttpClient`.
+It is designed for scripting, automation, and typed API clients,
+filling the gap left by the earlier HttpBuilder/HttpBuilder-NG libraries.
+
+=== Imperative DSL
+
+A closure-based DSL for quick scripting:
+
+[source,groovy]
+----
+import static groovy.http.HttpBuilder.http
+
+def client = http('https://api.github.com')
+def result = client.get('/repos/apache/groovy')
+assert result.json.license.name == 'Apache License 2.0'
+----
+
+Responses auto-parse by content type: `result.json`, `result.xml`,
+`result.html` (via jsoup), or `result.parsed` for auto-dispatch.
+
+=== Declarative client
+
+Define a typed interface and Groovy generates the implementation at
+compile time. Parameters are mapped by convention -- no annotations
+needed for the common case:
+
+[source,groovy]
+----
+@HttpBuilderClient('https://api.example.com')
+interface UserApi {
+    @Get('/users/{id}')
+    User getUser(String id)             // path param: {id}
+
+    @Get('/users')
+    List<User> search(String name)      // implied query param: ?name=...
+
+    @Post('/users')
+    User create(@Body Map user)         // JSON body
+
+    @Post('/login')
+    @Form
+    Map login(String username, String password)  // form-encoded
+}
+
+def api = UserApi.create()
+def user = api.getUser('42')
+----
+
+=== Async support
+
+Both sides offer native async via `HttpClient.sendAsync()` -- no
+extra threads consumed while waiting:
+
+[source,groovy]
+----
+// Imperative
+def future = client.getAsync('/slow-endpoint')
+def result = future.get()
+
+// Declarative
+@HttpBuilderClient('https://api.example.com')
+interface AsyncApi {
+    @Get('/data/{id}')
+    CompletableFuture<Map> getData(String id)
+}
+----
+
+If the `groovy-async` module is on the classpath, these are
+automatically `await`-able: `def data = await api.getDataAsync('42')`.
+
+=== Feature summary
+
+[cols="2,1,1", options="header"]
+|===
+| Feature | Imperative | Declarative
+
+| HTTP methods (GET, POST, PUT, DELETE, PATCH)
+| All
+| All (`@Get`, `@Post`, `@Put`, `@Delete`, `@Patch`)
+
+| JSON body / response
+| `json()` / `result.json`
+| `@Body` / return-type driven
+
+| Form-encoded body
+| `form()`
+| `@Form`
+
+| Plain text body
+| `text()`
+| `@BodyText`
+
+| XML / HTML response
+| `result.xml` / `result.html`
+| `GPathResult` / jsoup `Document` return type
+
+| Typed response objects
+| Manual (`result.json as User`)
+| Automatic (return type driven)
+
+| Query parameters
+| `query()`
+| Implied from parameter name (or `@Query`)
+
+| Path parameters
+| Manual
+| Auto-mapped via `{name}` placeholders
+
+| Headers
+| `header()` in config/request
+| `@Header` on interface/method
+
+| Async
+| `getAsync()`, `postAsync()`, etc.
+| `CompletableFuture<T>` return type
+
+| Timeouts (connect / request)
+| Config DSL
+| `connectTimeout`, `requestTimeout` on `@HttpBuilderClient`
+
+| Per-method timeout
+| Per-request `timeout()`
+| `@Timeout(seconds)`
+
+| Redirect following
+| Config DSL
+| `followRedirects` on `@HttpBuilderClient`
+
+| Error handling
+| Manual (check `result.status()`)
+| Auto-throw; custom exception via `throws` clause
+
+| JDK client access (auth, SSL, proxy)
+| `clientConfig { builder -> ... }`
+| `create { clientConfig { ... } }`
+|===
+
+== AST Transforms in More Places (incubating)
+
+Groovy 6 extends the AST transformation infrastructure to support
+annotations on loop statements -- for-in, classic for, while, and do-while
+(https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878]).
+Several transforms take advantage of this, including `@Invariant` and
+`@Decreases` from `groovy-contracts` (see <<groovy-contracts>>)
+and `@Parallel`:
+
+[source,groovy]
+----
+@Parallel
+for (int i in 1..4) {
+    println i ** 2
+}
+// Output (non-deterministic order): 1, 16, 9, 4
+----
+
+On JDK 21+, `@Parallel` uses virtual threads; on earlier JDKs it falls back
+to platform threads. Custom statement-level transforms can target
+`STATEMENT_TARGET` following the same contract as class/method/field-level transforms.
+
+[[groovy-contracts]]
+== Groovy-Contracts Enhancements (incubating)
+
+The `groovy-contracts` module receives several enhancements in Groovy 6,
+including support for contracts in scripts, loop annotations,
+and frame conditions.
+
+=== Contracts in scripts
+
+Contract annotations now work in Groovy scripts, not just inside classes
+(https://issues.apache.org/jira/browse/GROOVY-11885[GROOVY-11885]).
+`@Requires` and `@Ensures` can be placed on script methods,
+and `@Invariant` can be placed on an import statement to apply
+as a class-level invariant for the script:
+
+[source,groovy]
+----
+@Invariant({ balance >= 0 })
+import groovy.transform.Field
+import groovy.contracts.Invariant
+
+@Field Integer balance = 5
+
+@Requires({ balance >= amount })
+def withdraw(int amount) { balance -= amount }
+
+def deposit(int amount) { balance += amount }
+
+deposit(5)       // balance = 10, OK
+withdraw(20)     // throws ClassInvariantViolation (balance would be -5)
+----
+
+=== Combining contracts
+
+These annotations can be combined to build strong confidence
+in the correctness of an algorithm. Consider this insertion sort
+that merges two pre-sorted lists:
+
+[source,groovy]
+----
+@Ensures({ result.isSorted() })
+List insertionSort(List in1, List in2) {
+    var out = []
+    var count = in1.size() + in2.size()
+    @Invariant({ in1.size() + in2.size() + out.size() == count })
+    @Decreases({ [in1.size(), in2.size()] })
+    while (in1 || in2) {
+        if (!in1) return out + in2
+        if (!in2) return out + in1
+        out += (in1[0] < in2[0]) ? in1.pop() : in2.pop()
+    }
+    out
+}
+----
+
+The `@Ensures` postcondition verifies that the result is sorted.
+The `@Invariant` asserts that no elements are lost or gained --
+the total number of elements across all three lists stays constant
+throughout the loop. The `@Decreases` annotation uses a lexicographic
+measure over the two input list sizes, giving us confidence that
+the loop terminates: on each iteration at least one input list
+shrinks, and they can never grow.
+
+See also the https://groovy.apache.org/blog/loop-invariants[loop invariants blog post]
+for more on how contracts support correctness reasoning.
+
+=== Feature summary
+
+[cols="1,3,1", options="header"]
+|===
+| Feature | Description | Ticket
+
+| `@Invariant` on loops
+| Assert a condition at the start of each iteration of any loop type
+(for-in, classic for, while, do-while). Multiple invariants can be stacked.
+Violations throw `LoopInvariantViolation`.
+| https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878]
+
+| `@Decreases`
+| Loop termination measure (loop _variant_). Takes a closure returning a
+value or list of values that must strictly decrease each iteration while
+remaining non-negative. Lists use lexicographic comparison.
+Violations throw `LoopVariantViolation`.
+| https://issues.apache.org/jira/browse/GROOVY-11890[GROOVY-11890]
+
+| `@Modifies`
+| Frame condition declaring which fields a method may change.
+Everything not listed is guaranteed unchanged.
+`@Pure` is shorthand for `@Modifies({ [] })`.
+| https://issues.apache.org/jira/browse/GROOVY-11909[GROOVY-11909]
+
+| Contracts in scripts
+| `@Requires`, `@Ensures` on script methods; `@Invariant` on import
+statements as a class-level invariant for the script.
+| https://issues.apache.org/jira/browse/GROOVY-11885[GROOVY-11885]
+|===
+
+== Type Checking Extensions
+
+Groovy's type checking is extensible, allowing you to strengthen
+type checking beyond what the standard checker provides.
+Groovy 6 adds support for _parameterized_ type checking extensions
+(https://issues.apache.org/jira/browse/GROOVY-11908[GROOVY-11908]),
+allowing extensions to accept configuration arguments
+directly in the `@TypeChecked` annotation string.
+Several new type checking extensions take advantage of this capability.
+
+=== NullChecker
+
+The `NullChecker` extension
+(https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894])
+validates code annotated with `@Nullable`, `@NonNull`, and
+`@MonotonicNonNull` annotations, detecting null-related errors
+at compile time. It recognises these annotations by simple name
+from any package (JSpecify, JSR-305, JetBrains, SpotBugs,
+Checker Framework, or your own):
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+int safeLength(@Nullable String text) {
+    if (text != null) {
+        return text.length()                       // ok: null guard
+    }
+    return -1
+}
+
+assert safeLength('hello') == 5
+assert safeLength(null) == -1
+----
+
+Without the null guard, dereferencing a `@Nullable` parameter
+produces a compile-time error.
+The checker also recognises safe navigation, early-exit patterns,
+`@NullCheck`, and `@MonotonicNonNull` for lazy initialisation.
+
+=== Strict mode: no annotations needed
+
+Passing `strict: true` extends the checker with flow-sensitive analysis
+that detects null issues even in completely unannotated code --
+no `@Nullable`, no `@NonNull`, no special types:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
+static main(args) {
+    def x = null
+    x.toString()                                   // compile error: 'x' may be null
+
+    def y = null
+    y = 'hello'
+    assert y.toString() == 'hello'                 // ok: reassigned non-null
+}
+----
+
+The checker tracks nullability through assignments and control flow,
+catching potential dereferences that would otherwise surface only at runtime.
+This is also an example of parameterized type checking extensions in action --
+the `strict: true` argument is passed directly in the extension string.
+
+See also the https://groovy.apache.org/blog/groovy-null-checker[NullChecker blog post]
+for a detailed walkthrough.
+
+=== Feature summary
+
+[cols="1,3,1", options="header"]
+|===
+| Feature | Description | Ticket
+
+| Parameterized extensions
+| Type checking extensions can accept configuration arguments directly
+in the `@TypeChecked` annotation string, e.g. `NullChecker(strict: true)`.
+| https://issues.apache.org/jira/browse/GROOVY-11908[GROOVY-11908]
+
+| `NullChecker`
+| Compile-time null safety. Validates `@Nullable`, `@NonNull`, and
+`@MonotonicNonNull` annotations. Recognises null guards, safe
+navigation, early exits, and `@NullCheck`.
+| https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]
+
+| `NullChecker(strict: true)`
+| Flow-sensitive null analysis without annotations. Tracks variables
+assigned `null`, left uninitialized, or resulting from expressions
+with a `null` branch.
+| https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]
+
+| `ModifiesChecker`
+| Verifies `@Modifies` frame conditions at compile time. Checks that
+methods only assign to declared fields and that `@Pure` methods make
+no field assignments.
+| https://issues.apache.org/jira/browse/GROOVY-11910[GROOVY-11910]
+
+| `PurityChecker`
+| Enforces functional purity at compile time. Verifies `@Pure` methods
+have no side effects. Configurable `allows` parameter to permit
+`LOGGING`, `METRICS`, `IO`, or `NONDETERMINISM`.
+Also recognises `@SideEffectFree`, `@Contract(pure = true)`, and `@Memoized`.
+| https://issues.apache.org/jira/browse/GROOVY-11914[GROOVY-11914]
+|===
+
+== Designed for Human and AI Reasoning
+
+A key design goal for Groovy 6 is making code easier to reason about --
+for both humans and AI. Several of the contract and type checking
+features described above work together to achieve this:
+`@Modifies` and `@Pure` declare _what changes_ (and what doesn't),
+`@Requires` and `@Ensures` declare _what holds_ before and after,
+and type checking extensions like `ModifiesChecker` and `PurityChecker`
+verify these declarations at compile time. The combined effect is that
+each method becomes a self-contained specification -- you can reason
+about what it does without reading its body.
+
+Consider this annotated class, verified by both `ModifiesChecker`
+and `PurityChecker`:
+
+[source,groovy]
+----
+@TypeChecked(extensions = ['groovy.typecheckers.ModifiesChecker',
+                           'groovy.typecheckers.PurityChecker'])
+@Invariant({ balance >= 0 })
+class Account {
+    BigDecimal balance = 0
+    List<String> log = []
+
+    @Requires({ amount > 0 })
+    @Ensures({ balance == old.balance + amount })
+    @Modifies({ [this.balance, this.log] })
+    void deposit(BigDecimal amount) {
+        balance += amount
+        log.add("deposit $amount")
+    }
+
+    @Requires({ amount > 0 && amount <= balance })
+    @Ensures({ balance == old.balance - amount })
+    @Modifies({ [this.balance, this.log] })
+    void withdraw(BigDecimal amount) {
+        balance -= amount
+        log.add("withdraw $amount")
+    }
+
+    @Pure
+    BigDecimal available() { balance }
+}
+----
+
+When analyzing a sequence of calls:
+
+[source,groovy]
+----
+account.deposit(100)
+account.withdraw(30)
+def bal = account.available()
+----
+
+*With annotations*, each call is a self-contained specification --
+3 linear reasoning steps:
+
+1. `deposit(100)`: `@Requires` met (100 > 0), `@Ensures` gives
+   `balance == old + 100`, `@Modifies` proves only `balance` and `log` changed
+2. `withdraw(30)`: `@Requires` met (30 > 0, 30 within balance),
+   `@Ensures` gives `balance == 100 - 30 = 70`,
+   `@Modifies` proves `withdraw` didn't undo the deposit
+3. `available()`: `@Pure` proves no side effects -- just returns `balance` (70)
+
+*Without annotations*, the analyzer must read every method body,
+verify what each one modifies (2 fields × 3 calls = 6 "did this change?"
+questions), re-verify earlier state after later calls, and check whether
+`available()` has hidden side effects.
+In general, this grows as _O(fields × calls × call_depth)_ --
+which is where AI starts hallucinating or saying
+"I'd need to see more context."
+
+[cols="3,2,3",options="header"]
+|===
+| What must be verified | With annotations | Without annotations
+
+| Does `deposit` change anything besides `balance` and `log`?
+| *No* -- `@Modifies` proves it
+| Must read body + all callees
+
+| Does `withdraw` undo the deposit?
+| *No* -- `@Modifies` + `@Ensures` prove independence
+| Must read both method bodies
+
+| Is `available()` side-effect-free?
+| *Yes* -- `@Pure` proves it (verified by `PurityChecker`)
+| Must read body, check for overrides
+
+| What is `balance` after all three calls?
+| Derive from `@Ensures` chain: 0 + 100 - 30 = 70
+| Replay all mutations manually
+
+| Can `deposit`/`withdraw` be reordered safely?
+| Check `@Modifies` sets + `@Requires` preconditions
+| Must analyze all pairs for interference
+|===
+
+The type checkers provide the compile-time guarantee that these
+annotations are truthful: `ModifiesChecker` verifies method bodies
+only modify declared fields, and `PurityChecker` verifies `@Pure`
+methods have no side effects. Without that guarantee, annotations
+would be just comments -- claims you'd still need to verify by
+reading the code.
+
 == Extension method additions and improvements
 
 Groovy provides over 2000 extension methods to 150+ JDK classes to enhance
@@ -382,836 +851,6 @@ familiar Groovy formatting (e.g. `[1, 2, 3]` for `int[]` rather than
 Java's `[I@hashcode`). These can be selectively disabled using the
 `groovy.extension.disable` system property if needed.
 
-== Grape: Dual Engine Support (Incubating)
-
-Groovy 6 introduces a major evolution of the Grape dependency management system
-(https://issues.apache.org/jira/browse/GROOVY-11871[GROOVY-11871])
-with the addition of a second built-in engine implementation alongside the existing Apache Ivy-based engine.
-
-=== What's new
-
-*Two production-ready Grape engines*
-
-- **GrapeIvy** (default): Apache Ivy backend, established and stable. Supports fine-grained configuration via `~/.groovy/grapeConfig.xml`, multiple Ivy configurations per dependency, and optional-only downloads via `@GrabConfig(autoDownload=false)`.
-
-- **GrapeMaven**: New Maven Resolver (Aether) backend. Uses the same resolution strategy as Maven itself, integrates with Maven Central and other standard Maven repositories out of the box, and provides an alternative for teams more familiar with Maven tooling.
-
-*Automatic engine selection with override capability*
-
-Both engines expose the same `@Grab`, `@GrabResolver`, and `@GrabExclude` annotations and APIs. If both are on the classpath, GrapeIvy is preferred for backward compatibility. Users can switch to GrapeMaven on a per-script basis:
-
-[source]
-----
-groovy -Dgroovy.grape.impl=groovy.grape.maven.GrapeMaven yourscript.groovy
-----
-
-*Extensibility via Java SPI*
-
-Developers can now provide custom Grape implementations by creating a jar with a `META-INF/services/groovy.grape.GrapeEngine` entry. Groovy will discover and load custom implementations via the standard Java Service Provider Interface, enabling integration with in-house or specialized dependency resolution engines.
-
-=== Cache directories
-
-- **GrapeIvy**: `~/.groovy/grapes` (Ivy cache format)
-- **GrapeMaven**: `~/.groovy/grapesM2` (Maven repository format)
-
-Both respect the `grape.root` system property for custom cache root paths.
-
-=== Compatibility notes
-
-Most existing `@Grab` scripts remain unchanged and work with both engines, as they use only the common core features. However, there are some compatibility considerations when switching between engines:
-
-==== GrapeIvy to GrapeMaven
-
-- *`conf:` parameter*: GrapeIvy maps `conf:` to Ivy configurations (which can be a list like `conf:['default','optional']`). GrapeMaven treats `conf:` as a Maven scope string (singular). Scripts using multiple configurations will need reworking or should remain on GrapeIvy.
-- *Custom Ivy configuration*: If you have customized `~/.groovy/grapeConfig.xml` with non-standard settings (e.g., disabled `m2compatible` mode, custom resolvers), those settings do not apply to GrapeMaven. Review your configuration and ensure your scripts remain on GrapeIvy or move them to use `@GrabResolver` for repository configuration.
-- *Optional-only downloads*: `@GrabConfig(autoDownload=false)` is not honoured by GrapeMaven as a per-grab switch. The closest equivalent is to point `@GrabResolver` (or `Grape.addResolver`) at a local-only repository/cache location. If you rely on `autoDownload=false` semantics broadly, remain on GrapeIvy for now.
-
-==== GrapeMaven to GrapeIvy
-
-- In most cases, switching from GrapeMaven to GrapeIvy is straightforward. GrapeIvy's defaults are more permissive, so scripts that work with GrapeMaven typically work unchanged with GrapeIvy. GrapeMaven is new, so we don't expect many users to need to
-switch back, but we mention it here for users who start migrating and might want
-to revert back to GrapeIvy.
-
-=== Migration guide
-
-*For most users:* No action required. Existing scripts continue to work with the default GrapeIvy engine.
-
-*If switching to GrapeMaven:* Review the compatibility notes above. If your scripts use multiple `conf:` values, remain on GrapeIvy for now (the default) and start reworking your Grab definitions to singular scopes. For `autoDownload=false` workflows, point `@GrabResolver` to a local-only repository/cache location.
-
-*If you have customized Ivy settings:* Your `~/.groovy/grapeConfig.xml` is only honoured by GrapeIvy. If switching to GrapeMaven, you will need to reconfigure any custom repositories or settings using `@GrabResolver` annotations or programmatically via the `Grape.addResolver()` API.
-
-== HttpBuilder: HTTP Client Module (incubating)
-
-Groovy 6 introduces a new `groovy-http-builder` module
-(https://issues.apache.org/jira/browse/GROOVY-11879[GROOVY-11879],
-https://issues.apache.org/jira/browse/GROOVY-11924[GROOVY-11924])
-providing both an imperative DSL and a declarative annotation-driven
-client over the JDK's `java.net.http.HttpClient`.
-It is designed for scripting, automation, and typed API clients,
-filling the gap left by the earlier HttpBuilder/HttpBuilder-NG libraries.
-
-=== Imperative DSL
-
-A closure-based DSL for quick scripting:
-
-[source,groovy]
-----
-import static groovy.http.HttpBuilder.http
-
-def client = http('https://api.github.com')
-def result = client.get('/repos/apache/groovy')
-assert result.json.license.name == 'Apache License 2.0'
-----
-
-Responses auto-parse by content type: `result.json`, `result.xml`,
-`result.html` (via jsoup), or `result.parsed` for auto-dispatch.
-
-=== Declarative client
-
-Define a typed interface and Groovy generates the implementation at
-compile time. Parameters are mapped by convention -- no annotations
-needed for the common case:
-
-[source,groovy]
-----
-@HttpBuilderClient('https://api.example.com')
-interface UserApi {
-    @Get('/users/{id}')
-    User getUser(String id)             // path param: {id}
-
-    @Get('/users')
-    List<User> search(String name)      // implied query param: ?name=...
-
-    @Post('/users')
-    User create(@Body Map user)         // JSON body
-
-    @Post('/login')
-    @Form
-    Map login(String username, String password)  // form-encoded
-}
-
-def api = UserApi.create()
-def user = api.getUser('42')
-----
-
-=== Async support
-
-Both sides offer native async via `HttpClient.sendAsync()` -- no
-extra threads consumed while waiting:
-
-[source,groovy]
-----
-// Imperative
-def future = client.getAsync('/slow-endpoint')
-def result = future.get()
-
-// Declarative
-@HttpBuilderClient('https://api.example.com')
-interface AsyncApi {
-    @Get('/data/{id}')
-    CompletableFuture<Map> getData(String id)
-}
-----
-
-If the `groovy-async` module is on the classpath, these are
-automatically `await`-able: `def data = await api.getDataAsync('42')`.
-
-=== Feature summary
-
-[cols="2,1,1", options="header"]
-|===
-| Feature | Imperative | Declarative
-
-| HTTP methods (GET, POST, PUT, DELETE, PATCH)
-| All
-| All (`@Get`, `@Post`, `@Put`, `@Delete`, `@Patch`)
-
-| JSON body / response
-| `json()` / `result.json`
-| `@Body` / return-type driven
-
-| Form-encoded body
-| `form()`
-| `@Form`
-
-| Plain text body
-| `text()`
-| `@BodyText`
-
-| XML / HTML response
-| `result.xml` / `result.html`
-| `GPathResult` / jsoup `Document` return type
-
-| Typed response objects
-| Manual (`result.json as User`)
-| Automatic (return type driven)
-
-| Query parameters
-| `query()`
-| Implied from parameter name (or `@Query`)
-
-| Path parameters
-| Manual
-| Auto-mapped via `{name}` placeholders
-
-| Headers
-| `header()` in config/request
-| `@Header` on interface/method
-
-| Async
-| `getAsync()`, `postAsync()`, etc.
-| `CompletableFuture<T>` return type
-
-| Timeouts (connect / request)
-| Config DSL
-| `connectTimeout`, `requestTimeout` on `@HttpBuilderClient`
-
-| Per-method timeout
-| Per-request `timeout()`
-| `@Timeout(seconds)`
-
-| Redirect following
-| Config DSL
-| `followRedirects` on `@HttpBuilderClient`
-
-| Error handling
-| Manual (check `result.status()`)
-| Auto-throw; custom exception via `throws` clause
-
-| JDK client access (auth, SSL, proxy)
-| `clientConfig { builder -> ... }`
-| `create { clientConfig { ... } }`
-|===
-
-== AST Transforms in More Places (incubating)
-
-Groovy 6 extends the AST transformation infrastructure to support
-annotations on loop statements -- for-in, classic for, while, and do-while
-(https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878]).
-Several transforms take advantage of this, including `@Invariant` and
-`@Decreases` from `groovy-contracts` (see <<groovy-contracts>>)
-and `@Parallel`:
-
-[source,groovy]
-----
-@Parallel
-for (int i in 1..4) {
-    println i ** 2
-}
-// Output (non-deterministic order): 1, 16, 9, 4
-----
-
-On JDK 21+, `@Parallel` uses virtual threads; on earlier JDKs it falls back
-to platform threads. Custom statement-level transforms can target
-`STATEMENT_TARGET` following the same contract as class/method/field-level transforms.
-
-[[groovy-contracts]]
-== Groovy-Contracts Enhancements (incubating)
-
-The `groovy-contracts` module receives several enhancements in Groovy 6.
-
-=== Contracts in scripts
-
-Contract annotations now work in Groovy scripts, not just inside classes
-(https://issues.apache.org/jira/browse/GROOVY-11885[GROOVY-11885]).
-`@Requires` and `@Ensures` can be placed on script methods,
-and `@Invariant` can be placed on an import statement to apply
-as a class-level invariant for the script:
-
-[source,groovy]
-----
-@Invariant({ balance >= 0 })
-import groovy.transform.Field
-import groovy.contracts.Invariant
-
-@Field Integer balance = 5
-
-@Requires({ balance >= amount })
-def withdraw(int amount) { balance -= amount }
-
-def deposit(int amount) { balance += amount }
-
-deposit(5)       // balance = 10, OK
-withdraw(20)     // throws ClassInvariantViolation (balance would be -5)
-----
-
-=== `@Invariant` on loops
-
-The existing `@Invariant` annotation can now be
-placed on loops to assert a condition at the start of each iteration.
-Violations throw a `LoopInvariantViolation`.
-
-[source,groovy]
-----
-int sum = 0
-@Invariant({ sum <= 100 })
-for (int i in 1..5) {
-    sum += i
-}
-assert sum == 15
-----
-
-This works with all loop types (for-in, classic for, while, do-while),
-and multiple invariants can be stacked on a single loop:
-
-[source,groovy]
-----
-int sum = 0
-@Invariant({ sum >= 0 })
-@Invariant({ sum <= 100 })
-for (int i in 1..5) {
-    sum += i
-}
-assert sum == 15
-----
-
-=== `@Decreases` on loops
-
-The new `@Decreases` annotation
-(https://issues.apache.org/jira/browse/GROOVY-11890[GROOVY-11890])
-specifies a loop termination measure
-(also known as a loop _variant_ in formal methods).
-The annotation takes a closure returning a value (or list of values)
-that must strictly decrease on every iteration while remaining non-negative.
-Since a non-negative integer that strictly decreases on every iteration
-must eventually reach zero, this gives confidence that the loop terminates.
-
-[source,groovy]
-----
-int n = 10
-@Decreases({ n })
-while (n > 0) {
-    n--
-}
-----
-
-For loops with multiple quantities that change, a list can be returned
-for lexicographic comparison -- the first position where values differ
-must show a decrease:
-
-[source,groovy]
-----
-int outer = 2, inner = 3
-@Decreases({ [outer, inner] })
-while (outer > 0) {
-    if (inner > 0) {
-        inner--
-    } else {
-        outer--
-        inner = 3
-    }
-}
-----
-
-If any iteration fails to decrease the measure,
-a `LoopVariantViolation` is thrown immediately.
-
-=== `@Modifies` frame conditions
-
-The new `@Modifies` annotation
-(https://issues.apache.org/jira/browse/GROOVY-11909[GROOVY-11909])
-declares which fields a method is allowed to change --
-known as a _frame condition_ in formal methods.
-Everything not listed is guaranteed to remain unchanged.
-This eliminates a major source of uncertainty when reasoning
-about method behavior: you no longer need to read the method
-body to know what _didn't_ change.
-
-[source,groovy]
-----
-@Invariant({ quantity >= 0 && quantity <= maxCapacity })
-@Invariant({ reservedQuantity >= 0 && reservedQuantity <= quantity })
-@Invariant({ unitPrice > 0 })
-class InventoryItem {
-    final String sku
-    final int maxCapacity
-    BigDecimal unitPrice
-    int quantity
-    int reservedQuantity
-    List<String> auditLog = []
-
-    @Requires({ amount > 0 })
-    @Requires({ quantity + amount <= maxCapacity })
-    @Ensures({ quantity == old.quantity + amount })
-    @Ensures({ reservedQuantity == old.reservedQuantity })
-    @Modifies({ [this.quantity, this.auditLog] })
-    void restock(int amount) {
-        quantity += amount
-        auditLog.add("Restocked $amount at ${LocalDateTime.now()}")
-    }
-
-    @Requires({ amount > 0 && amount <= availableQuantity() })
-    @Ensures({ reservedQuantity == old.reservedQuantity + amount })
-    @Modifies({ [this.reservedQuantity, this.auditLog] })
-    void reserve(int amount) {
-        reservedQuantity += amount
-        auditLog.add("Reserved $amount at ${LocalDateTime.now()}")
-    }
-
-    @Requires({ amount > 0 && amount <= reservedQuantity })
-    @Ensures({ quantity == old.quantity - amount })
-    @Ensures({ reservedQuantity == old.reservedQuantity - amount })
-    @Modifies({ [this.quantity, this.reservedQuantity, this.auditLog] })
-    void fulfil(int amount) {
-        reservedQuantity -= amount
-        quantity -= amount
-        auditLog.add("Fulfilled $amount at ${LocalDateTime.now()}")
-    }
-
-    @Requires({ newPrice > 0 })
-    @Ensures({ unitPrice == newPrice })
-    @Modifies({ [this.unitPrice, this.auditLog] })
-    void updatePrice(BigDecimal newPrice) {
-        auditLog.add("Price ${unitPrice} -> ${newPrice}")
-        unitPrice = newPrice
-    }
-
-    @Pure
-    int availableQuantity() {
-        quantity - reservedQuantity
-    }
-
-    @Pure
-    BigDecimal totalValue() {
-        unitPrice * quantity
-    }
-}
-----
-
-The `@Modifies` closure returns a list of field references that the method
-may mutate. The `@Pure` annotation is shorthand for `@Modifies({ [] })` --
-the method changes nothing. Together with `@Requires` and `@Ensures`,
-`@Modifies` completes a _full behavioral specification_:
-what a method needs, what it promises, and what it leaves alone.
-
-See the <<modifies-checker>> section below for how the `ModifiesChecker`
-verifies these frame conditions at compile time.
-
-=== Combining contracts
-
-These annotations can be combined to build strong confidence
-in the correctness of an algorithm. Consider this insertion sort
-that merges two pre-sorted lists:
-
-[source,groovy]
-----
-@Ensures({ result.isSorted() })
-List insertionSort(List in1, List in2) {
-    var out = []
-    var count = in1.size() + in2.size()
-    @Invariant({ in1.size() + in2.size() + out.size() == count })
-    @Decreases({ [in1.size(), in2.size()] })
-    while (in1 || in2) {
-        if (!in1) return out + in2
-        if (!in2) return out + in1
-        out += (in1[0] < in2[0]) ? in1.pop() : in2.pop()
-    }
-    out
-}
-----
-
-The `@Ensures` postcondition verifies that the result is sorted.
-The `@Invariant` asserts that no elements are lost or gained --
-the total number of elements across all three lists stays constant
-throughout the loop. The `@Decreases` annotation uses a lexicographic
-measure over the two input list sizes, giving us confidence that
-the loop terminates: on each iteration at least one input list
-shrinks, and they can never grow.
-
-== Type Checking Extensions
-
-Groovy's type checking is extensible, allowing you to strengthen
-type checking beyond what the standard checker provides.
-Groovy 6 adds support for _parameterized_ type checking extensions
-(https://issues.apache.org/jira/browse/GROOVY-11908[GROOVY-11908]),
-allowing extensions to accept configuration arguments
-directly in the `@TypeChecked` annotation.
-Several new type checking extensions take advantage of this capability.
-
-=== Optional Null Checking
-
-Groovy 6 adds an optional null-safety type checker
-(https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894])
-that detects null-related errors at compile time.
-It supports a `strict` mode that enables additional flow-sensitive analysis.
-
-==== NullChecker
-
-The `NullChecker` extension validates code annotated with
-`@Nullable`, `@NonNull`, and `@MonotonicNonNull` annotations.
-It recognizes these annotations by simple name from any package
-(JSpecify, JSR-305, JetBrains, SpotBugs, Checker Framework, or your own).
-
-A simple example showing a null guard:
-
-[source,groovy]
-----
-@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
-int safeLength(@Nullable String text) {
-    if (text != null) {
-        return text.length()                       // ok: null guard
-    }
-    return -1
-}
-
-assert safeLength('hello') == 5
-assert safeLength(null) == -1
-----
-
-Without the null guard, dereferencing a `@Nullable` parameter
-produces a compile-time error:
-
-[source,groovy]
-----
-def greet = { @Nullable String name ->
-    name.toUpperCase()                             // potential null dereference
-}
-----
-
-----
-[Static type checking] - Potential null dereference: 'name' is @Nullable
-----
-
-The checker also recognises safe navigation and early-exit patterns:
-
-[source,groovy]
-----
-@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
-String process(@Nullable String input) {
-    if (input == null) return 'default'            // early exit
-    input.toUpperCase()                            // ok: input is non-null here
-}
-----
-
-Passing `null` to a `@NonNull` parameter, returning `null` from a
-`@NonNull` method, or assigning `null` to a `@NonNull` field are
-all flagged:
-
-[source,groovy]
-----
-@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
-class Greeter {
-    @NonNull String name
-
-    @NonNull static String greet(@NonNull String name) {
-        return null                                // Cannot return null from @NonNull method
-    }
-    static void main(String[] args) {
-        greet(null)                                // Cannot pass null to @NonNull parameter
-    }
-}
-----
-
-The `@MonotonicNonNull` annotation marks fields that start as `null`
-but, once assigned a non-null value, must never become `null` again --
-useful for lazy initialisation:
-
-[source,groovy]
-----
-@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
-class LazyService {
-    @MonotonicNonNull String cachedValue
-
-    String getValue() {
-        if (cachedValue != null) {
-            return cachedValue.toUpperCase()        // ok: null guard
-        }
-        cachedValue = 'computed'
-        return cachedValue.toUpperCase()            // ok: just assigned non-null
-    }
-}
-----
-
-The `@NullCheck` AST transform also integrates with the checker --
-applying `@NullCheck` to a class makes all parameters implicitly
-`@NonNull`, and the checker enforces this at compile time:
-
-[source,groovy]
-----
-@NullCheck
-@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
-class Greeter {
-    static String greet(String name) {
-        "Hello, $name!"
-    }
-    static void main(String[] args) {
-        greet(null)                                // caught at compile time
-    }
-}
-----
-
-==== Strict mode
-
-Passing `strict: true` to the `NullChecker` extends the annotation-based
-checks with flow-sensitive analysis. It tracks variables assigned `null`,
-left uninitialized, or resulting from expressions with a `null` branch,
-and flags their dereferences -- even without annotations:
-
-[source,groovy]
-----
-@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
-static main(args) {
-    def x = null
-    x.toString()                                   // Potential null dereference: 'x' may be null
-}
-----
-
-It also recognises when a variable is reassigned to a non-null value:
-
-[source,groovy]
-----
-@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
-static main(args) {
-    def x = null
-    x = 'hello'
-    assert x.toString() == 'hello'                 // ok: reassigned non-null
-}
-----
-
-This is an example of using the parameterized type checking extensions
-support -- the `strict: true` argument is passed directly in the
-extension string rather than requiring a separate extension class.
-
-[[modifies-checker]]
-=== ModifiesChecker
-
-The `ModifiesChecker` type checking extension
-(https://issues.apache.org/jira/browse/GROOVY-11910[GROOVY-11910])
-verifies `@Modifies` frame conditions at compile time.
-It checks that methods annotated with `@Modifies` only assign to the
-fields declared in the annotation, and that `@Pure` methods make
-no field assignments at all.
-
-[source,groovy]
-----
-@TypeChecked(extensions = 'groovy.typecheckers.ModifiesChecker')
-@Invariant({ count >= 0 })
-class Counter {
-    int count
-    String label
-
-    @Modifies({ [this.count] })
-    void increment() { count++ }            // ok: count is declared
-
-    @Pure
-    int value() { count }                   // ok: no mutations
-
-    @Modifies({ [this.count] })
-    void oops() { count++; label = 'x' }   // compile error: 'label' not in @Modifies
-}
-----
-
-==== How `@Modifies` reduces AI reasoning
-
-Annotations like `@Modifies` and `@Pure` dramatically reduce
-the reasoning effort needed -- by both humans and AI -- to understand
-method interactions. Consider a sequence of calls on the
-`InventoryItem` class <<groovy-contracts,shown earlier>>:
-
-[source,groovy]
-----
-item.restock(50)
-item.reserve(30)
-item.updatePrice(9.99)
-item.fulfil(20)
-assert item.availableQuantity() == old_available + 50 - 30 + 20
-----
-
-*With annotations*, reasoning is *4 linear steps* -- one per method call.
-Each `@Modifies` declaration immediately answers what changed and what didn't,
-and `@Ensures` gives exact post-state. No method body needs to be read.
-For example, when reasoning about `fulfil(20)`, `@Modifies` on `updatePrice`
-proves it didn't touch `reservedQuantity` -- so the precondition can be
-checked using the value from `reserve`, without re-reading any prior method.
-
-*Without annotations*, reasoning becomes *16+ verification steps*:
-4 method calls × 4 mutable fields = 16 "did this call change this field?"
-questions, each requiring reading the method body and all its callees.
-Worse, later calls force re-verification of earlier ones -- to check
-`fulfil`'s precondition, the AI must re-confirm that both `updatePrice`
-_and_ `restock` left `reservedQuantity` alone.
-In general, this grows as _O(fields × calls × call_depth)_ --
-which is where AI starts hallucinating or saying "I'd need to see more context."
-
-[cols="3,2,3",options="header"]
-|===
-| What must be verified | With annotations | Without annotations
-
-| Does `restock` change `reservedQuantity`?
-| *No* -- `@Modifies` proves it
-| Must read body + all callees
-
-| Does `updatePrice` change `quantity`?
-| *No* -- `@Modifies` proves it
-| Must read body + all callees
-
-| Is `availableQuantity()` side-effect-free?
-| *Yes* -- `@Pure` proves it
-| Must read body, check for overrides
-
-| Is `fulfil(20)` precondition met?
-| Derive from `@Ensures` chain
-| Replay all mutations manually
-
-| Can calls be reordered safely?
-| `restock`/`updatePrice` independent (`@Modifies` sets don't overlap on inventory fields)
-| Must analyze all pairs for interference
-
-| Does `auditLog.add()` affect calculations?
-| *No* -- `auditLog` not in any `@Ensures` about quantities
-| Must trace `auditLog` usage everywhere
-|===
-
-=== PurityChecker
-
-The `PurityChecker` type checking extension
-(https://issues.apache.org/jira/browse/GROOVY-11914[GROOVY-11914])
-enforces functional purity at compile time. It verifies that methods
-annotated with `@Pure` have no side effects -- no field mutations,
-no I/O, no non-determinism -- and reports violations as compile errors.
-
-[source,groovy]
-----
-@TypeChecked(extensions = 'groovy.typecheckers.PurityChecker')
-class ScoreCalculator {
-    int bonus = 10
-
-    @Pure
-    int doubled() { bonus * 2 }             // ok: reads only
-
-    @Pure
-    int increment() { bonus++; bonus }      // compile error: @Pure violation — field assignment
-}
-----
-
-The checker also recognises `@SideEffectFree`, `@Contract(pure = true)`,
-and `@Memoized` as effectively pure, and warns when a pure method calls
-an unchecked method whose purity cannot be verified.
-
-Since some "impure" operations are routine in practice,
-the checker accepts an `allows` parameter to selectively permit
-specific categories of side effects:
-
-[source,groovy]
-----
-@TypeChecked(extensions = 'groovy.typecheckers.PurityChecker(allows: "LOGGING|METRICS")')
-class GameEngine {
-    @Pure
-    int computeScore(int base) {
-        println "computing score"            // ok: LOGGING allowed
-        base * 2
-    }
-}
-----
-
-The configurable categories are `LOGGING` (println, SLF4J, JUL, Log4j),
-`METRICS` (Micrometer, OpenTelemetry), `IO` (file, network, database),
-and `NONDETERMINISM` (random, time-dependent calls).
-This is another example of parameterized type checking extensions in action.
-
-== Platform Logging
-
-Groovy 6 replaces direct `System.err` output with the JDK's
-Platform Logging API (`java.lang.System.Logger`)
-for internal errors and warnings
-(https://issues.apache.org/jira/browse/GROOVY-11886[GROOVY-11886]).
-This means Groovy's diagnostic messages can now be controlled
-through standard JVM logging configuration.
-By default, messages still appear on the console via `java.util.logging`,
-but users can plug in any logging framework (SLF4J, Log4j2, etc.)
-by providing a `System.LoggerFinder` implementation on the classpath.
-
-=== Configuring logging
-
-Groovy's command-line tools resolve logging configuration
-in the following order (first match wins):
-
-1. A file specified via `-Djava.util.logging.config.file=...`
-2. A user configuration at `~/.groovy/logging.properties`
-   (auto-discovered by Groovy at startup)
-3. The JDK default at `$JAVA_HOME/conf/logging.properties`
-
-For example, to enable verbose Grape logging, create
-`~/.groovy/logging.properties` with:
-
-[source,properties]
-----
-handlers = java.util.logging.ConsoleHandler
-java.util.logging.ConsoleHandler.level = ALL
-groovy.grape.Grape.level = FINE
-----
-
-Loggers are organized by module (Core, Grape, Ant, Console, GroovyDoc,
-JSON, Servlet, Swing, Testing) -- see the
-https://groovy-lang.org/logging.html[logging guide]
-for the full list of logger names and their levels.
-
-== GroovyConsole: Script Arguments
-
-GroovyConsole now supports setting script arguments directly from the UI
-(https://issues.apache.org/jira/browse/GROOVY-11895[GROOVY-11895]).
-Previously, users had to manually set `args` within their script
-as a workaround. A new _Set Script Arguments_ option in the _Script_ menu
-lets you specify space-separated arguments that are passed to the script.
-
-== JUnit 6 Support
-
-Groovy 6 updates its testing support to include JUnit 6
-(https://issues.apache.org/jira/browse/GROOVY-11788[GROOVY-11788]).
-JUnit 6 (Jupiter 6.x) is the latest evolution of JUnit,
-building upon the JUnit 5 platform.
-
-=== Using JUnit 6 with Groovy
-
-For most users, no special Groovy module is needed --
-simply add the standard JUnit Jupiter dependencies to your
-Gradle or Maven project and write tests in Groovy as usual:
-
-[source,groovy]
-----
-// build.gradle
-testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
-----
-
-=== The groovy-test-junit6 module
-
-The new `groovy-test-junit6` module
-provides additional capabilities for users who need them:
-
-* **Running individual test scripts** -- execute a Groovy test file
-  directly as a script without a full build tool setup
-* **Conditional test execution annotations** -- scripting support
-  for JUnit Jupiter's conditional execution annotations
-  (https://issues.apache.org/jira/browse/GROOVY-11887[GROOVY-11887]),
-  allowing conditions to be expressed as Groovy scripts
-* **Convenient dependency management** -- a single dependency that
-  transitively pulls in compatible JUnit 6 libraries
-
-Similarly, the existing `groovy-test-junit5` module continues
-to provide the same capabilities for JUnit 5 users.
-
-[[annotation-validation]]
-== Improved Annotation Validation
-
-Groovy 6 closes gaps in annotation target validation
-(https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884]).
-Previously, annotations could be placed on import statements and
-loop statements without validation -- for example, `@Deprecated import java.lang.String`
-would compile without error even though `@Deprecated` does not target imports.
-
-The compiler now enforces that only annotations explicitly declaring
-Groovy-specific targets are permitted in these positions.
-A new `@ExtendedTarget` meta-annotation with an `ExtendedElementType` enum
-defines two Groovy-only targets:
-
-- `IMPORT` -- for annotations valid on import statements (e.g. `@Grab`, `@Newify`, `@BaseScript`)
-- `LOOP` -- for annotations valid on loop statements (e.g. `@Invariant`, `@Decreases`, `@Parallel`)
-
-Annotations without the appropriate `@ExtendedTarget` declaration
-are now flagged as compile errors when applied to these constructs.
-This is a <<Groovy6.0-breaking,breaking change>> for code that
-previously relied on the lenient behavior.
-
 == GINQ Enhancements
 
 === `groupby` ... `into`
@@ -1372,6 +1011,167 @@ For simple cases, Groovy's `as` coercion works without Jackson.
 For XML, `jackson-dataformat-xml` can be used directly for full
 Jackson XML annotation support.
 
+== Grape: Dual Engine Support (Incubating)
+
+Groovy 6 introduces a major evolution of the Grape dependency management system
+(https://issues.apache.org/jira/browse/GROOVY-11871[GROOVY-11871])
+with the addition of a second built-in engine implementation alongside the existing Apache Ivy-based engine.
+
+=== What's new
+
+*Two production-ready Grape engines*
+
+- **GrapeIvy** (default): Apache Ivy backend, established and stable. Supports fine-grained configuration via `~/.groovy/grapeConfig.xml`, multiple Ivy configurations per dependency, and optional-only downloads via `@GrabConfig(autoDownload=false)`.
+
+- **GrapeMaven**: New Maven Resolver (Aether) backend. Uses the same resolution strategy as Maven itself, integrates with Maven Central and other standard Maven repositories out of the box, and provides an alternative for teams more familiar with Maven tooling.
+
+*Automatic engine selection with override capability*
+
+Both engines expose the same `@Grab`, `@GrabResolver`, and `@GrabExclude` annotations and APIs. If both are on the classpath, GrapeIvy is preferred for backward compatibility. Users can switch to GrapeMaven on a per-script basis:
+
+[source]
+----
+groovy -Dgroovy.grape.impl=groovy.grape.maven.GrapeMaven yourscript.groovy
+----
+
+*Extensibility via Java SPI*
+
+Developers can now provide custom Grape implementations by creating a jar with a `META-INF/services/groovy.grape.GrapeEngine` entry. Groovy will discover and load custom implementations via the standard Java Service Provider Interface, enabling integration with in-house or specialized dependency resolution engines.
+
+=== Cache directories
+
+- **GrapeIvy**: `~/.groovy/grapes` (Ivy cache format)
+- **GrapeMaven**: `~/.groovy/grapesM2` (Maven repository format)
+
+Both respect the `grape.root` system property for custom cache root paths.
+
+=== Compatibility notes
+
+Most existing `@Grab` scripts remain unchanged and work with both engines, as they use only the common core features. However, there are some compatibility considerations when switching between engines:
+
+==== GrapeIvy to GrapeMaven
+
+- *`conf:` parameter*: GrapeIvy maps `conf:` to Ivy configurations (which can be a list like `conf:['default','optional']`). GrapeMaven treats `conf:` as a Maven scope string (singular). Scripts using multiple configurations will need reworking or should remain on GrapeIvy.
+- *Custom Ivy configuration*: If you have customized `~/.groovy/grapeConfig.xml` with non-standard settings (e.g., disabled `m2compatible` mode, custom resolvers), those settings do not apply to GrapeMaven. Review your configuration and ensure your scripts remain on GrapeIvy or move them to use `@GrabResolver` for repository configuration.
+- *Optional-only downloads*: `@GrabConfig(autoDownload=false)` is not honoured by GrapeMaven as a per-grab switch. The closest equivalent is to point `@GrabResolver` (or `Grape.addResolver`) at a local-only repository/cache location. If you rely on `autoDownload=false` semantics broadly, remain on GrapeIvy for now.
+
+==== GrapeMaven to GrapeIvy
+
+- In most cases, switching from GrapeMaven to GrapeIvy is straightforward. GrapeIvy's defaults are more permissive, so scripts that work with GrapeMaven typically work unchanged with GrapeIvy. GrapeMaven is new, so we don't expect many users to need to
+switch back, but we mention it here for users who start migrating and might want
+to revert back to GrapeIvy.
+
+=== Migration guide
+
+*For most users:* No action required. Existing scripts continue to work with the default GrapeIvy engine.
+
+*If switching to GrapeMaven:* Review the compatibility notes above. If your scripts use multiple `conf:` values, remain on GrapeIvy for now (the default) and start reworking your Grab definitions to singular scopes. For `autoDownload=false` workflows, point `@GrabResolver` to a local-only repository/cache location.
+
+*If you have customized Ivy settings:* Your `~/.groovy/grapeConfig.xml` is only honoured by GrapeIvy. If switching to GrapeMaven, you will need to reconfigure any custom repositories or settings using `@GrabResolver` annotations or programmatically via the `Grape.addResolver()` API.
+
+== Platform Logging
+
+Groovy 6 replaces direct `System.err` output with the JDK's
+Platform Logging API (`java.lang.System.Logger`)
+for internal errors and warnings
+(https://issues.apache.org/jira/browse/GROOVY-11886[GROOVY-11886]).
+This means Groovy's diagnostic messages can now be controlled
+through standard JVM logging configuration.
+By default, messages still appear on the console via `java.util.logging`,
+but users can plug in any logging framework (SLF4J, Log4j2, etc.)
+by providing a `System.LoggerFinder` implementation on the classpath.
+
+=== Configuring logging
+
+Groovy's command-line tools resolve logging configuration
+in the following order (first match wins):
+
+1. A file specified via `-Djava.util.logging.config.file=...`
+2. A user configuration at `~/.groovy/logging.properties`
+   (auto-discovered by Groovy at startup)
+3. The JDK default at `$JAVA_HOME/conf/logging.properties`
+
+For example, to enable verbose Grape logging, create
+`~/.groovy/logging.properties` with:
+
+[source,properties]
+----
+handlers = java.util.logging.ConsoleHandler
+java.util.logging.ConsoleHandler.level = ALL
+groovy.grape.Grape.level = FINE
+----
+
+Loggers are organized by module (Core, Grape, Ant, Console, GroovyDoc,
+JSON, Servlet, Swing, Testing) -- see the
+https://groovy-lang.org/logging.html[logging guide]
+for the full list of logger names and their levels.
+
+== JUnit 6 Support
+
+Groovy 6 updates its testing support to include JUnit 6
+(https://issues.apache.org/jira/browse/GROOVY-11788[GROOVY-11788]).
+JUnit 6 (Jupiter 6.x) is the latest evolution of JUnit,
+building upon the JUnit 5 platform.
+
+=== Using JUnit 6 with Groovy
+
+For most users, no special Groovy module is needed --
+simply add the standard JUnit Jupiter dependencies to your
+Gradle or Maven project and write tests in Groovy as usual:
+
+[source,groovy]
+----
+// build.gradle
+testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
+----
+
+=== The groovy-test-junit6 module
+
+The new `groovy-test-junit6` module
+provides additional capabilities for users who need them:
+
+* **Running individual test scripts** -- execute a Groovy test file
+  directly as a script without a full build tool setup
+* **Conditional test execution annotations** -- scripting support
+  for JUnit Jupiter's conditional execution annotations
+  (https://issues.apache.org/jira/browse/GROOVY-11887[GROOVY-11887]),
+  allowing conditions to be expressed as Groovy scripts
+* **Convenient dependency management** -- a single dependency that
+  transitively pulls in compatible JUnit 6 libraries
+
+Similarly, the existing `groovy-test-junit5` module continues
+to provide the same capabilities for JUnit 5 users.
+
+== GroovyConsole: Script Arguments
+
+GroovyConsole now supports setting script arguments directly from the UI
+(https://issues.apache.org/jira/browse/GROOVY-11895[GROOVY-11895]).
+Previously, users had to manually set `args` within their script
+as a workaround. A new _Set Script Arguments_ option in the _Script_ menu
+lets you specify space-separated arguments that are passed to the script.
+
+[[annotation-validation]]
+== Improved Annotation Validation
+
+Groovy 6 closes gaps in annotation target validation
+(https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884]).
+Previously, annotations could be placed on import statements and
+loop statements without validation -- for example, `@Deprecated import java.lang.String`
+would compile without error even though `@Deprecated` does not target imports.
+
+The compiler now enforces that only annotations explicitly declaring
+Groovy-specific targets are permitted in these positions.
+A new `@ExtendedTarget` meta-annotation with an `ExtendedElementType` enum
+defines two Groovy-only targets:
+
+- `IMPORT` -- for annotations valid on import statements (e.g. `@Grab`, `@Newify`, `@BaseScript`)
+- `LOOP` -- for annotations valid on loop statements (e.g. `@Invariant`, `@Decreases`, `@Parallel`)
+
+Annotations without the appropriate `@ExtendedTarget` declaration
+are now flagged as compile errors when applied to these constructs.
+This is a <<Groovy6.0-breaking,breaking change>> for code that
+previously relied on the lenient behavior.
+
 == Other Module Changes
 
 * *groovy-xml*: `XmlParser` and `XmlSlurper` now support named parameter
@@ -1446,7 +1246,6 @@ updated the field but had no effect since the SAX parser was already configured.
 * Performance
 * Spec improvements
 * Further subprojects, e.g. maybe GPars
-* async/await like functionality
 
 [[Groovy6.0-requirements]]
 == JDK requirements
