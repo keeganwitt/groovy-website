@@ -7,7 +7,7 @@ modelTypes = {
 
 layout 'layouts/main.groovy', true,
         pageTitle: "The Apache Groovy programming language - Groovy $groovyVersion release notes",
-        extraStyles: [relative('css/prettify.min.css')],
+        extraStyles: ['prettify.min.css'],
         extraFooter: contents {
             script(src:relative('js/vendor/prettify.min.js')) { }
             script { yieldUnescaped "document.addEventListener('DOMContentLoaded',prettyPrint)" }

@@ -19,7 +19,7 @@ if (doc.attributes.description) {
 
 layout 'layouts/main.groovy', true,
         pageTitle: "The Apache Groovy programming language - Blogs - $title",
-        extraStyles: [relative('css/prettify.min.css')],
+        extraStyles: ['prettify.min.css'],
         extraMeta: metas,
         extraFooter: contents {
             script(src:relative('js/vendor/prettify.min.js')) { }

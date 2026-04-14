@@ -26,6 +26,11 @@ div(class: 'navbar navbar-default navbar-static-top', role: 'navigation') {
                         i(class: 'fa-classic fa-solid fa-magnifying-glass') {}
                     }
                 }
+                li {
+                    button(id: 'theme-switcher', class: 'theme-switcher', type: 'button', title: 'Toggle theme', 'aria-label': 'Toggle theme') {
+                        span(class: 'theme-icon', '')
+                    }
+                }
             }
         }
     }

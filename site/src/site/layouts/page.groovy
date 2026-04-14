@@ -76,7 +76,7 @@ body {
     }
 
     def scripts = extraScripts ?: []
-    ['vendor/jquery-1.10.2.min.js', 'vendor/classie.js', 'vendor/bootstrap.js', 'vendor/sidebarEffects.js', 'vendor/modernizr-2.6.2.min.js','plugins.js', *scripts].each {
+    ['vendor/jquery-1.10.2.min.js', 'vendor/classie.js', 'vendor/bootstrap.js', 'vendor/sidebarEffects.js', 'vendor/modernizr-2.6.2.min.js','plugins.js', 'theme-switcher.js', *scripts].each {
         yieldUnescaped "<script src='${it.startsWith('http')?it:relative('js/'+it)}' defer></script>"
     }
 
