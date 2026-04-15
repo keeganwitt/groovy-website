@@ -216,14 +216,15 @@ ecosystem {
 
 allEvents {
     // Note that the event image should be 257x180 to look nice
-    event('ChurConf 2025') {
-        location 'Parnell Conference Centre, Auckland'
-        date 'November 2, 2025'
-        url 'https://churconf.com/'
-        logo 'img/confs/chur-conf-logo.png'
+    event('Community over Code Glasgow 2026') {
+        location 'Glasgow, UK'
+        date 'October 11-14, 2026'
+        url 'https://communityovercode.org/'
+        logo 'img/confs/coc2024.png'
         description '''
             <p>
-            A Java community conference bringing together companies and enthusiasts focussing on Java development.
+            The latest innovations from dozens of Apache projects and their communities in a collaborative,
+            vendor-neutral environment.
             </p>
         '''
     }
