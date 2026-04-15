@@ -159,6 +159,18 @@ ParallelScope.withPool(Pool.cpu()) { scope ->
 }
 ----
 
+The `@Parallel` annotation provides a convenient shorthand for
+parallel `for` loops with structured completion:
+
+[source,groovy]
+----
+@Parallel
+for (item in bigList) {
+    process(item)
+}
+// All iterations complete before this line
+----
+
 === Agent
 
 `Agent` provides thread-safe mutable state through serialised update
