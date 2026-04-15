@@ -152,11 +152,11 @@ block, operations automatically use the bound pool:
 
 [source,groovy]
 ----
-ParallelScope.withPool(Pool.cpu()) { scope ->
-    def results = bigList.collectParallel { transform(it) }
-    def filtered = results.findAllParallel { it > threshold }
-    filtered.groupByParallel { it.category }
-}
+assert ParallelScope.withPool(Pool.cpu()) { scope ->
+    (1..15).collectParallel { it * 2 }          // [2, 4, 6, ..., 30]
+           .findAllParallel { it % 3 == 0 }     // [6, 12, 18, 24, 30]
+           .groupByParallel { it.toString().startsWith('1') }
+} == [(false):[6, 24, 30], (true):[12, 18]]
 ----
 
 The `@Parallel` annotation provides a convenient shorthand for
@@ -196,7 +196,7 @@ Updates are queued and applied one at a time on a dedicated thread.
 ----
 // Reactor — stateless, each message produces a reply
 def doubler = Actor.reactor { it * 2 }
-assert await(doubler.sendAndGet(21)) == 42
+assert 42 == await doubler.sendAndGet(21)
 
 // Stateful — maintains state across messages
 def counter = Actor.stateful(0) { state, msg ->
@@ -207,7 +207,7 @@ def counter = Actor.stateful(0) { state, msg ->
     }
 }
 counter.send('increment')
-assert await(counter.sendAndGet('increment')) == 2
+assert 2 == await counter.sendAndGet('increment')
 ----
 
 Each actor has a dedicated thread processing messages sequentially.
@@ -238,7 +238,7 @@ class Account {
 def account = new Account()
 account.deposit(100)
 account.withdraw(30)
-assert account.getBalance() == 70.0
+assert account.balance == 70.0
 ----
 
 All `@ActiveMethod` calls are serialised — no locks needed. Methods
@@ -254,6 +254,7 @@ until a value is bound:
 ----
 def x = new DataflowVariable()
 def y = new DataflowVariable()
+def z = new DataflowVariable()
 
 async { z << await(x) + await(y) }
 async { x << 10 }
@@ -283,11 +284,19 @@ Both integrate natively with `Awaitable` and the `async`/`await` keywords.
 
 [source,groovy]
 ----
+def source = AsyncChannel.create(10)
 def pipeline = source
-    .filter { it > 50 }
-    .map { it * 2 }
+    .filter { it > 3 }
+    .map { it * 10 }
 
-for (val in pipeline) { process(val) }
+async {
+    (1..5).each { source.send(it) }
+    source.close()
+}
+
+def results = []
+for (val in pipeline) { results << val }
+assert results == [40, 50]
 ----
 
 Additional operations: `merge` (interleave two channels), `split`
