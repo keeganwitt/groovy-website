@@ -169,7 +169,7 @@ functions, inspired by GPars' `Agent` and Clojure agents:
 def counter = Agent.create(0)
 counter.send { it + 1 }
 counter.send { it + 1 }
-assert await(counter.getAsync()) == 2
+assert 2 == await counter.getAsync()
 ----
 
 Updates are queued and applied one at a time on a dedicated thread.
@@ -387,6 +387,14 @@ The following GPars features are intentionally excluded or deferred:
 |`Promise` interface
 |Not planned
 |Superseded by `Awaitable` interface
+
+|STM (Software Transactional Memory)
+|Not planned
+|GPars' STM support depended on the Multiverse library which is no longer maintained; modern alternatives (agents, actors, virtual threads) provide better concurrency models
+
+|JCSP (Communicating Sequential Processes)
+|Not planned
+|GPars' CSP support depended on the JCSP library; Groovy's built-in `AsyncChannel` with composition provides equivalent channel-based communication
 |===
 
 == Compatibility
