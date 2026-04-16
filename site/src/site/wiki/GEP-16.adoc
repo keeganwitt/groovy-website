@@ -1,4 +1,4 @@
-= GEP-16: `val` keyword for final declarations
+= GEP-16: `val` type placeholder for final declarations
 
 :icons: font
 
@@ -6,7 +6,7 @@
 ****
 [horizontal,options="compact"]
 *Number*:: GEP-16
-*Title*:: `val` keyword for final declarations
+*Title*:: `val` type placeholder for final declarations
 *Version*:: 4
 *Type*:: Feature
 *Status*:: Draft
@@ -17,10 +17,12 @@
 
 == Abstract
 
-Groovy already supports `var` as a declaration keyword (alias for `def`,
+Groovy already supports `var` as a type placeholder (alias for `def`,
 introduced for Java 10 compatibility). This GEP proposes adding `val`
-as a declaration keyword that combines `final` with type inference --
-equivalent to `final def`, `final var`, or just `final`.
+as an additional type placeholder but also combining the `final` modifier;
+equivalent to `final def`, `final var`, `final Object`,
+or just `final` (Groovy already allows a visibility modifier
+to be a type placeholder).
 
 === Motivation
 
@@ -56,12 +58,14 @@ to Groovy provides:
 
 === Requirements
 
-* `val` declares a `final` variable with an inferred type (like `final def`)
+* `val` declares a `final` variable (like `final def`)
 * `val` must still be usable as a variable name, method name, map key,
   and property name -- mirroring `var` behavior
 * `val` must NOT be usable for method return types or type declarations
   -- mirroring `var` restrictions
 * `final val` should be accepted (redundant but harmless)
+* when statically type checking code with `val`, the same type
+inference occurs as occurs today for `final` or `final def`
 
 ==== Non-goals
 
@@ -72,9 +76,9 @@ to Groovy provides:
 
 === Design
 
-==== Keyword classification
+==== Contextual classification
 
-`val` is a _contextual keyword_ in the same category as `var`.
+`val` interpretation is _contextual_ in the same category as `var`.
 It is a reserved token at the lexer level but is included in the
 parser's `identifier` rule, allowing it to be used as a name in
 non-declaration contexts.
@@ -102,6 +106,8 @@ This is why `var var = 4` works but `def def = 2` does not.
 ==== Semantics
 
 `val` is equivalent to `final def`, `final var`, or just `final`:
+
+With type-checking, normal inference applies:
 
 [source,groovy]
 ----
@@ -298,9 +304,9 @@ work correctly with no additional code beyond the changes listed above.
 
 === Breaking behavior
 
-The main concern is existing code that uses `val` as a variable name.
-Since `val` will be in the `identifier` rule (like `var`), most usage
-continues to work:
+You might think the main concern is existing code that uses `val`
+as a variable name. But, since `val` will be in the `identifier` rule
+(like `var`), most usage continues to work:
 
 * `def val = 1` -- still works (declaration with `def`, identifier `val`)
 * `val = something` -- still works (assignment to variable named `val`)
@@ -366,6 +372,31 @@ method return type in Groovy -- the keyword takes precedence in those
 positions. The workaround is to use a fully-qualified name or import alias.
 This matches the behavior `var` would have if Java permitted `class var`.
 
+=== Migration flag: `groovy.val.enabled`
+
+For codebases that use `val` as an identifier and cannot immediately
+migrate, a system property disables the `val` keyword entirely:
+
+[source,bash]
+----
+-Dgroovy.val.enabled=false
+----
+
+When set to `false`, `val` is lexed as a plain identifier (not a keyword).
+All breaking changes listed above are resolved:
+
+* `def val` as a field name works (no modifier ambiguity)
+* `val as String` works (cast expression)
+* `class val {}` works (type declaration)
+* `val x` as explicit type works (if a class named `val` exists)
+* `val = something` and `def val = 1` work (assignment and declaration)
+
+The flag is implemented as a lexer-level semantic predicate: when
+disabled, the lexer emits `IDENTIFIER` instead of `VAL`, so the parser
+never sees `val` as a keyword. We anticipate most users will use this
+as a short-lived porting aid -- once code is migrated,
+remove the flag to benefit from `val`.
+
 == References and useful links
 
 * https://kotlinlang.org/docs/basic-syntax.html#variables[Kotlin val/var]
@@ -389,4 +420,5 @@ https://github.com/apache/groovy/tree/valSpike
 1 (2026-04-12) Initial draft +
 2 (2026-04-12) Added Java interop edge cases, spike implementation summary +
 3 (2026-04-12) Added field naming edge case, Gradle motivation +
-4 (2026-04-12) Added cast expression edge case, split code stats, linked spike branch and JIRA
+4 (2026-04-12) Added cast expression edge case, split code stats, linked spike branch and JIRA +
+5 (2026-04-16) Added `groovy.val.enabled` migration flag
