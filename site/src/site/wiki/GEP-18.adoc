@@ -440,5 +440,5 @@ The following GPars features are intentionally excluded or deferred:
 
 == References
 
-* GEP-16: Async/Await (Groovy 6)
+* GROOVY-9381: Async/Await (Groovy 6)
 * https://github.com/GPars/GPars[GPars on GitHub]
