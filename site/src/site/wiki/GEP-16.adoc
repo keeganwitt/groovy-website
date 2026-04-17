@@ -47,7 +47,7 @@ The `val` keyword is familiar from Kotlin and Scala, where it is the
 default and idiomatic way to declare immutable bindings. Adding `val`
 to Groovy provides:
 
-* A concise, readable way to declare final variables with inferred types
+* A concise, readable way to declare final variables
 * Familiar syntax for developers coming from Kotlin or Scala
 * A natural complement to the existing `var` keyword
 * Encouragement of immutability as a default practice
