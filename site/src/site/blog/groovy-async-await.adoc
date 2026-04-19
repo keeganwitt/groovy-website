@@ -392,7 +392,7 @@ def result = Single.just('hello').toCompletionStage().toCompletableFuture().join
 With `groovy-rxjava` on the classpath:
 [source,groovy]
 ----
-def result = await Awaitable.from(Single.just('hello'))
+def result = await Single.just('hello')
 ----
 
 == Best practices
