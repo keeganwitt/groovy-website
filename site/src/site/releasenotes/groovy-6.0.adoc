@@ -648,6 +648,52 @@ methods have no side effects. Without that guarantee, annotations
 would be just comments -- claims you'd still need to verify by
 reading the code.
 
+== Module Import Declarations
+
+Groovy 6 supports Java's module import declarations
+(https://issues.apache.org/jira/browse/GROOVY-11896[GROOVY-11896]),
+giving scripts and classes a concise way to pull in every public
+type exported by a named module with a single statement:
+
+[source,groovy]
+----
+import module java.sql
+
+def conn = DriverManager.getConnection('jdbc:h2:mem:test')
+def stmt = conn.createStatement()
+----
+
+An `import module java.sql` is equivalent to a star import
+(`import pkg.*`) for every package the module exports, and also
+covers packages reached via `requires transitive`. For example,
+a single `import module java.sql` makes `Connection` and
+`DriverManager` directly available, along with types like
+`javax.xml.transform.Source` (from `java.xml`) and
+`java.util.logging.Logger` (from `java.logging`).
+
+Module imports work with system modules (JDK modules like
+`java.base`, `java.sql`, `java.desktop`), JPMS modules from modular
+JARs on the classpath, and automatic modules. Explicit single-type
+imports take priority, so naming conflicts can be resolved by
+adding a specific import:
+
+[source,groovy]
+----
+import module java.desktop
+import java.util.List
+
+// The explicit single-type import wins over
+// the module-expanded java.awt.List
+assert List.name == 'java.util.List'
+----
+
+The `module` keyword is context-sensitive -- it remains usable as
+a variable, method, or class name. Wildcard
+(`import module java.base.*`) and alias
+(`import module java.base as jb`) forms are not supported.
+See https://openjdk.org/jeps/511[JEP 511] for the corresponding
+Java language feature.
+
 == Extension method additions and improvements
 
 Groovy provides over 2000 extension methods to 150+ JDK classes to enhance
@@ -1013,6 +1059,79 @@ For simple cases, Groovy's `as` coercion works without Jackson.
 For XML, `jackson-dataformat-xml` can be used directly for full
 Jackson XML annotation support.
 
+== Markdown Module (incubating)
+
+Groovy 6 adds a new optional `groovy-markdown` module
+(https://issues.apache.org/jira/browse/GROOVY-11940[GROOVY-11940])
+for parsing https://commonmark.org/[CommonMark] Markdown into a
+navigable document model. A common motivating use case is
+extracting structured pieces from LLM output -- code blocks by
+language, sections by heading, links, and tables -- but the module
+is useful anywhere Markdown is processed programmatically.
+
+=== MarkdownSlurper
+
+`MarkdownSlurper` parses Markdown text into a `MarkdownDocument`
+backed by nested lists and maps. Each node is a `Map` with a `type`
+key plus type-specific fields:
+
+[source,groovy]
+----
+def doc = new MarkdownSlurper().parseText('# Hello World')
+def h = doc.headings[0]
+assert h.level == 1
+assert h.text == 'Hello World'
+----
+
+The document exposes convenience properties -- `headings`,
+`codeBlocks`, `links`, `tables` -- that recursively walk the tree,
+so nodes nested inside list items or block quotes are still found.
+
+=== Extracting code blocks
+
+Pulling fenced code blocks by language is a common pattern when
+consuming LLM output:
+
+[source,groovy]
+----
+def doc = new MarkdownSlurper().parseText(md)
+def groovySnippets = doc.codeBlocks.findAll { it.lang == 'groovy' }*.text
+----
+
+=== Sections
+
+`section(headingText)` returns the nodes between a given heading
+and the next heading of equal or higher level -- handy for parsing
+structured agent replies:
+
+[source,groovy]
+----
+def doc = new MarkdownSlurper().parseText(md)
+def next = doc.section('Next Steps')
+assert next[0].type == 'list'
+assert next[0].items*.text == ['Item one', 'Item two']
+----
+
+=== Tables (optional)
+
+GFM-style tables are supported when the
+`org.commonmark:commonmark-ext-gfm-tables` jar is on the classpath.
+Call `enableTables(true)` on the slurper and each row comes back as
+a `Map` keyed by header:
+
+[source,groovy]
+----
+def doc = new MarkdownSlurper().enableTables(true).parseText(md)
+def rows = doc.tables[0].rows
+assert rows[0].name == 'Alice'
+assert rows[1].age == '25'
+----
+
+Supported node types include `heading`, `paragraph`, `code_block`,
+`list`/`list_item`, `block_quote`, `link`, `image`, `text`,
+`inline_code`, `emphasis`/`strong`, `html_block`/`html_inline`,
+`thematic_break`, line breaks, and (with the GFM extension) `table`.
+
 == Grape: Dual Engine Support (Incubating)
 
 Groovy 6 introduces a major evolution of the Grape dependency management system
@@ -1152,6 +1271,205 @@ Previously, users had to manually set `args` within their script
 as a workaround. A new _Set Script Arguments_ option in the _Script_ menu
 lets you specify space-separated arguments that are passed to the script.
 
+== GroovyDoc Enhancements
+
+Groovy 6 brings GroovyDoc substantially closer to modern Javadoc
+feature parity and adds a few enhancements of its own. The two
+headline items are support for JEP 467 Markdown doc comments and
+JEP 413 `{@snippet}` code snippets, both working in `.groovy` and
+`.java` sources.
+
+=== Markdown doc comments (JEP 467)
+
+A run of `///` line comments can now be used as a doc comment whose
+body is CommonMark Markdown
+(https://issues.apache.org/jira/browse/GROOVY-11542[GROOVY-11542]):
+
+[source,groovy]
+----
+/// # Greet
+///
+/// Returns a friendly greeting. Inline tags still work:
+/// {@link String} and {@code greet}.
+///
+/// ```groovy
+/// assert greeter.greet('world') == 'Hello, world'
+/// ```
+///
+/// @param name the subject to greet
+/// @return the greeting
+String greet(String name) { "Hello, $name" }
+----
+
+Headings, bullets, fenced code blocks, emphasis, and inline code all
+render as you would expect. Headings are shifted down two levels
+(so `#` becomes `<h3>`), fitting under each page's existing title
+structure. Inline Javadoc tags continue to work inside Markdown
+bodies; tag-like text inside fenced code blocks stays literal.
+Traditional `/** ... */` Javadoc blocks still work and can coexist
+with `///` comments in the same source file.
+
+See https://openjdk.org/jeps/467[JEP 467] and
+https://commonmark.org[CommonMark] for the full syntax and
+semantics.
+
+=== Code snippets via `{@snippet}`
+
+The JEP 413 `{@snippet}` tag is now supported
+(https://issues.apache.org/jira/browse/GROOVY-11938[GROOVY-11938])
+in three forms. Inline body:
+
+[source,groovy]
+----
+/**
+ * {@snippet lang="groovy" :
+ * def greet(name) { "Hello, $name" }
+ * greet('world')
+ * }
+ */
+----
+
+External reference to a file in the package's `snippet-files/`
+directory (a region can also be selected via `region="name"`):
+
+[source,groovy]
+----
+/** {@snippet file="GreetExample.groovy"} */
+----
+
+Markup comments inside snippet bodies let authors highlight,
+replace, or link to portions of the code without editing the source
+itself:
+
+[source,groovy]
+----
+/**
+ * {@snippet lang="groovy" :
+ * def greet(name) { "Hello, $name" }  // @highlight substring="greet"
+ * // @link substring="Greeter" target="Greeter"
+ * Greeter.instance.greet('world')
+ * }
+ */
+----
+
+`@highlight`, `@replace`, and `@link` all support `substring=`,
+`regex=`, and `region=` attributes. See
+https://openjdk.org/jeps/413[JEP 413] for the full markup
+reference.
+
+=== Syntax highlighting and dark mode
+
+Two new generator flags make the rendered output immediately more
+modern:
+
+[source]
+----
+groovydoc -syntaxHighlighter prism -theme auto ...
+----
+
+`-syntaxHighlighter=prism` bundles
+https://prismjs.com/[Prism.js] for client-side syntax highlighting
+of `{@snippet}` blocks and Markdown fenced code. Groovy, Java, XML,
+JSON, YAML, TOML, SQL, CSV, Markdown, JavaScript, and regex are
+supported out of the box.
+
+`-theme` controls the palette strategy
+(https://issues.apache.org/jira/browse/GROOVY-11947[GROOVY-11947]):
+
+- `auto` (default) -- follow the reader's OS
+  `prefers-color-scheme`. Light and dark palettes are both emitted;
+  the browser picks at view time. Syntax highlighting swaps themes
+  in sync
+  (https://issues.apache.org/jira/browse/GROOVY-11946[GROOVY-11946]).
+- `light` / `dark` -- lock the output to one palette regardless of
+  OS preference.
+
+Under the hood, the default stylesheet has been refactored around
+semantic CSS custom properties (`--fg`, `--bg`, `--link`,
+`--bg-panel`, etc.). Author stylesheets supplied via
+`--add-stylesheet` can reference the same tokens and become theme-aware
+automatically.
+
+=== Feature summary
+
+Smaller improvements that collectively close the long-standing gap
+with modern Javadoc:
+
+[cols="1,3", options="header"]
+|===
+| Feature | Description
+
+| Class hierarchy tree pages
+| `overview-tree.html` and per-package `package-tree.html` with
+class/interface nesting
+(https://issues.apache.org/jira/browse/GROOVY-11942[GROOVY-11942])
+
+| Script documentation
+| Top-level scripts now get documented; leading `/** */` comments
+lift to the synthetic Script class
+(https://issues.apache.org/jira/browse/GROOVY-8877[GROOVY-8877])
+
+| `@Internal` filtering
+| Members annotated with `groovy.transform.@Internal` (per GEP-17)
+are hidden by default; `-showInternal` opts them in
+(https://issues.apache.org/jira/browse/GROOVY-9572[GROOVY-9572])
+
+| `{@value}` inline tag
+| Inlines compile-time constants. Supports `{@value #FIELD}`,
+`{@value Class#FIELD}`, and bare `{@value}` on a field's own
+comment
+(https://issues.apache.org/jira/browse/GROOVY-6016[GROOVY-6016])
+
+| `{@inheritDoc}`
+| Pulls in the parent class's/interface's corresponding
+documentation
+(https://issues.apache.org/jira/browse/GROOVY-3782[GROOVY-3782])
+
+| `@apiNote`, `@implSpec`, `@implNote`
+| Recognised with proper heading labels (e.g. "Implementation
+Requirements:" rather than raw tag names)
+(https://issues.apache.org/jira/browse/GROOVY-11945[GROOVY-11945])
+
+| `@Documented` filter on annotation refs
+| Annotation references are only emitted when the annotation type
+itself is `@Documented`, matching Javadoc
+(https://issues.apache.org/jira/browse/GROOVY-4634[GROOVY-4634])
+
+| `doc-files/` and `snippet-files/`
+| Per-package directories are copied verbatim to the output for
+sibling images, diagrams, and external snippet sources
+(https://issues.apache.org/jira/browse/GROOVY-5986[GROOVY-5986])
+
+| `--add-stylesheet`
+| Add a custom stylesheet _alongside_ the default (contrast with
+`-stylesheetfile` which replaces); repeatable or comma-separated
+(https://issues.apache.org/jira/browse/GROOVY-11941[GROOVY-11941])
+
+| Optional-page toggles
+| `-noindex`, `-nodeprecatedlist`, `-nohelp` suppress the matching
+auxiliary page and remove its nav-bar link
+(https://issues.apache.org/jira/browse/GROOVY-11943[GROOVY-11943])
+
+| Ant `<link module="...">`
+| JPMS-style module segment in external-link URLs for JDK 9+
+Javadoc layouts
+(https://issues.apache.org/jira/browse/GROOVY-11682[GROOVY-11682])
+
+| Non-zero exit on errors
+| CLI returns a non-zero exit code when source files fail to
+parse, so CI jobs fail rather than silently succeed
+(https://issues.apache.org/jira/browse/GROOVY-9057[GROOVY-9057])
+
+| Miscellaneous fixes
+| No spurious `Foo.1.html` pages for enums with per-constant
+bodies
+(https://issues.apache.org/jira/browse/GROOVY-10162[GROOVY-10162]);
+NPE on closures in annotations fixed
+(https://issues.apache.org/jira/browse/GROOVY-8025[GROOVY-8025]);
+long-standing stray-brace bug in `{@inheritDoc}` rendering resolved
+(https://issues.apache.org/jira/browse/GROOVY-3782[GROOVY-3782])
+|===
+
 [[annotation-validation]]
 == Improved Annotation Validation
 
@@ -1188,6 +1506,18 @@ For example: `XmlUtil.serialize(node, new SerializeOptions(encoding: 'ISO-8859-1
 * *groovy-sql*: The `DataSet` class now correctly handles
 non-literal expressions in queries
 (https://issues.apache.org/jira/browse/GROOVY-5373[GROOVY-5373]).
+* *groovy-sql*: New `Sql.inList` helper expands a collection into
+the parameter list of a SQL `IN` clause, avoiding manual string
+concatenation
+(https://issues.apache.org/jira/browse/GROOVY-5436[GROOVY-5436]).
+* *groovy-sql*: Added Map-based named-parameter overloads for
+`call`, `callWithRows`, and `callWithAllRows`, matching the
+existing named-parameter support on `eachRow`, `rows`, etc.
+(https://issues.apache.org/jira/browse/GROOVY-11936[GROOVY-11936]).
+* *groovy-ant*: The `<groovy>` Ant task now inherits the surrounding
+project's Ant properties when running in forked mode, matching the
+behaviour of non-forked execution
+(https://issues.apache.org/jira/browse/GROOVY-6908[GROOVY-6908]).
 * *groovy-jmx*: Removed dead IIOP support and refreshed documentation
 (https://issues.apache.org/jira/browse/GROOVY-11921[GROOVY-11921]).
 * *groovy-servlet*: Jakarta EE 11 compatibility
@@ -1240,10 +1570,18 @@ was not closed, which could cause file descriptor leaks.
 if called after parsing has started. Previously, the setter silently
 updated the field but had no effect since the SAX parser was already configured.
 (https://issues.apache.org/jira/browse/GROOVY-7633[GROOVY-7633])
+* The last references to `javax.swing.JApplet` have been removed from
+`groovy-swing` (the `SwingBuilder` factory registration) and from the
+Groovy Console. `JApplet` was deprecated for removal since Java 9 and
+has been removed in JDK 26, so these references would otherwise cause
+`NoClassDefFoundError` at `SwingBuilder` initialisation on JDK 26+.
+Code that explicitly used the applet-related factories should migrate
+to standard `JFrame`/`JWindow` alternatives.
+(https://issues.apache.org/jira/browse/GROOVY-11912[GROOVY-11912])
 
 == Under exploration
 
-* Java compatibility: Module import declarations, additional destructuring
+* Java compatibility: additional destructuring
 * Improve REPL further (think nushell)
 * Performance
 * Spec improvements
