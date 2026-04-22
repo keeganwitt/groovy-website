@@ -1357,6 +1357,15 @@ itself:
 https://openjdk.org/jeps/413[JEP 413] for the full markup
 reference.
 
+Two author-facing conveniences apply to the external form: the
+language class is inferred from the file's extension when no
+explicit `lang="..."` is given, and a leading license or copyright
+header in the referenced file is stripped from the rendered output
+(opt out with `keepHeader=true`). See the
+https://docs.groovy-lang.org/docs/next/html/documentation/groovydoc.html[Groovydoc
+documentation] for the full list of recognised extensions and the
+header-detection heuristic.
+
 === Syntax highlighting and dark mode
 
 Two new generator flags make the rendered output immediately more
@@ -1389,6 +1398,17 @@ semantic CSS custom properties (`--fg`, `--bg`, `--link`,
 `--bg-panel`, etc.). Author stylesheets supplied via
 `--add-stylesheet` can reference the same tokens and become theme-aware
 automatically.
+
+=== Highlighting legacy `<pre>` blocks
+
+The new `-preLanguage <lang>` option (CLI) / `preLanguage="lang"`
+attribute (Ant task) sets a default Prism language for unattributed
+`<pre>` blocks in doc comments, so legacy code samples get
+highlighted without source edits
+(https://issues.apache.org/jira/browse/GROOVY-11950[GROOVY-11950]).
+See the
+https://docs.groovy-lang.org/docs/next/html/documentation/groovydoc.html[Groovydoc
+documentation] for the rewrite rules and the per-block opt-out.
 
 === Feature summary
 
