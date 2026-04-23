@@ -39,22 +39,19 @@ layout 'layouts/main.groovy', true,
                             p "You can also browse ${$a(href: '#all-versions', 'documentation for other versions')}."
                             hr(class: 'divider')
 
-                            // group sections by 2, for 2 columns
-                            def rows = docSections.collate(2)
-                            rows.each { row ->
-                                div(class: 'row-fluid') {
-                                    article {
-                                        row.each { section ->
-                                            div(class: 'col-md-6') {
-                                                a(name: section.anchor) {}
-                                                h2 {
-                                                    i(class: "fa-classic fa-solid ${section.icon}") {}
-                                                    yield " ${section.name}"
-                                                }
-                                                ul {
-                                                    section.getItems().each { item ->
-                                                        li { a(href: "${item.targetFilename}.html", item.name) }
-                                                    }
+                            // flow sections into balanced columns — avoids gaps under shorter sections
+                            div(class: 'row-fluid') {
+                                article(class: 'doc-sections') {
+                                    docSections.each { section ->
+                                        div(class: 'doc-section') {
+                                            a(name: section.anchor) {}
+                                            h2 {
+                                                i(class: "fa-classic fa-solid ${section.icon}") {}
+                                                yield " ${section.name}"
+                                            }
+                                            ul {
+                                                section.getItems().each { item ->
+                                                    li { a(href: "${item.targetFilename}.html", item.name) }
                                                 }
                                             }
                                         }

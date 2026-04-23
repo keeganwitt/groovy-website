@@ -99,19 +99,14 @@ documentation {
     ])
 
     section('Getting started','fa-graduation-cap') {
-        //          NAME                                     TARGET HTML         DOCPAGE HTML                       GENERATE
-        item 'Download Groovy',                             'download',         'download',                         false
-        item 'Install Groovy',                              'install',          'core-getting-started'
-        item 'Differences with Java',                       'differences',      'core-differences-java'
-        item 'The Groovy Development Kit',                  'groovy-dev-kit',   'core-gdk'
-        item 'Runtime and compile-time metaprogramming',    'metaprogramming',  'core-metaprogramming'
-        item 'The Grape dependency manager',                'grape',            'grape'
-        item 'Testing guide',                               'testing',          'core-testing-guide'
-        item 'Domain-Specific Languages',                   'dsls',             'core-domain-specific-languages'
-        item 'Integrating Groovy into applications',        'integrating',      'guide-integrating'
-        item 'Security',                                    'security',         'security'
-        item 'Design patterns in Groovy',                   'design-patterns',  'design-patterns-in-groovy'
-        item 'Style guide',                                 'style-guide',      'style-guide'
+        //          NAME                                   TARGET HTML         DOCPAGE HTML                       GENERATE
+        item 'Download Groovy',                            'download',         'download',                        false
+        item 'Install Groovy',                             'install',          'core-getting-started'
+        item 'Differences with Java',                      'differences',      'core-differences-java'
+        item 'The Groovy Development Kit',                 'groovy-dev-kit',   'core-gdk'
+        item 'The Grape dependency manager',               'grape',            'grape'
+        item 'Testing guide',                              'testing',          'core-testing-guide'
+        item 'Style guide',                                'style-guide',      'style-guide'
     }
 
     section ('Language Specification', 'fa-graduation-cap') {
@@ -123,13 +118,13 @@ documentation {
         item 'Semantics',           'semantics',            'core-semantics'
     }
 
-    section ('Tools','fa-gears') {
-        item 'groovy - the Groovy command-line',           'groovy',          'tools-groovy'
-        item 'groovyc - the Groovy compiler',               'groovyc',          'tools-groovyc'
-        item 'groovydoc - the Groovy documentation generator',               'groovydoc',          'groovydoc'
-        item 'groovysh - the Groovy repl-like shell',       'groovysh',         'groovysh'
-        item 'groovyConsole - the Groovy Swing console',    'groovyconsole',    'groovy-console'
-        item 'IDE integration', 'ides', 'tools-ide'
+    section('Diving Deeper', 'fa-binoculars') {
+        item 'Runtime and compile-time metaprogramming',   'metaprogramming',  'core-metaprogramming'
+        item 'Domain-Specific Languages',                  'dsls',             'core-domain-specific-languages'
+        item 'Design patterns in Groovy',                  'design-patterns',  'design-patterns-in-groovy'
+        item 'Concurrency in Groovy',                      'concurrency',      'core-async-await'
+        item 'Integrating Groovy into applications',       'integrating',      'guide-integrating'
+        item 'Security',                                   'security',         'security'
     }
 
     section('Groovy module guides', 'fa-cubes') {
@@ -138,11 +133,23 @@ documentation {
         item 'Processing XML',                      'processing-xml',   'xml-userguide'
         item 'Processing YAML',                     'processing-yaml',  'yaml-userguide'
         item 'Processing TOML',                     'processing-toml',  'toml-userguide'
+        item 'Processing CSV',                      'processing-csv',   'csv-userguide'
+        item 'Http client support',                 'http-builder',     'http-builder'
+        item 'Reading Markdown',                    'reading-markdown', 'markdown-userguide'
         item 'SQL-like querying of collections',    'using-ginq',       'ginq-userguide'
         item 'Template engines',                    'templating',       'template-engines'
         item 'Servlet support',                     'servlet',          'servlet-userguide'
         item 'Working with JMX',                    'jmx',              'jmx'
         item 'Design by contract support',          'contracts',        'contracts-userguide'
+    }
+
+    section ('Tools','fa-gears') {
+        item 'groovy - the Groovy command-line',               'groovy',        'tools-groovy'
+        item 'groovyc - the Groovy compiler',                  'groovyc',       'tools-groovyc'
+        item 'groovydoc - the Groovy documentation generator', 'groovydoc',     'groovydoc'
+        item 'groovysh - the Groovy repl-like shell',          'groovysh',      'groovysh'
+        item 'groovyConsole - the Groovy Swing console',       'groovyconsole', 'groovy-console'
+        item 'IDE integration', 'ides', 'tools-ide'
     }
 
     section ('API documentation', 'fa-code') {

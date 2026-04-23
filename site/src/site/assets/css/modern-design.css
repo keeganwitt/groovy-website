@@ -730,3 +730,24 @@ h1 code, h2 code, h3 code, h4 code, h5 code, h6 code {
 .anchor-link:hover:before {
     color: var(--accent-color);
 }
+
+/* ===== Documentation sections ===== */
+/* Flow sections into two balanced columns instead of a strict 2-per-row grid,
+   so shorter sections don't leave gaps under them. */
+.doc-sections {
+    column-count: 2;
+    column-gap: 2rem;
+}
+
+.doc-section {
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .doc-sections {
+        column-count: 1;
+    }
+}

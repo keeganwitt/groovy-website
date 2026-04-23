@@ -24,7 +24,7 @@ TBD
 == New Modules
 
 Groovy 6 ships seven new optional modules, plus a long-standing piece
-of core (Grape's Ivy backend) split out into its own module:
+of core (Grape's Ivy backend) is split out into its own module:
 
 [cols="1,3", options="header"]
 |===
