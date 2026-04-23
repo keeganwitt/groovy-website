@@ -1018,7 +1018,7 @@ assert GQL {
 } == ['Alice', 'Bob', 'Carol', 'Dave']
 ----
 
-See the https://docs.groovy-lang.org/docs/latest/html/documentation/using-ginq.html[GINQ user guide]
+See the dochome:using-ginq.html[GINQ user guide]
 for the full set of clauses and operators.
 
 == CSV Module (incubating)
@@ -1081,7 +1081,7 @@ assert sales[0].customer == 'Acme'
 assert sales[0].amount == 1500.00
 ----
 
-See the https://docs.groovy-lang.org/docs/latest/html/documentation/processing-csv.html[Processing CSV user guide]
+See the dochome:processing-csv.html[Processing CSV user guide]
 for the full API and configuration options.
 
 == Typed Parsing and Writing Across Format Modules
@@ -1222,7 +1222,7 @@ Supported node types include `heading`, `paragraph`, `code_block`,
 `inline_code`, `emphasis`/`strong`, `html_block`/`html_inline`,
 `thematic_break`, line breaks, and (with the GFM extension) `table`.
 
-See the https://docs.groovy-lang.org/docs/latest/html/documentation/processing-markdown.html[Processing Markdown user guide]
+See the dochome:processing-markdown.html[Processing Markdown user guide]
 for the full node schema and additional examples.
 
 == Grape: Dual Engine Support (incubating)
@@ -1309,7 +1309,7 @@ custom repositories via `@GrabResolver` or
 Switching from GrapeMaven back to GrapeIvy is generally straightforward
 since GrapeIvy's defaults are more permissive.
 
-See the https://docs.groovy-lang.org/docs/latest/html/documentation/grape.html[Grape user guide]
+See the dochome:grape.html[Grape user guide]
 for the full per-engine specification, custom-engine registration steps,
 per-engine logging configuration, and detailed migration walkthrough.
 
@@ -1485,7 +1485,7 @@ language class is inferred from the file's extension when no
 explicit `lang="..."` is given, and a leading license or copyright
 header in the referenced file is stripped from the rendered output
 (opt out with `keepHeader=true`). See the
-https://docs.groovy-lang.org/docs/next/html/documentation/groovydoc.html[Groovydoc
+dochome:groovydoc.html[Groovydoc
 documentation] for the full list of recognised extensions and the
 header-detection heuristic.
 
@@ -1530,7 +1530,7 @@ attribute (Ant task) sets a default Prism language for unattributed
 highlighted without source edits
 (https://issues.apache.org/jira/browse/GROOVY-11950[GROOVY-11950]).
 See the
-https://docs.groovy-lang.org/docs/next/html/documentation/groovydoc.html[Groovydoc
+dochome:groovydoc.html[Groovydoc
 documentation] for the rewrite rules and the per-block opt-out.
 
 === Feature summary

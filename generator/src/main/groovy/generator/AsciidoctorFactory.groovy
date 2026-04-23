@@ -23,5 +23,32 @@ import org.asciidoctor.Asciidoctor
 
 @CompileStatic
 class AsciidoctorFactory {
-    @Lazy static Asciidoctor instance = Asciidoctor.Factory.create()
+    @Lazy static Asciidoctor instance = createAsciidoctor()
+
+    private static Asciidoctor createAsciidoctor() {
+        def asciidoctor = Asciidoctor.Factory.create()
+        registerLinkMacros(asciidoctor)
+        asciidoctor
+    }
+
+    private static Closure<String> groovydocUrl(String base) {
+        { String target ->
+            def parts = target.split('#')
+            def className = parts[0]
+            def anchor = parts.length > 1 ? parts[1] : null
+            (className == 'index'
+                    ? base
+                    : "${base}?${className.replace('.', '/')}.html${anchor ? '#' + anchor : ''}").toString()
+        }
+    }
+
+    private static void registerLinkMacros(Asciidoctor asciidoctor) {
+        String docsBase = System.getProperty('docs_baseurl') ?: 'https://docs.groovy-lang.org/latest'
+        def registry = asciidoctor.javaExtensionRegistry()
+        registry.inlineMacro(new LinkMacroProcessor('jdk',     groovydocUrl('https://docs.oracle.com/en/java/javase/11/docs/api/index.html')))
+        registry.inlineMacro(new LinkMacroProcessor('gjdk',    groovydocUrl("${docsBase}/html/groovy-jdk/index.html".toString())))
+        registry.inlineMacro(new LinkMacroProcessor('gapi',    groovydocUrl("${docsBase}/html/gapi/index.html".toString())))
+        registry.inlineMacro(new LinkMacroProcessor('gapid',   groovydocUrl("${docsBase}/html/gapi/".toString())))
+        registry.inlineMacro(new LinkMacroProcessor('dochome', { String target -> "${docsBase}/html/documentation/${target}".toString() }))
+    }
 }
