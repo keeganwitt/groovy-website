@@ -594,6 +594,13 @@ assigned `null`, left uninitialized, or resulting from expressions
 with a `null` branch.
 | https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]
 
+| `NullChecker` + `@Requires`/`@Ensures`
+| Recognises null-safety facts from `groovy-contracts`: top-level
+`x != null` conjuncts in `@Requires` mark parameters as implicit
+`@NonNull`, and `result != null` in `@Ensures` marks the return as
+implicit `@NonNull`.).
+| https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]
+
 | gapi:groovy.typecheckers.ModifiesChecker[ModifiesChecker]
 | Verifies `@Modifies` frame conditions at compile time. Checks that
 methods only assign to declared fields and that `@Pure` methods make
