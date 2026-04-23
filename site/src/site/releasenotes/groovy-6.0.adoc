@@ -21,6 +21,49 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 TBD
 
+== New Modules
+
+Groovy 6 ships seven new optional modules, plus a long-standing piece
+of core (Grape's Ivy backend) split out into its own module:
+
+[cols="1,3", options="header"]
+|===
+| Module | Purpose
+
+| `groovy-csv`
+| CSV parsing and writing via Jackson CSV
+
+| `groovy-grape-ivy`
+| `@Grab` engine backed by http://ant.apache.org/ivy/[Apache Ivy] --
+previously in core, now its own module
+
+| `groovy-grape-maven`
+| New `@Grab` engine backed by
+https://maven.apache.org/resolver/[Maven Resolver]
+
+| `groovy-http-builder`
+| Imperative DSL and declarative annotation-driven client over JDK
+`java.net.http.HttpClient`
+
+| `groovy-markdown`
+| https://commonmark.org/[CommonMark] Markdown parser
+
+| `groovy-reactor`
+| gapi:groovy.concurrent.AwaitableAdapter[AwaitableAdapter] SPI for
+https://projectreactor.io/[Project Reactor] (`Mono`/`Flux`) -- enables
+`await` and `for await` over reactive types
+
+| `groovy-rxjava`
+| `AwaitableAdapter` SPI for
+https://github.com/ReactiveX/RxJava[RxJava 3]
+(`Single`/`Maybe`/`Observable`/`Flowable`/`Completable`)
+
+| `groovy-test-junit6`
+| Groovy runner for JUnit 6 (Jupiter) tests as scripts
+|===
+
+Each module has a dedicated section below covering its public API, examples, and any migration notes.
+
 == Native Async/Await (incubating)
 
 Groovy 6 adds native `async`/`await` support
@@ -111,8 +154,9 @@ for (val in ch) { println val }  // prints 1..10
 
 === Structured concurrency
 
-`AsyncScope` binds the lifetime of child tasks to a scope -- when the scope
-exits, all children are guaranteed complete or cancelled:
+gapi:groovy.concurrent.AsyncScope[AsyncScope] binds the lifetime of
+child tasks to a scope -- when the scope exits, all children are
+guaranteed complete or cancelled:
 
 [source,groovy]
 ----
@@ -136,7 +180,7 @@ AsyncScope.run {
 | Virtual threads
 | Automatic on JDK 21+; cached thread pool fallback on JDK 17--20
 
-| `Awaitable.all()`, multi-arg `await(a, b, c)`
+| gapi:groovy.concurrent.Awaitable[Awaitable]`.all()`, multi-arg `await(a, b, c)`
 | Wait for all tasks to complete
 
 | `Awaitable.any()`
@@ -151,7 +195,7 @@ AsyncScope.run {
 | `yield return`
 | Lazy generators with back-pressure
 
-| `AsyncChannel`
+| gapi:groovy.concurrent.AsyncChannel[AsyncChannel]
 | Buffered and unbuffered Go-style channels
 
 | `for await`
@@ -188,6 +232,10 @@ providing both an imperative DSL and a declarative annotation-driven
 client over the JDK's `java.net.http.HttpClient`.
 It is designed for scripting, automation, and typed API clients,
 filling the gap left by the earlier HttpBuilder/HttpBuilder-NG libraries.
+The two entry points are gapi:groovy.http.HttpBuilder[HttpBuilder]
+for the imperative DSL and
+gapi:groovy.http.HttpBuilderClient[@HttpBuilderClient] for the
+declarative client; supporting types live in the `groovy.http` package.
 
 === Imperative DSL
 
@@ -263,19 +311,19 @@ automatically `await`-able: `def data = await api.getDataAsync('42')`.
 
 | HTTP methods (GET, POST, PUT, DELETE, PATCH)
 | All
-| All (`@Get`, `@Post`, `@Put`, `@Delete`, `@Patch`)
+| All (gapi:groovy.http.Get[@Get], `@Post`, `@Put`, `@Delete`, `@Patch`)
 
 | JSON body / response
 | `json()` / `result.json`
-| `@Body` / return-type driven
+| gapi:groovy.http.Body[@Body] / return-type driven
 
 | Form-encoded body
 | `form()`
-| `@Form`
+| gapi:groovy.http.Form[@Form]
 
 | Plain text body
 | `text()`
-| `@BodyText`
+| gapi:groovy.http.BodyText[@BodyText]
 
 | XML / HTML response
 | `result.xml` / `result.html`
@@ -287,7 +335,7 @@ automatically `await`-able: `def data = await api.getDataAsync('42')`.
 
 | Query parameters
 | `query()`
-| Implied from parameter name (or `@Query`)
+| Implied from parameter name (or gapi:groovy.http.Query[@Query])
 
 | Path parameters
 | Manual
@@ -295,7 +343,7 @@ automatically `await`-able: `def data = await api.getDataAsync('42')`.
 
 | Headers
 | `header()` in config/request
-| `@Header` on interface/method
+| gapi:groovy.http.Header[@Header] on interface/method
 
 | Async
 | `getAsync()`, `postAsync()`, etc.
@@ -307,7 +355,7 @@ automatically `await`-able: `def data = await api.getDataAsync('42')`.
 
 | Per-method timeout
 | Per-request `timeout()`
-| `@Timeout(seconds)`
+| gapi:groovy.http.Timeout[@Timeout]`(seconds)`
 
 | Redirect following
 | Config DSL
@@ -327,9 +375,20 @@ automatically `await`-able: `def data = await api.getDataAsync('42')`.
 Groovy 6 extends the AST transformation infrastructure to support
 annotations on loop statements -- for-in, classic for, while, and do-while
 (https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878]).
-Several transforms take advantage of this, including `@Invariant` and
-`@Decreases` from `groovy-contracts` (see <<groovy-contracts>>)
-and `@Parallel`:
+The following built-in transforms now declare `LOOP` as a valid target:
+
+* gapi:groovy.transform.Parallel[@Parallel] -- runs each iteration on
+its own task; uses virtual threads on JDK 21+ and falls back to
+platform threads otherwise
+* gapi:groovy.contracts.Invariant[@Invariant] -- asserts a condition
+at the start of each iteration (also valid on imports; see
+<<groovy-contracts>>)
+* gapi:groovy.contracts.Decreases[@Decreases] -- loop termination
+measure; see <<groovy-contracts>>
+* gapi:groovy.transform.ASTTest[@ASTTest] -- compile-time AST
+inspection utility used primarily for transform development and testing
+
+`@Parallel` is the most visible application:
 
 [source,groovy]
 ----
@@ -340,9 +399,11 @@ for (int i in 1..4) {
 // Output (non-deterministic order): 1, 16, 9, 4
 ----
 
-On JDK 21+, `@Parallel` uses virtual threads; on earlier JDKs it falls back
-to platform threads. Custom statement-level transforms can target
-`STATEMENT_TARGET` following the same contract as class/method/field-level transforms.
+Custom transforms can opt into loop targeting by declaring
+`@ExtendedTarget(ExtendedElementType.LOOP)`, following the same
+contract as class/method/field-level transforms. See
+<<annotation-validation>> for the corresponding compile-time
+validation rules.
 
 [[groovy-contracts]]
 == Groovy-Contracts Enhancements (incubating)
@@ -355,9 +416,10 @@ and frame conditions.
 
 Contract annotations now work in Groovy scripts, not just inside classes
 (https://issues.apache.org/jira/browse/GROOVY-11885[GROOVY-11885]).
-`@Requires` and `@Ensures` can be placed on script methods,
-and `@Invariant` can be placed on an import statement to apply
-as a class-level invariant for the script:
+gapi:groovy.contracts.Requires[@Requires] and
+gapi:groovy.contracts.Ensures[@Ensures] can be placed on script methods,
+and gapi:groovy.contracts.Invariant[@Invariant] can be placed on an
+import statement to apply as a class-level invariant for the script:
 
 [source,groovy]
 ----
@@ -422,17 +484,17 @@ for more on how contracts support correctness reasoning.
 Violations throw `LoopInvariantViolation`.
 | https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878]
 
-| `@Decreases`
+| gapi:groovy.contracts.Decreases[@Decreases]
 | Loop termination measure (loop _variant_). Takes a closure returning a
 value or list of values that must strictly decrease each iteration while
 remaining non-negative. Lists use lexicographic comparison.
 Violations throw `LoopVariantViolation`.
 | https://issues.apache.org/jira/browse/GROOVY-11890[GROOVY-11890]
 
-| `@Modifies`
+| gapi:groovy.contracts.Modifies[@Modifies]
 | Frame condition declaring which fields a method may change.
 Everything not listed is guaranteed unchanged.
-`@Pure` is shorthand for `@Modifies({ [] })`.
+gapi:groovy.transform.Pure[@Pure] is shorthand for `@Modifies({ [] })`.
 | https://issues.apache.org/jira/browse/GROOVY-11909[GROOVY-11909]
 
 | Contracts in scripts
@@ -448,12 +510,14 @@ type checking beyond what the standard checker provides.
 Groovy 6 adds support for _parameterized_ type checking extensions
 (https://issues.apache.org/jira/browse/GROOVY-11908[GROOVY-11908]),
 allowing extensions to accept configuration arguments
-directly in the `@TypeChecked` annotation string.
+directly in the gapi:groovy.transform.TypeChecked[@TypeChecked]
+annotation string.
 Several new type checking extensions take advantage of this capability.
+The new checkers below all live in the `groovy.typecheckers` package.
 
 === NullChecker
 
-The `NullChecker` extension
+The gapi:groovy.typecheckers.NullChecker[NullChecker] extension
 (https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894])
 validates code annotated with `@Nullable`, `@NonNull`, and
 `@MonotonicNonNull` annotations, detecting null-related errors
@@ -530,13 +594,13 @@ assigned `null`, left uninitialized, or resulting from expressions
 with a `null` branch.
 | https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]
 
-| `ModifiesChecker`
+| gapi:groovy.typecheckers.ModifiesChecker[ModifiesChecker]
 | Verifies `@Modifies` frame conditions at compile time. Checks that
 methods only assign to declared fields and that `@Pure` methods make
 no field assignments.
 | https://issues.apache.org/jira/browse/GROOVY-11910[GROOVY-11910]
 
-| `PurityChecker`
+| gapi:groovy.typecheckers.PurityChecker[PurityChecker]
 | Enforces functional purity at compile time. Verifies `@Pure` methods
 have no side effects. Configurable `allows` parameter to permit
 `LOGGING`, `METRICS`, `IO`, or `NONDETERMINISM`.
@@ -549,12 +613,16 @@ Also recognises `@SideEffectFree`, `@Contract(pure = true)`, and `@Memoized`.
 A key design goal for Groovy 6 is making code easier to reason about --
 for both humans and AI. Several of the contract and type checking
 features described above work together to achieve this:
-`@Modifies` and `@Pure` declare _what changes_ (and what doesn't),
-`@Requires` and `@Ensures` declare _what holds_ before and after,
-and type checking extensions like `ModifiesChecker` and `PurityChecker`
-verify these declarations at compile time. The combined effect is that
-each method becomes a self-contained specification -- you can reason
-about what it does without reading its body.
+gapi:groovy.contracts.Modifies[@Modifies] and
+gapi:groovy.transform.Pure[@Pure] declare _what changes_ (and what doesn't),
+gapi:groovy.contracts.Requires[@Requires] and
+gapi:groovy.contracts.Ensures[@Ensures] declare _what holds_ before and after,
+and type checking extensions like
+gapi:groovy.typecheckers.ModifiesChecker[ModifiesChecker] and
+gapi:groovy.typecheckers.PurityChecker[PurityChecker] verify these
+declarations at compile time. The combined effect is that each method
+becomes a self-contained specification -- you can reason about what it
+does without reading its body.
 
 Consider this annotated class, verified by both `ModifiesChecker`
 and `PurityChecker`:
@@ -943,15 +1011,20 @@ assert GQL {
 } == ['Alice', 'Bob', 'Carol', 'Dave']
 ----
 
+See the https://docs.groovy-lang.org/docs/latest/html/documentation/using-ginq.html[GINQ user guide]
+for the full set of clauses and operators.
+
 == CSV Module (incubating)
 
 Groovy 6 adds a new `groovy-csv` module
 (https://issues.apache.org/jira/browse/GROOVY-11923[GROOVY-11923])
 for reading and writing https://datatracker.ietf.org/doc/html/rfc4180[CSV (RFC 4180)] data.
+Classes live in the `groovy.csv` package.
 
 === Reading CSV
 
-`CsvSlurper` parses CSV text into a list of maps, keyed by column headers:
+gapi:groovy.csv.CsvSlurper[CsvSlurper] parses CSV text into a list of maps,
+keyed by column headers:
 
 [source,groovy]
 ----
@@ -961,12 +1034,15 @@ assert csv[0].name == 'Alice'
 assert csv[0].age == '30'
 ----
 
-The separator and quote characters can be customised, and quoted fields
-follow RFC 4180 rules (embedded commas, newlines, and doubled quotes).
+The separator and quote characters can be customised via fluent setters,
+and quoted fields follow RFC 4180 rules (embedded commas, newlines, and
+doubled quotes). Set `useHeader = false` to treat the first row as data
+and key rows by auto-generated column names. Reader/InputStream/File/Path
+overloads of `parse` are provided alongside `parseText`.
 
 === Writing CSV
 
-`CsvBuilder` converts collections of maps to CSV:
+gapi:groovy.csv.CsvBuilder[CsvBuilder] converts collections of maps to CSV:
 
 [source,groovy]
 ----
@@ -997,6 +1073,9 @@ def sales = new CsvSlurper().parseAs(Sale, 'customer,amount\nAcme,1500.00\nGlobe
 assert sales[0].customer == 'Acme'
 assert sales[0].amount == 1500.00
 ----
+
+See the https://docs.groovy-lang.org/docs/latest/html/documentation/processing-csv.html[Processing CSV user guide]
+for the full API and configuration options.
 
 == Typed Parsing and Writing Across Format Modules
 
@@ -1029,26 +1108,26 @@ def config = new XmlParser().parseTextAs(ServerConfig, xml)
 
 | JSON
 | `as` coercion (no deps); `ObjectMapper` for advanced cases
-| `JsonOutput.toJson()`
+| gapi:groovy.json.JsonOutput[JsonOutput]`.toJson()`
 
 | CSV
 (https://issues.apache.org/jira/browse/GROOVY-11923[GROOVY-11923])
-| `CsvSlurper.parseAs(Type, csv)` (Jackson)
-| `CsvBuilder.toCsv(items, Type)`
+| gapi:groovy.csv.CsvSlurper[CsvSlurper]`.parseAs(Type, csv)` (Jackson)
+| gapi:groovy.csv.CsvBuilder[CsvBuilder]`.toCsv(items, Type)`
 
 | TOML
 (https://issues.apache.org/jira/browse/GROOVY-11925[GROOVY-11925])
-| `TomlSlurper.parseTextAs(Type, toml)` (Jackson)
-| `TomlBuilder.toToml(object)`
+| gapi:groovy.toml.TomlSlurper[TomlSlurper]`.parseTextAs(Type, toml)` (Jackson)
+| gapi:groovy.toml.TomlBuilder[TomlBuilder]`.toToml(object)`
 
 | YAML
 (https://issues.apache.org/jira/browse/GROOVY-11926[GROOVY-11926])
-| `YamlSlurper.parseTextAs(Type, yaml)` (Jackson)
-| `YamlBuilder.toYaml(object)`
+| gapi:groovy.yaml.YamlSlurper[YamlSlurper]`.parseTextAs(Type, yaml)` (Jackson)
+| gapi:groovy.yaml.YamlBuilder[YamlBuilder]`.toYaml(object)`
 
 | XML
 (https://issues.apache.org/jira/browse/GROOVY-11927[GROOVY-11927])
-| `XmlParser.parseTextAs(Type, xml)` (optional Jackson);
+| gapi:groovy.xml.XmlParser[XmlParser]`.parseTextAs(Type, xml)` (optional Jackson);
 `Node.toMap()` + `as` coercion (no deps)
 | --
 |===
@@ -1064,14 +1143,16 @@ Jackson XML annotation support.
 Groovy 6 adds a new optional `groovy-markdown` module
 (https://issues.apache.org/jira/browse/GROOVY-11940[GROOVY-11940])
 for parsing https://commonmark.org/[CommonMark] Markdown into a
-navigable document model. A common motivating use case is
-extracting structured pieces from LLM output -- code blocks by
-language, sections by heading, links, and tables -- but the module
-is useful anywhere Markdown is processed programmatically.
+navigable document model. Classes live in the `groovy.markdown`
+package. A common motivating use case is extracting structured
+pieces from LLM output -- code blocks by language, sections by
+heading, links, and tables -- but the module is useful anywhere
+Markdown is processed programmatically.
 
 === MarkdownSlurper
 
-`MarkdownSlurper` parses Markdown text into a `MarkdownDocument`
+gapi:groovy.markdown.MarkdownSlurper[MarkdownSlurper] parses Markdown
+text into a gapi:groovy.markdown.MarkdownDocument[MarkdownDocument]
 backed by nested lists and maps. Each node is a `Map` with a `type`
 key plus type-specific fields:
 
@@ -1086,6 +1167,8 @@ assert h.text == 'Hello World'
 The document exposes convenience properties -- `headings`,
 `codeBlocks`, `links`, `tables` -- that recursively walk the tree,
 so nodes nested inside list items or block quotes are still found.
+A `text` property gives a plain-text projection of the whole
+document with formatting markers stripped.
 
 === Extracting code blocks
 
@@ -1132,63 +1215,96 @@ Supported node types include `heading`, `paragraph`, `code_block`,
 `inline_code`, `emphasis`/`strong`, `html_block`/`html_inline`,
 `thematic_break`, line breaks, and (with the GFM extension) `table`.
 
-== Grape: Dual Engine Support (Incubating)
+See the https://docs.groovy-lang.org/docs/latest/html/documentation/processing-markdown.html[Processing Markdown user guide]
+for the full node schema and additional examples.
 
-Groovy 6 introduces a major evolution of the Grape dependency management system
+== Grape: Dual Engine Support (incubating)
+
+Groovy 6 introduces a major evolution of the Grape dependency
+management system
 (https://issues.apache.org/jira/browse/GROOVY-11871[GROOVY-11871])
-with the addition of a second built-in engine implementation alongside the existing Apache Ivy-based engine.
+by adding a second built-in engine alongside the existing Apache
+Ivy backend. Both engines expose the same
+gapi:groovy.lang.Grab[@Grab] family of annotations and the
+gapi:groovy.grape.Grape[Grape] facade API, so most existing scripts
+work unchanged.
 
-=== What's new
+=== Engine comparison
 
-*Two production-ready Grape engines*
+[cols="1,2,2", options="header"]
+|===
+| Aspect | GrapeIvy (default) | GrapeMaven (new)
 
-- **GrapeIvy** (default): Apache Ivy backend, established and stable. Supports fine-grained configuration via `~/.groovy/grapeConfig.xml`, multiple Ivy configurations per dependency, and optional-only downloads via `@GrabConfig(autoDownload=false)`.
+| Backend
+| http://ant.apache.org/ivy/[Apache Ivy]
+| https://maven.apache.org/resolver/[Maven Resolver (Aether)]
 
-- **GrapeMaven**: New Maven Resolver (Aether) backend. Uses the same resolution strategy as Maven itself, integrates with Maven Central and other standard Maven repositories out of the box, and provides an alternative for teams more familiar with Maven tooling.
+| Engine class
+| `groovy.grape.ivy.GrapeIvy`
+| `groovy.grape.maven.GrapeMaven`
 
-*Automatic engine selection with override capability*
+| Local cache
+| `~/.groovy/grapes` (Ivy format)
+| `~/.groovy/grapesM2` (Maven format)
 
-Both engines expose the same `@Grab`, `@GrabResolver`, and `@GrabExclude` annotations and APIs. If both are on the classpath, GrapeIvy is preferred for backward compatibility. Users can switch to GrapeMaven on a per-script basis:
+| Configuration file
+| `~/.groovy/grapeConfig.xml` (full Ivy XML)
+| None -- use `@GrabResolver` / `Grape.addResolver`
+
+| `conf:` parameter
+| Ivy configurations; lists supported (e.g. `['default','optional']`)
+| Single Maven scope only
+
+| `@GrabConfig(autoDownload=false)`
+| Honoured (cache-only resolution)
+| Not honoured
+
+| Version wildcard `'*'`
+| Resolves to Ivy's `latest.default`
+| Resolves to Maven's `LATEST`
+|===
+
+Both engines respect the `grape.root` system property for relocating the cache root.
+
+=== Selecting the engine
+
+When both engines are on the classpath, GrapeIvy is selected by default.
+To switch to GrapeMaven for a specific invocation:
 
 [source]
 ----
 groovy -Dgroovy.grape.impl=groovy.grape.maven.GrapeMaven yourscript.groovy
 ----
 
-*Extensibility via Java SPI*
+Set the same property in `JAVA_OPTS` for a global default.
 
-Developers can now provide custom Grape implementations by creating a jar with a `META-INF/services/groovy.grape.GrapeEngine` entry. Groovy will discover and load custom implementations via the standard Java Service Provider Interface, enabling integration with in-house or specialized dependency resolution engines.
+=== Custom engines via Java SPI
 
-=== Cache directories
+Custom gapi:groovy.grape.GrapeEngine[GrapeEngine] implementations are
+discovered via the standard `java.util.ServiceLoader` mechanism by
+including a jar with a `META-INF/services/groovy.grape.GrapeEngine`
+entry naming the implementation class. See the user guide for the
+full registration protocol.
 
-- **GrapeIvy**: `~/.groovy/grapes` (Ivy cache format)
-- **GrapeMaven**: `~/.groovy/grapesM2` (Maven repository format)
+=== Migration
 
-Both respect the `grape.root` system property for custom cache root paths.
+Most existing `@Grab` scripts work unchanged with both engines. The
+notable differences when moving from GrapeIvy to GrapeMaven:
 
-=== Compatibility notes
+- *Multi-value `conf:` parameters* (e.g. `conf:['default','optional']`)
+are not supported -- GrapeMaven uses a single Maven scope.
+- *`@GrabConfig(autoDownload=false)`* is not honoured -- point
+`@GrabResolver` at a local-only repository for similar semantics.
+- *`~/.groovy/grapeConfig.xml`* settings are GrapeIvy-only -- register
+custom repositories via `@GrabResolver` or
+`Grape.addResolver` instead.
 
-Most existing `@Grab` scripts remain unchanged and work with both engines, as they use only the common core features. However, there are some compatibility considerations when switching between engines:
+Switching from GrapeMaven back to GrapeIvy is generally straightforward
+since GrapeIvy's defaults are more permissive.
 
-==== GrapeIvy to GrapeMaven
-
-- *`conf:` parameter*: GrapeIvy maps `conf:` to Ivy configurations (which can be a list like `conf:['default','optional']`). GrapeMaven treats `conf:` as a Maven scope string (singular). Scripts using multiple configurations will need reworking or should remain on GrapeIvy.
-- *Custom Ivy configuration*: If you have customized `~/.groovy/grapeConfig.xml` with non-standard settings (e.g., disabled `m2compatible` mode, custom resolvers), those settings do not apply to GrapeMaven. Review your configuration and ensure your scripts remain on GrapeIvy or move them to use `@GrabResolver` for repository configuration.
-- *Optional-only downloads*: `@GrabConfig(autoDownload=false)` is not honoured by GrapeMaven as a per-grab switch. The closest equivalent is to point `@GrabResolver` (or `Grape.addResolver`) at a local-only repository/cache location. If you rely on `autoDownload=false` semantics broadly, remain on GrapeIvy for now.
-
-==== GrapeMaven to GrapeIvy
-
-- In most cases, switching from GrapeMaven to GrapeIvy is straightforward. GrapeIvy's defaults are more permissive, so scripts that work with GrapeMaven typically work unchanged with GrapeIvy. GrapeMaven is new, so we don't expect many users to need to
-switch back, but we mention it here for users who start migrating and might want
-to revert back to GrapeIvy.
-
-=== Migration guide
-
-*For most users:* No action required. Existing scripts continue to work with the default GrapeIvy engine.
-
-*If switching to GrapeMaven:* Review the compatibility notes above. If your scripts use multiple `conf:` values, remain on GrapeIvy for now (the default) and start reworking your Grab definitions to singular scopes. For `autoDownload=false` workflows, point `@GrabResolver` to a local-only repository/cache location.
-
-*If you have customized Ivy settings:* Your `~/.groovy/grapeConfig.xml` is only honoured by GrapeIvy. If switching to GrapeMaven, you will need to reconfigure any custom repositories or settings using `@GrabResolver` annotations or programmatically via the `Grape.addResolver()` API.
+See the https://docs.groovy-lang.org/docs/latest/html/documentation/grape.html[Grape user guide]
+for the full per-engine specification, custom-engine registration steps,
+per-engine logging configuration, and detailed migration walkthrough.
 
 == Platform Logging
 
@@ -1496,16 +1612,30 @@ long-standing stray-brace bug in `{@inheritDoc}` rendering resolved
 Groovy 6 closes gaps in annotation target validation
 (https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884]).
 Previously, annotations could be placed on import statements and
-loop statements without validation -- for example, `@Deprecated import java.lang.String`
+loop statements without validation -- for example:
+
+[source,groovy]
+----
+@Deprecated import java.lang.String
+----
+
 would compile without error even though `@Deprecated` does not target imports.
 
 The compiler now enforces that only annotations explicitly declaring
 Groovy-specific targets are permitted in these positions.
-A new `@ExtendedTarget` meta-annotation with an `ExtendedElementType` enum
+A new gapi:groovy.lang.annotation.ExtendedTarget[@ExtendedTarget]
+meta-annotation with an
+gapi:groovy.lang.annotation.ExtendedElementType[ExtendedElementType] enum
 defines two Groovy-only targets:
 
-- `IMPORT` -- for annotations valid on import statements (e.g. `@Grab`, `@Newify`, `@BaseScript`)
-- `LOOP` -- for annotations valid on loop statements (e.g. `@Invariant`, `@Decreases`, `@Parallel`)
+- `IMPORT` -- for annotations valid on import statements (e.g.
+gapi:groovy.lang.Grab[@Grab] and related annotations,
+gapi:groovy.lang.Newify[@Newify],
+gapi:groovy.transform.BaseScript[@BaseScript])
+- `LOOP` -- for annotations valid on loop statements (e.g.
+gapi:groovy.contracts.Invariant[@Invariant],
+gapi:groovy.contracts.Decreases[@Decreases],
+gapi:groovy.transform.Parallel[@Parallel])
 
 Annotations without the appropriate `@ExtendedTarget` declaration
 are now flagged as compile errors when applied to these constructs.
