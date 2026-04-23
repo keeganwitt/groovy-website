@@ -11,7 +11,7 @@ with its multi-line strings, so we won't elaborate further on that aspect.
 
 Here is some of Donald's creative writing:
 
-image:https://miro.medium.com/v2/resize:fit:1400/format:webp/1*zcMH0Q37PFrGS4bC2EHqiw.png[text of Donald Raab's haikus]
+image:img/DonaldRaabHaikus.png[text of Donald Raab's haikus]
 
 In his examples, he processes those examples in various ways. We'll look at doing the same
 examples using Groovy.
@@ -84,7 +84,7 @@ assert haiku.codePoints().toArray()
     .findAll(Character::isAlphabetic)
     .collect(Character::toLowerCase)
     .collect(Character::toString)
-    .countBy{ it }
+    .countBy()
     .split(uniqueAndDuplicatePartitions)
     *.size() == [0, 22]
 ----
@@ -114,7 +114,7 @@ assert haiku.codePoints().toArray()
     .findAll(Character::isAlphabetic)
     .collect(Character::toLowerCase)
     .collect(Character::toString)
-    .countBy{ it }
+    .countBy()
     .sort(byCountDescending)
     .take(3) == [e:94, t:65, i:62]
 ----
@@ -204,7 +204,7 @@ and it is a little easier to understand:
 assert haiku.codePoints().toArray()
     .findAll(Character::isAlphabetic)
     .collect(Letter::new)
-    .countBy{ it }
+    .countBy()
     .collect(LetterByCount::new)
     .toSorted(LetterByCount.comparingByCount().reversed())
     .take(3)
@@ -227,7 +227,7 @@ assert haiku.codePoints().toArray()
     .findAll(Character::isAlphabetic)
     .collect(Character::toLowerCase)
     .collect(Character::toString)
-    .countBy{ it }
+    .countBy()
     .groupBy{ k, v -> v }
     .sort(byCountReversed)
     .take(15)
