@@ -891,6 +891,14 @@ naturally with `await`.
 | `writeAsync()` / `writeBytesAsync()`
 | Asynchronous file writing on `Path`, returning `CompletableFuture`.
 | https://issues.apache.org/jira/browse/GROOVY-11902[GROOVY-11902]
+
+| `grepping(filter)` / `grepping()`
+| Lazy `Iterator` variants of `grep`: filter elements using `isCase`
+(classes, patterns, ranges, closures, etc.) without materialising
+an intermediate collection. The no-arg form uses the IDENTITY closure
+for Groovy-truth filtering. Rounds out the `-ing` family alongside
+`collecting`, `findingAll`, and `findingResults`.
+| https://issues.apache.org/jira/browse/GROOVY-11596[GROOVY-11596]
 |===
 
 == Selectively Disabling Extension Methods
