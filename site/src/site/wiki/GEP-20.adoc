@@ -195,8 +195,8 @@ def t     = StreamSupport.stream(
 |`List<T>`               |✓ |A  |`List<T>`
 |`T[]`                   |✓ |A  |`List<T>`
 |`String`                |✓ |A  |`String`
-|`Range`                 |✓ |A  |`List<Integer>`
-|`Stream<T>`             |✗ |B' |`Stream<T>` — fresh stream, lazy
+|`Range<T>`              |✓ |A  |`List<T>` (e.g. `IntRange` → `List<Integer>`)
+|`Stream<T>`             |✗ |B' |`Stream<T>` — fresh stream wrapping the advanced iterator, lazy (see <<degenerate-rest>>)
 |`Set<T>`                |✗ |B  |`Iterator<T>`
 |`Iterable<T>` (custom)  |✗ |B  |`Iterator<T>`
 |`Iterator<T>`           |✗ |B  |`Iterator<T>` — same instance, advanced
@@ -240,6 +240,12 @@ Files.lines(path).withCloseable { src ->
   becomes the canonical owner of the source's resources. Avoid
   closing both the original and the rest, or holding the original
   alongside the rest, to prevent double-close in user code.
+* [[degenerate-rest]]*Single-rest degenerate case*: `def (*s) = stream`
+  has no head slots to extract, so it short-circuits to a plain
+  assignment (`s = stream`). `s` is the *original* Stream — same
+  identity, characteristics, parallelism, and `onClose` handler
+  intact. The "fresh stream wrapping the advanced iterator" wording
+  in the table only applies when at least one head slot is bound.
 
 ==== Type ascriptions on the rest binder
 
@@ -590,6 +596,18 @@ GEP-19 pattern matching); others are not planned.
  binders too. Per-binder modifiers would only enable mixed-modifier
  shapes (one binder final, another mutable), adding grammar surface
  for a rare use case.
+
+|Preserving Stream characteristics / parallelism through Path B'
+|Deferred
+|The Path B' tail wrap (`StreamSupport.stream(spliteratorUnknownSize(it, 0), false)`)
+ always produces a sequential stream with no spliterator characteristics
+ (`SIZED`, `ORDERED`, `IMMUTABLE`, etc.). Capturing the original characteristics
+ requires reading `rhs.spliterator()` and pulling head elements via
+ `Spliterator.tryAdvance` — mutually exclusive with the `iterator()` path the
+ head currently uses. A future revision could switch the lowering to spliterator-based
+ head extraction and propagate characteristics + `isParallel()` into the wrapped tail;
+ deferred until a concrete use case (parallel pipelines after destructuring,
+ SIZED-aware downstream collectors) emerges.
 |===
 
 == References
