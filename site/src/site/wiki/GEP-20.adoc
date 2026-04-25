@@ -60,9 +60,11 @@ bracket form, no marker words) while filling the gaps.
   with identical semantics. New forms use grammar that fails to parse
   today.
 
-* *No new keywords or markers* — `def (...)` already declares the
-  names; `var` or other markers add ceremony without disambiguation in
-  declarator position.
+* *No new keywords* — the new shapes use only existing tokens (`*`,
+  `:`). `def` and `var` are also accepted before a binder for
+  symmetry with switch case patterns and the bracket-form grammar in
+  GEP-19, but neither is required: `def (a, b) = ...` works without
+  any inner marker.
 
 * *`_` stays an identifier* — existing idioms like
   `def (_, y, m) = Calendar.instance` keep working without warning.
@@ -91,6 +93,27 @@ user-defined class providing the operator.
 
 Type ascriptions on positional bindings (`def (int a, String b)`) are
 likewise unchanged.
+
+`def` and `var` may also appear before any binder; both are
+equivalent to omitting a type. This is provided for symmetry with
+switch case patterns and the bracket-form declaration grammar in
+GEP-19, which use `var` as the canonical binding marker:
+
+[source,groovy]
+----
+def (var a, var b) = [1, 2]                  // same as: def (a, b) = [1, 2]
+def (def a, var b, int c) = [1, 2, 3]        // mix and match
+def (name: var n, age: var a) = person       // also in map-style
+----
+
+Modifiers on the outer declaration propagate to every binder,
+including the new rest and map-style binders introduced below:
+
+[source,groovy]
+----
+final (a, *t) = list             // both `a` and `t` are final
+final (name: n, age: a) = person // both `n` and `a` are final
+----
 
 === Tail rest binding
 
@@ -424,11 +447,6 @@ GEP-19 pattern matching); others are not planned.
 |Out of scope for the parens-form additions; would belong with a
  dedicated bracket-pattern proposal
 
-|`var` markers in declarators
-|Not planned
-|`def (...)` already declares the names; `var` adds ceremony without
- disambiguation in declarator position
-
 |Wildcard `_` semantics
 |Not planned for parens form
 |Existing identifier semantics preserved; any future wildcard form
@@ -442,9 +460,13 @@ GEP-19 pattern matching); others are not planned.
 |Not planned
 |Inherently ambiguous; no language ships this
 
-|Nested patterns (e.g. `def (h, [a, b]) = ...`)
+|Nested patterns (e.g. `def (h, [a, b]) = ...`,
+ `def (def (a, b), c) = ...`)
 |Deferred
-|Belongs with a bracket-form pattern grammar
+|Both bracket-form and recursive-parens shapes are currently
+ unparseable, so either remains claimable. Choice of syntax should
+ fall out of a dedicated pattern-grammar proposal (GEP-19)
+ rather than being settled here.
 
 |Head/middle rest against a non-indexable RHS
 |Not planned
@@ -461,6 +483,14 @@ GEP-19 pattern matching); others are not planned.
 |Deferred
 |Useful for map-style destructuring on partial inputs; can be added
  later without grammar collision
+
+|Per-binder modifiers (e.g. `def (final a, b) = …`)
+|Not planned
+|Modifiers belong on the outer declaration: `final (a, b) = [1, 2]`
+ makes both binders final and propagates to rest and map-style
+ binders too. Per-binder modifiers would only enable mixed-modifier
+ shapes (one binder final, another mutable), adding grammar surface
+ for a rare use case.
 |===
 
 == References
