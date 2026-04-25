@@ -82,6 +82,7 @@ bracket form, no marker words) while filling the gaps.
 
 == Features
 
+[[positional-recap]]
 === Existing positional form (recap)
 
 For reference, `def (a, b, c) = rhs` evaluates `rhs` once into a
@@ -94,10 +95,41 @@ user-defined class providing the operator.
 Type ascriptions on positional bindings (`def (int a, String b)`) are
 likewise unchanged.
 
-`def` and `var` may also appear before any binder; both are
-equivalent to omitting a type. This is provided for symmetry with
-switch case patterns and the bracket-form declaration grammar in
-GEP-19, which use `var` as the canonical binding marker:
+=== Using `_` for unwanted slots (recap)
+
+For many versions, `+_+` has been a valid variable name in Groovy.
+It is used by things like REPLs or in script variable bindings to store the last result,
+and has been used by convention for results you don't care about.
+In Groovy 5.0 (GROOVY-10943), this was extended to allow multiple `+_+` binders in
+the same declarator list without a "duplicate variable" error, following the
+convention across Scala, Rust, Kotlin, and Python.
+
+GEP-20 adds nothing to it. The new rest and map-style binders
+inherit the same convention; see <<underscore-discard>> for the
+cross-form matrix. For completeness, we'll recap the existing feature.
+
+A binder named `_` is the conventional "I don't care about this slot"
+marker, useful when the RHS yields more elements than you intend to
+consume:
+
+[source,groovy]
+----
+def (_, year, month) = Calendar.instance     // discard era; keep year, month
+def (_, _, day, _)   = Calendar.instance     // discard era, year, month, ...
+----
+
+Reading `+_+` within scope behaves differently across compilation
+modes. In dynamic Groovy, `+_+` is a normal local; the slot is bound
+and the value is reachable, but by convention typically not used.
+Under `@TypeChecked` / `@CompileStatic`, reading `+_+` is reported
+  as `The variable [_] is undeclared`.
+
+=== Binder markers (`def`, `var`)
+
+`def` and `var` may appear before any binder; both are equivalent to
+omitting a type. This is provided for symmetry with switch case
+patterns and the bracket-form declaration grammar in GEP-19, which
+use `var` as the canonical binding marker:
 
 [source,groovy]
 ----
@@ -105,6 +137,8 @@ def (var a, var b) = [1, 2]                  // same as: def (a, b) = [1, 2]
 def (def a, var b, int c) = [1, 2, 3]        // mix and match
 def (name: var n, age: var a) = person       // also in map-style
 ----
+
+=== Modifier propagation
 
 Modifiers on the outer declaration propagate to every binder,
 including the new rest and map-style binders introduced below:
@@ -127,7 +161,7 @@ def (a, b, c, *rest) = list
 ----
 
 The rest binding is well-defined for any RHS that supports *either*
-`getAt(IntRange)` *or* `iterator()`. The compiler picks one of two
+`getAt(IntRange)` *or* `iterator()`. The compiler picks one of three
 lowerings:
 
 [source,groovy]
@@ -137,10 +171,19 @@ def __rhs = rhs
 def h = __rhs.getAt(0)
 def t = __rhs.getAt(1..-1)
 
-// Path B — RHS iterable but not range-indexable:
+// Path B — RHS iterable but not range-indexable, and not a Stream:
 def __it = rhs.iterator()
 def h = __it.hasNext() ? __it.next() : null
 def t = __it
+
+// Path B' — RHS is a java.util.stream.Stream:
+def __rhs = rhs
+def __it  = __rhs.iterator()
+def h     = __it.hasNext() ? __it.next() : null
+def t     = StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(__it, 0),
+                false
+            ).onClose { __rhs.close() }
 ----
 
 `t` therefore has the natural type of the RHS:
@@ -149,19 +192,54 @@ def t = __it
 |===
 |RHS type |`getAt(IntRange)` |Path |Type of `t`
 
-|`List<T>`               |✓ |A |`List<T>`
-|`T[]`                   |✓ |A |`List<T>`
-|`String`                |✓ |A |`String`
-|`Range`                 |✓ |A |`List<Integer>`
-|`Set<T>`                |✗ |B |`Iterator<T>`
-|`Iterable<T>` (custom)  |✗ |B |`Iterator<T>`
-|`Iterator<T>`           |✗ |B |`Iterator<T>` — same instance, advanced
-|`Stream<T>`             |✗ |B |`Iterator<T>`
+|`List<T>`               |✓ |A  |`List<T>`
+|`T[]`                   |✓ |A  |`List<T>`
+|`String`                |✓ |A  |`String`
+|`Range`                 |✓ |A  |`List<Integer>`
+|`Stream<T>`             |✗ |B' |`Stream<T>` — fresh stream, lazy
+|`Set<T>`                |✗ |B  |`Iterator<T>`
+|`Iterable<T>` (custom)  |✗ |B  |`Iterator<T>`
+|`Iterator<T>`           |✗ |B  |`Iterator<T>` — same instance, advanced
+|`IntStream` / `LongStream` / `DoubleStream` |✗ |B |`Iterator<T>` (boxed) — see notes
 |===
 
 Path B is the key enabler for unbounded sources. Given an infinite or
 lazy iterator, `def (h, *t) = source` returns the head and an iterator
 the caller can keep pulling from — there is no materialisation.
+
+Path B' preserves the Stream pipeline: `t.filter { … }.map { … }
+.collect(toList())` continues to work after the head is bound. The
+returned Stream is sequential and reports no spliterator
+characteristics (capturing characteristics from the original requires
+reading its spliterator, which is mutually exclusive with the iterator
+path used for head extraction). The new Stream's `onClose` handler
+delegates to the original's `close()`, so a typed source such as
+`Files.lines(p)` is closed when the rest binder is closed:
+
+[source,groovy]
+----
+Files.lines(path).withCloseable { src ->
+    def (header, *body) = src
+    body.filter { !it.isBlank() }.forEach { … }
+}    // closing src closes the original; closing body would also close it
+----
+
+==== Notes on Stream-shaped RHS
+
+* *Already-consumed Stream*: a Stream that has already had a terminal
+  operation invoked throws `IllegalStateException` when destructuring
+  pulls its iterator. This is unchanged from any other Stream usage.
+* *Parallel Stream*: the wrapped tail is sequential. Re-parallelising
+  the tail (`t.parallel()`) is a one-call opt-in.
+* *Primitive streams* (`IntStream`, `LongStream`, `DoubleStream`):
+  these are not subtypes of `Stream<T>`, so they fall through to
+  Path B and the rest is an `Iterator<Integer>` / `Iterator<Long>` /
+  `Iterator<Double>`. To get Path B' semantics, call `.boxed()` first:
+  `def (h, *t) = intStream.boxed()` gives `t : Stream<Integer>`.
+* *Resource ownership*: with `onClose` chaining, the rest binder
+  becomes the canonical owner of the source's resources. Avoid
+  closing both the original and the rest, or holding the original
+  alongside the rest, to prevent double-close in user code.
 
 ==== Type ascriptions on the rest binder
 
@@ -170,18 +248,20 @@ positional form:
 
 [source,groovy]
 ----
-def (h, List<Integer> *t) = [1, 2, 3, 4]    // Path A — t : List<Integer>
-def (h, Iterator<Integer> *t) = someSet     // Path B — t : Iterator<Integer>
+def (h, List<Integer> *t) = [1, 2, 3, 4]    // Path A  — t : List<Integer>
+def (h, Iterator<Integer> *t) = someSet     // Path B  — t : Iterator<Integer>
+def (h, Stream<Integer> *t) = someStream    // Path B' — t : Stream<Integer>
 def (l, List<Integer> *m, r) = list         // typed middle rest
 ----
 
 The declared type must be compatible with the path the RHS selects:
-`List<T>` (or a supertype) for Path A, `Iterator<T>` (or a supertype)
-for Path B. Under `@CompileStatic` a mismatch is reported at compile
-time; in dynamic mode it surfaces as a `GroovyCastException` when the
-slice or iterator is coerced. Untyped rest is the recommended
-default; ascribe a type when you want a tighter element type or to
-fail fast if the RHS shape changes.
+`List<T>` (or a supertype) for Path A, `Stream<T>` (or a supertype)
+for Path B', `Iterator<T>` (or a supertype) for Path B. Under
+`@CompileStatic` a mismatch is reported at compile time; in dynamic
+mode it surfaces as a `GroovyCastException` when the slice / stream /
+iterator is coerced. Untyped rest is the recommended default; ascribe
+a type when you want a tighter element type or to fail fast if the
+RHS shape changes.
 
 Edge cases:
 
@@ -304,20 +384,33 @@ def (h, name: n, *t) = obj    // error in 6.x
 Disallowing this leaves the option open for a future spec; permitting
 it now would lock in semantics before use cases emerge.
 
+[[underscore-discard]]
 === `_` and other identifiers
 
-`_` is a regular identifier in all forms, exactly as today:
+The "discard" convention recapped under
+<<positional-recap>> applies uniformly across every
+new form introduced in this proposal. `+_+` is a regular identifier
+throughout — no wildcard semantics, no special parser node, no
+behavioural change beyond the pre-existing repeat-binder exemption
+(GROOVY-10943, 5.0):
 
 [source,groovy]
 ----
-def (_, y, m) = Calendar.instance      // unchanged
-def (_, *t)   = list                   // _ binds to head
-def (h, *_)   = list                   // _ binds to rest
-def (*_, last) = list                  // _ binds to front
-def (name: _, age: a) = person         // _ binds to person.name
+def (_, y, m)         = Calendar.instance   // pre-existing
+def (_, *t)           = list                // _ binds to the head
+def (h, *_)           = list                // _ binds to the rest
+def (*_, last)        = list                // _ binds to the front
+def (l, *_, r)        = list                // _ binds to the middle
+def (name: _, age: a) = person              // _ binds to person.name
+def (_, _, day)       = Calendar.instance   // multiple _ in one list
 ----
 
-No deprecation warning, no wildcard semantics, no behavioural change.
+`+_+` is otherwise treated identically to any other identifier under
+both compilation modes: the slot is bound, no deprecation warning is
+emitted, and reads of `+_+` follow the same dynamic-vs-typed
+asymmetry described under <<positional-recap>> —
+reachable in dynamic mode, reported as undeclared under
+`@TypeChecked` / `@CompileStatic`.
 
 == Compilation
 
@@ -346,7 +439,7 @@ keywords. No reserved identifiers.
 |`getAt(int)`
 
 |`def (h, *t) = rhs` (and `def (a, b, *t) = rhs`, etc.)
-|Path A (`getAt(IntRange)`) or Path B (`iterator()`)
+|Path A (`getAt(IntRange)`), Path B' (`Stream` rewrap) or Path B (`iterator()`)
 |`getAt(IntRange)` *or* `iterator()`
 
 |`def (*f, last) = rhs` / `def (l, *m, r) = rhs`
@@ -362,12 +455,13 @@ keywords. No reserved identifiers.
 
 Under `@CompileStatic` and `@TypeChecked`:
 
-* Path A vs Path B for tail rest is decided at compile time from the
-  RHS's declared type.
+* Path A vs Path B' vs Path B for tail rest is decided at compile time
+  from the RHS's declared type.
 * Bindings receive their natural narrowed type. For `List<T>`, the
-  tail rest is `List<T>`; for `Iterator<T>`, the tail rest is
-  `Iterator<T>`; for `Map<String, V>`, map-style bindings are `V`; for
-  beans, bindings are the property's declared type.
+  tail rest is `List<T>`; for `Stream<T>`, the tail rest is
+  `Stream<T>`; for `Iterator<T>` (and other Path B receivers), the
+  tail rest is `Iterator<T>`; for `Map<String, V>`, map-style bindings
+  are `V`; for beans, bindings are the property's declared type.
 * If neither protocol is available on the RHS's static type, the
   compiler reports an error.
 
@@ -380,8 +474,13 @@ in those positions is a static type error.
 
 === Dynamic dispatch
 
-In dynamic mode, Path A vs Path B for tail rest is selected at runtime
-via Groovy's normal method-resolution. Failure modes are runtime
+In dynamic mode, Path A vs Path B' vs Path B for tail rest is selected
+at runtime: a runtime helper (`MultipleAssignmentSupport.tailRest`)
+inspects the RHS — `List` / `CharSequence` / array dispatch to Path A
+via `getAt(IntRange)`; `Stream` dispatches to Path B' (a fresh
+`StreamSupport.stream(...)` wrap of the already-advanced iterator,
+with `onClose` chained to the original); anything else returns the
+already-advanced iterator (Path B). Failure modes are runtime
 exceptions (`MissingMethodException`, `MissingPropertyException`)
 consistent with expression-position dispatch — no new failure types
 introduced.
