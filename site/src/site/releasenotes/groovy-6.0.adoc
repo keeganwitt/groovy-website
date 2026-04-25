@@ -1746,8 +1746,6 @@ to standard `JFrame`/`JWindow` alternatives.
 
 == Under exploration
 
-* Java compatibility: additional destructuring
-* Improve REPL further (think nushell)
 * Performance
 * Spec improvements
 * Further subprojects, e.g. maybe GPars
