@@ -162,21 +162,11 @@ def (a, b, c, *rest) = list
 
 The rest binding is well-defined for any RHS that supports *either*
 `getAt(IntRange)` *or* `iterator()`. The compiler picks one of three
-lowerings:
+lowerings, in dispatch-precedence order:
 
 [source,groovy]
 ----
-// Path A — RHS supports getAt(IntRange):
-def __rhs = rhs
-def h = __rhs.getAt(0)
-def t = __rhs.getAt(1..-1)
-
-// Path B — RHS iterable but not range-indexable, and not a Stream:
-def __it = rhs.iterator()
-def h = __it.hasNext() ? __it.next() : null
-def t = __it
-
-// Path B' — RHS is a java.util.stream.Stream:
+// Path A — RHS is a java.util.stream.Stream:
 def __rhs = rhs
 def __it  = __rhs.iterator()
 def h     = __it.hasNext() ? __it.next() : null
@@ -184,30 +174,60 @@ def t     = StreamSupport.stream(
                 Spliterators.spliteratorUnknownSize(__it, 0),
                 false
             ).onClose { __rhs.close() }
+
+// Path B — RHS supports getAt(IntRange):
+def __rhs = rhs
+def h = __rhs.getAt(0)
+def t = __rhs.getAt(1..-1)
+
+// Path C — RHS iterable, neither Stream nor range-indexable:
+def __it = rhs.iterator()
+def h = __it.hasNext() ? __it.next() : null
+def t = __it
 ----
 
-`t` therefore has the natural type of the RHS:
+Path A is the dedicated branch for `Stream<T>`. Although Stream has a
+`getAt(Stream, IntRange)` extension, that overload materialises
+eagerly into a `List<T>` — defeating the GEP-20 guarantee that
+unbounded sources never silently materialise. Stream therefore
+bypasses Path B and gets its own lazy iterator-wrap path.
+
+Path B is defined by *capability*: any non-Stream RHS with a
+resolvable `getAt(IntRange)` participates, regardless of class. The
+rest binder's type tracks the actual return type of that overload —
+it is *not* hard-coded to `List<T>`. So the rest of a String slice is
+a String; the rest of a `BitSet` slice is a `BitSet`; the rest of a
+user class whose `getAt(IntRange)` returns the same class is that
+same class.
+
+Path C is the fallback for anything else iterable. It's the key
+enabler for unbounded sources: given an infinite or lazy iterator,
+`def (h, *t) = source` returns the head and an iterator the caller
+can keep pulling from — there is no materialisation.
 
 [cols="2,1,1,2"]
 |===
 |RHS type |`getAt(IntRange)` |Path |Type of `t`
 
-|`List<T>`               |✓ |A  |`List<T>`
-|`T[]`                   |✓ |A  |`List<T>`
-|`String`                |✓ |A  |`String`
-|`Range<T>`              |✓ |A  |`List<T>` (e.g. `IntRange` → `List<Integer>`)
-|`Stream<T>`             |✗ |B' |`Stream<T>` — fresh stream wrapping the advanced iterator, lazy (see <<degenerate-rest>>)
-|`Set<T>`                |✗ |B  |`Iterator<T>`
-|`Iterable<T>` (custom)  |✗ |B  |`Iterator<T>`
-|`Iterator<T>`           |✗ |B  |`Iterator<T>` — same instance, advanced
-|`IntStream` / `LongStream` / `DoubleStream` |✗ |B |`Iterator<T>` (boxed) — see notes
+|`Stream<T>`             |✗* |A  |`Stream<T>` — fresh stream wrapping the advanced iterator, lazy (see <<degenerate-rest>>)
+|`List<T>`               |✓  |B  |`List<T>`
+|`T[]`                   |✓  |B  |`List<T>`
+|`String`                |✓  |B  |`String`
+|`GString`               |✓  |B  |`String`
+|`CharSequence`          |✓  |B  |`CharSequence`
+|`Range<T>`              |✓  |B  |`List<T>` (e.g. `IntRange` → `List<Integer>`)
+|`BitSet`                |✓  |B  |`BitSet`
+|user class with `R getAt(IntRange)` |✓ |B |`R` (whatever the user declared)
+|`Set<T>`                |✗  |C  |`Iterator<T>`
+|`Iterable<T>` (custom)  |✗  |C  |`Iterator<T>`
+|`Iterator<T>`           |✗  |C  |`Iterator<T>` — same instance, advanced
+|`IntStream` / `LongStream` / `DoubleStream` |✗ |C |`Iterator<T>` (boxed) — see notes
 |===
 
-Path B is the key enabler for unbounded sources. Given an infinite or
-lazy iterator, `def (h, *t) = source` returns the head and an iterator
-the caller can keep pulling from — there is no materialisation.
+(*) Stream's `✗*` reflects "has `getAt(IntRange)` but is steered away
+from Path B by design". See the prose above.
 
-Path B' preserves the Stream pipeline: `t.filter { … }.map { … }
+Path A preserves the Stream pipeline: `t.filter { … }.map { … }
 .collect(toList())` continues to work after the head is bound. The
 returned Stream is sequential and reports no spliterator
 characteristics (capturing characteristics from the original requires
@@ -233,8 +253,8 @@ Files.lines(path).withCloseable { src ->
   the tail (`t.parallel()`) is a one-call opt-in.
 * *Primitive streams* (`IntStream`, `LongStream`, `DoubleStream`):
   these are not subtypes of `Stream<T>`, so they fall through to
-  Path B and the rest is an `Iterator<Integer>` / `Iterator<Long>` /
-  `Iterator<Double>`. To get Path B' semantics, call `.boxed()` first:
+  Path C and the rest is an `Iterator<Integer>` / `Iterator<Long>` /
+  `Iterator<Double>`. To get Path A semantics, call `.boxed()` first:
   `def (h, *t) = intStream.boxed()` gives `t : Stream<Integer>`.
 * *Resource ownership*: with `onClose` chaining, the rest binder
   becomes the canonical owner of the source's resources. Avoid
@@ -254,25 +274,30 @@ positional form:
 
 [source,groovy]
 ----
-def (h, List<Integer> *t) = [1, 2, 3, 4]    // Path A  — t : List<Integer>
-def (h, Iterator<Integer> *t) = someSet     // Path B  — t : Iterator<Integer>
-def (h, Stream<Integer> *t) = someStream    // Path B' — t : Stream<Integer>
+def (h, List<Integer> *t) = [1, 2, 3, 4]    // Path B  — t : List<Integer>
+def (c, String *cs)       = "hello"         // Path B  — t : String
+def (h, BitSet *t)        = someBitSet      // Path B  — t : BitSet
+def (h, Iterator<Integer> *t) = someSet     // Path C  — t : Iterator<Integer>
+def (h, Stream<Integer> *t) = someStream    // Path A — t : Stream<Integer>
 def (l, List<Integer> *m, r) = list         // typed middle rest
 ----
 
-The declared type must be compatible with the path the RHS selects:
-`List<T>` (or a supertype) for Path A, `Stream<T>` (or a supertype)
-for Path B', `Iterator<T>` (or a supertype) for Path B. Under
-`@CompileStatic` a mismatch is reported at compile time; in dynamic
-mode it surfaces as a `GroovyCastException` when the slice / stream /
-iterator is coerced. Untyped rest is the recommended default; ascribe
-a type when you want a tighter element type or to fail fast if the
-RHS shape changes.
+The declared type must be compatible with the path the RHS selects.
+For Path B the rest type is whatever the RHS's `getAt(IntRange)`
+returns (a supertype is also accepted) — `List<T>` for lists / arrays /
+ranges, `String` for `String` / `GString`, `BitSet` for `BitSet`,
+the user-declared return type for custom classes. For Path A it is
+`Stream<T>` (or a supertype). For Path C it is `Iterator<T>` (or a
+supertype). Under `@CompileStatic` a mismatch is reported at compile
+time; in dynamic mode it surfaces as a `GroovyCastException` when the
+value is coerced. Untyped rest is the recommended default; ascribe a
+type when you want a tighter element type or to fail fast if the RHS
+shape changes.
 
 Edge cases:
 
-* Empty RHS: `def (h, *t) = []` — `h = null`, `t = []` (Path A) or `t`
-  is an exhausted iterator (Path B).
+* Empty RHS: `def (h, *t) = []` — `h = null`, `t = []` (Path B) or `t`
+  is an exhausted iterator (Path C).
 * Exhausted iterator: `def (h, *t) = exhaustedIter` — `h = null`,
   `t = exhaustedIter`.
 * RHS that supports neither protocol: compile error under
@@ -293,7 +318,11 @@ def (a, b, *m, y, z) = list
 These forms lower via indexed access. Positional slots use `getAt(int)`
 (with negative indices for tail-side fixed slots); the rest slot uses
 `getAt(IntRange)`. The RHS contract is `getAt(int)` plus
-`getAt(IntRange)` — equivalent to "list-like".
+`getAt(IntRange)` — capability-based, not class-based. List, array,
+`String`, `GString`, `Range`, `BitSet`, and any user class declaring
+both methods are eligible. Stream is not (its `getAt(IntRange)`
+materialises eagerly, conflicting with the GEP's no-silent-
+materialisation rule).
 
 [source,groovy]
 ----
@@ -445,7 +474,7 @@ keywords. No reserved identifiers.
 |`getAt(int)`
 
 |`def (h, *t) = rhs` (and `def (a, b, *t) = rhs`, etc.)
-|Path A (`getAt(IntRange)`), Path B' (`Stream` rewrap) or Path B (`iterator()`)
+|Path A (`Stream` rewrap), Path B (`getAt(IntRange)`) or Path C (`iterator()`)
 |`getAt(IntRange)` *or* `iterator()`
 
 |`def (*f, last) = rhs` / `def (l, *m, r) = rhs`
@@ -461,13 +490,19 @@ keywords. No reserved identifiers.
 
 Under `@CompileStatic` and `@TypeChecked`:
 
-* Path A vs Path B' vs Path B for tail rest is decided at compile time
-  from the RHS's declared type.
-* Bindings receive their natural narrowed type. For `List<T>`, the
-  tail rest is `List<T>`; for `Stream<T>`, the tail rest is
-  `Stream<T>`; for `Iterator<T>` (and other Path B receivers), the
-  tail rest is `Iterator<T>`; for `Map<String, V>`, map-style bindings
-  are `V`; for beans, bindings are the property's declared type.
+* Path A vs Path B vs Path C for tail rest is decided at compile time
+  from the RHS's declared type. Path B is determined by *capability*:
+  STC probes `rhs.getAt(IntRange)` and accepts the receiver as Path B
+  if the call resolves. Stream is the one deliberate exception (its
+  `getAt(Stream, IntRange)` materialises eagerly, so it routes to
+  Path A instead).
+* Bindings receive their natural narrowed type. The tail rest's type
+  is whatever `getAt(IntRange)` actually returns: `List<T>` for
+  lists / arrays / ranges; `String` for `String`/`GString`; `BitSet`
+  for `BitSet`; the user-declared return type for custom classes.
+  For Path A it is `Stream<T>`; for Path C (anything else iterable)
+  it is `Iterator<T>`. For `Map<String, V>`, map-style bindings are
+  `V`; for beans, bindings are the property's declared type.
 * If neither protocol is available on the RHS's static type, the
   compiler reports an error.
 
@@ -475,21 +510,32 @@ Under `@CompileStatic` and `@TypeChecked`:
 
 An untyped rest binding (`*t`, `*f`, `*m`) takes the inferred type
 shown in the _Tail rest binding_ table. Head and middle rest are
-restricted to Path A — a non-indexable RHS (Set, Iterator, Stream)
+restricted to Path B — a non-indexable RHS (Set, Iterator, Stream)
 in those positions is a static type error.
 
 === Dynamic dispatch
 
-In dynamic mode, Path A vs Path B' vs Path B for tail rest is selected
-at runtime: a runtime helper (`MultipleAssignmentSupport.tailRest`)
-inspects the RHS — `List` / `CharSequence` / array dispatch to Path A
-via `getAt(IntRange)`; `Stream` dispatches to Path B' (a fresh
-`StreamSupport.stream(...)` wrap of the already-advanced iterator,
-with `onClose` chained to the original); anything else returns the
-already-advanced iterator (Path B). Failure modes are runtime
-exceptions (`MissingMethodException`, `MissingPropertyException`)
-consistent with expression-position dispatch — no new failure types
-introduced.
+In dynamic mode, Path A vs Path B vs Path C for tail rest is selected
+at runtime by `MultipleAssignmentSupport.tailRest`:
+
+* `List` / `CharSequence` / array — fast-path dispatch via
+  `getAt(IntRange)` with size-aware empty-slice handling.
+* `Stream` — Path A (lazy iterator wrap, `onClose` chained).
+* Any other receiver with a resolvable `getAt(IntRange)` (e.g.
+  `BitSet`, user custom classes) — MOP dispatch via `getAt(IntRange)`.
+* Otherwise — Path C (return the already-advanced iterator).
+
+Head and middle rest go through `nonTailRestSlice`, which always
+dispatches via the MOP. Failure modes are runtime exceptions
+consistent with expression-position dispatch:
+
+* Non-indexable sources without a `getAt(IntRange)` extension
+  (iterators, sets, custom Iterables) fail fast with
+  `MissingMethodException`.
+* `Stream` head/middle rest in dynamic mode fails fast with
+  `IllegalArgumentException("reverse range")` from
+  `StreamGroovyMethods.getAt(Stream, IntRange)` — head/middle rest
+  from `Stream` is rejected at compile time under `@CompileStatic`.
 
 === RHS evaluation
 
@@ -597,9 +643,9 @@ GEP-19 pattern matching); others are not planned.
  shapes (one binder final, another mutable), adding grammar surface
  for a rare use case.
 
-|Preserving Stream characteristics / parallelism through Path B'
+|Preserving Stream characteristics / parallelism through Path A
 |Deferred
-|The Path B' tail wrap (`StreamSupport.stream(spliteratorUnknownSize(it, 0), false)`)
+|The Path A tail wrap (`StreamSupport.stream(spliteratorUnknownSize(it, 0), false)`)
  always produces a sequential stream with no spliterator characteristics
  (`SIZED`, `ORDERED`, `IMMUTABLE`, etc.). Capturing the original characteristics
  requires reading `rhs.spliterator()` and pulling head elements via
