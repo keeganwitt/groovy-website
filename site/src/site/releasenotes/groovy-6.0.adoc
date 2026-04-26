@@ -898,7 +898,21 @@ naturally with `await`.
 an intermediate collection. The no-arg form uses the IDENTITY closure
 for Groovy-truth filtering. Rounds out the `-ing` family alongside
 `collecting`, `findingAll`, and `findingResults`.
-| https://issues.apache.org/jira/browse/GROOVY-11596[GROOVY-11596]
+| https://issues.apache.org/jira/browse/GROOVY-11596[GROOVY-11596],
+https://issues.apache.org/jira/browse/GROOVY-11957[GROOVY-11957]
+
+| `findGroups(regex)` / `findGroups(pattern)`
+| Find the first occurrence of a regex within a `CharSequence` and return
+the full match followed by each capture group as a `List` (empty if no
+match). Multi-assignment pads missing elements with `null`, so the same
+destructuring works whether or not the regex matches.
+| https://issues.apache.org/jira/browse/GROOVY-11958[GROOVY-11958]
+
+| `findAllGroups(regex)` / `findAllGroups(pattern)`
+| Return a list of all matches of a regex within a `CharSequence`, with
+each match represented by a `List` containing the full match followed by
+each capture group.
+| https://issues.apache.org/jira/browse/GROOVY-11958[GROOVY-11958]
 |===
 
 == Selectively Disabling Extension Methods
