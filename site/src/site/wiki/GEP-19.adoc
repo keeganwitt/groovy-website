@@ -160,7 +160,7 @@ switch (obj) {
 }
 ----
 
-Bare `_` is permitted inside `Type(...)` because record-pattern
+Bare `+_+` is permitted inside `Type(...)` because record-pattern
 component grammar is not expression grammar — there is no collision
 with `_` as an identifier in expression position.
 
@@ -274,8 +274,8 @@ depends on context:
 |See _Rest bindings_ below
 
 |Top-level case label
-|`default ->` (preferred) or `case var _ ->`
-|Bare `case _ ->` retains its legacy meaning when `_` is in scope as
+|`default ->` (preferred) or `case var _ \->`
+|Bare `case _ \->` retains its legacy meaning when `_` is in scope as
  an identifier
 |===
 
@@ -320,7 +320,7 @@ and enhanced-for index variables), so claiming it as pattern grammar
 reinterprets no existing program.
 
 Bare `...` matches any list (including empty), since the rest can
-absorb zero elements. It pairs naturally with `case [] ->`:
+absorb zero elements. It pairs naturally with `case [] \->`:
 
 [source,groovy]
 ----
@@ -407,10 +407,10 @@ expression in list-literal or map-literal value position, so claiming
 them as pattern grammar does not change the meaning of any program
 valid in Groovy 6.
 
-The bare identifier `_` continues to parse as an identifier in
-expression position — `case [_] ->` therefore retains its legacy
+The bare identifier `+_+` continues to parse as an identifier in
+expression position — `case [_] \->` therefore retains its legacy
 meaning. Users wanting a single-element wildcard pattern write
-`case [var _] ->`.
+`case [var _] \->`.
 
 === Bracket-form assignment
 
@@ -488,8 +488,8 @@ strategy that performs:
 
 Record patterns reuse the lowering already present in 5.0. When Java's
 deconstructor JEP ships, surface forms like
-`case List.of(var h, var... t) ->` and
-`case Map.of("name", var n) ->` are accepted as additional spellings
+`case List.of(var h, var... t) \->` and
+`case Map.of("name", var n) \->` are accepted as additional spellings
 that lower to the same `Deconstructable` calls — no re-architecture.
 
 Implementation considerations:
@@ -595,7 +595,7 @@ the design space open for a future relaxation if usage warrants it.
 |Bare `case _ ->` at top level
 |Not planned
 |Conflicts with legacy `_`-as-identifier semantics; users write
- `default ->` or `case var _ ->`
+ `default \->` or `case var _ \->`
 
 |Exhaustiveness enforcement
 |Warn-only initially
@@ -636,10 +636,10 @@ these never-matching legacy forms.
 
 === `_` semantics across forms
 
-Wildcard `_` semantics introduced in this proposal apply inside
+Wildcard `+_+` semantics introduced in this proposal apply inside
 `[...]` list and map patterns, and inside `Type(...)` record
 patterns. The parens-form assignment `def (...) = expr` (covered by
-GEP-20) continues to treat `_` as a regular identifier indefinitely,
+GEP-20) continues to treat `+_+` as a regular identifier indefinitely,
 matching GEP-20's explicit non-deprecation. Existing idioms such as
 `def (_, y, m) = Calendar.instance` keep compiling unchanged with no
 warning in Groovy 7.
