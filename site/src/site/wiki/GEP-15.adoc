@@ -7,12 +7,12 @@
 [horizontal,options="compact"]
 *Number*:: GEP-15
 *Title*:: Compound assignment operator overloading
-*Version*:: 1
+*Version*:: 2
 *Type*:: Feature
 *Status*:: Draft
 *Leader*:: Paul King
 *Created*:: 2026-04-12
-*Last modification*&#160;:: 2026-04-12
+*Last modification*&#160;:: 2026-04-28
 ****
 
 == Abstract
@@ -48,7 +48,9 @@ Kotlin maps `\+=` to `plusAssign()` when available, falling back to
   that are called in preference to the current `plus` + reassign pattern.
 * Maintain full backward compatibility: existing code that uses `+=` with
   `plus()` must continue to work identically when no `plusAssign` method exists.
-* Support `+=` on `final` fields/variables when `plusAssign` is available.
+* Support `+=` on `final` fields/variables when `plusAssign` is available
+  and the compiler can resolve it at compile time
+  (i.e. under `@CompileStatic` or `@TypeChecked` -- see <<Resolution algorithm>>).
 * Work correctly in both `@CompileStatic` and dynamic Groovy.
 
 ==== Non-goals
@@ -95,6 +97,18 @@ When the compiler encounters `x += y`:
 4. If `x` is `final` and no `plusAssign` exists, report a compile error
    (in `@CompileStatic` mode).
 
+The `final` relaxation in step 2 requires the compiler to resolve the
+`*Assign` method *at compile time*. Under `@CompileStatic` and
+`@TypeChecked` the resolution happens during type-checking and the
+relaxation applies. In purely dynamic compilation the dispatch is
+deferred to runtime, so the JVM-level final-reassignment check cannot
+be safely lifted; `final + compound-assign` continues to be a
+compile-time error in that case even when a `plusAssign` method would
+have responded at runtime. This is an asymmetry between the two modes
+and is intentional: the alternative would require the compiler to
+emit conditional bytecode that, in the runtime-dispatched fallback
+branch, would violate JVM rules for `final` fields.
+
 When both `plusAssign` and `plus` exist on the same
 type, `plusAssign` takes precedence.
 Languages like Kotlin apply an ambiguity resolution rule
@@ -112,12 +126,24 @@ they intend it to be used for `+=`.
 * **Expression value.** When `plusAssign` is called, the expression value
   of `x += y` is `x` (the mutated object), not the return value of
   `plusAssign`. This differs from the current behavior where the expression
-  value is the result of `x.plus(y)`.
+  value is the result of `x.plus(y)`. The contract holds regardless of
+  how the `*Assign` method is reached -- instance method, extension method,
+  category method, or `@OperatorRename(plusAssign=…)` redirection -- so a
+  user-renamed `addInPlace` method that returns `void` still leaves `x`
+  visible as the value of the surrounding expression.
+* **Property setter is not invoked.** When `obj.prop += y` resolves to a
+  `*Assign` on `prop`'s type, the getter runs once and the setter is
+  *skipped*; the receiver's mutation is observed via `prop`'s state, not via
+  setter dispatch. Frameworks that wrap setters for change-tracking (e.g.
+  observable beans, dirty-checking ORMs) need to hook the `*Assign`
+  method instead.
 * **Extension methods.** `plusAssign` is discoverable as an extension method
   (DGM or category), not just as an instance method.
 * **`@OperatorRename` support.** The existing `@OperatorRename` annotation
   will be extended to support renaming the assign variants, e.g.
-  `@OperatorRename(plusAssign="addInPlace")`.
+  `@OperatorRename(plusAssign="addInPlace")`. The renamed method is
+  authoritative for compound assignment (no fallback to the base operator
+  rename), and the expression-value contract above continues to apply.
 
 === Examples
 
@@ -181,8 +207,17 @@ that encapsulates the try-assign-then-fallback logic.
 2. **Expression value change.** `val = (x += y)` -- with `plusAssign`, the
    captured value is `x` (the mutated object), not the result of `plus`.
    This only affects code that uses compound assignment as an expression.
-3. **Final fields.** In `@CompileStatic`, `final` fields with a type that
-   has `plusAssign` can now use `+=`. Previously this was always an error.
+3. **Final fields.** In `@CompileStatic` and `@TypeChecked`, `final`
+   fields with a type that has `plusAssign` can now use `+=`. Previously
+   this was always an error. (Pure dynamic mode is unchanged -- still an
+   error -- per the carve-out in <<Resolution algorithm>>.)
+4. **Property setter not invoked.** For `obj.prop op= y` where the
+   property type has a `*Assign` method, the setter is no longer called
+   (only the getter runs, then `*Assign` mutates the result). Frameworks
+   that observe writes via setter interception (observable beans,
+   GORM-style dirty tracking, JavaFX property bindings) must move the
+   observation point to the `*Assign` method or define `*Assign` on the
+   container type rather than the property's type.
 
 == References and useful links
 
@@ -200,3 +235,9 @@ _TBD_
 == Update history
 
 1 (2026-04-12) Initial draft
+
+2 (2026-04-28) Clarifications surfaced during reference implementation:
+final-relaxation is `@CompileStatic`/`@TypeChecked`-only;
+expression-value contract applies to `@OperatorRename(*Assign=…)` paths;
+property-setter suppression added to design considerations and breaking
+behaviour.
