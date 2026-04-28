@@ -22,8 +22,20 @@ layout 'layouts/main.groovy', true,
                             p 'Here you can find the GEPs for the Groovy programming language:'
                             ul {
                                 sorted.each { gep ->
+                                    def details = []
+                                    def status = gep.value.Status
+                                    if (status) details << "Status: ${status}"
+                                    if ('draft'.equalsIgnoreCase(status?.toString()) && gep.value['Last modification']) {
+                                        details << "Last modification: ${gep.value['Last modification']}"
+                                    }
+                                    if (gep.value.Target) details << "Target: ${gep.value.Target}"
+                                    if (gep.value.Comment) details << "Comment: ${gep.value.Comment}"
                                     li {
-                                        a(href: "${gep.key}.html", "$gep.key: $gep.value")
+                                        a(href: "${gep.key}.html", "$gep.key: $gep.value.subtitle")
+                                        if (!details.isEmpty()) {
+                                            br()
+                                            p(details.join(' | '))
+                                        }
                                     }
                                 }
                             }

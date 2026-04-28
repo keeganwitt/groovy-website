@@ -46,6 +46,9 @@ import static java.nio.file.StandardWatchEventKinds.*
 @CompileStatic
 class SiteGenerator {
 
+    private static final GEP_METADATA_BLOCK = ~/(?ms)^\.Metadata\s*\R\*{4}\R(.*?)\R\*{4}/
+    private static final GEP_METADATA_ENTRY = ~/^\*([^*]+)\*(?:&#160;|\u00A0|\s)*::\s*(.+?)\s*$/
+
     private final static Closure SEMANTIC_SORT = { String v1, String v2 ->
         List<String> items1 = decomposeVersion(v1)
         List<String> items2 = decomposeVersion(v2)
@@ -228,13 +231,36 @@ class SiteGenerator {
                     p = p.parentFile
                 }
                 String baseDir = relativePath ? "wiki${File.separator}${relativePath.join(File.separator)}" : 'wiki'
-                render 'wiki', bn, [notes: f.getText('utf-8'), doc: doc], baseDir
+                def notes = f.getText('utf-8')
+                render 'wiki', bn, [notes: notes, doc: doc], baseDir
                 if (f.name.startsWith('GEP-')) {
-                    gepList[bn] = doc.structuredDoctitle.subtitle
+                    def extra = new LinkedHashMap(doc.attributes)
+                    extra.subtitle = doc.structuredDoctitle.subtitle
+                    extra.putAll(extractGepMetadata(notes))
+                    gepList[bn] = extra
                 }
             }
         }
         render 'geps', "geps", [list: gepList], 'wiki'
+    }
+
+    private static Map<String, String> extractGepMetadata(String notes) {
+        def blockMatcher = notes =~ GEP_METADATA_BLOCK
+        if (!blockMatcher.find()) {
+            return [:]
+        }
+        List<String> blockMatch = (List<String>) blockMatcher[0]
+        String metadataBlock = blockMatch[1]
+        Map<String, String> metadata = [:]
+        metadataBlock.eachLine { String line ->
+            def entryMatcher = line =~ GEP_METADATA_ENTRY
+            if (entryMatcher.matches()) {
+                List<String> entryMatch = (List<String>) entryMatcher[0]
+                String key = entryMatch[1].replaceAll(/\s+/, ' ').trim()
+                metadata[key] = entryMatch[2].trim()
+            }
+        }
+        metadata
     }
 
     private void renderBlog() {
