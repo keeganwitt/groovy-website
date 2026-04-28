@@ -1,0 +1,229 @@
+//////////////////////////////////////////
+
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing,
+  software distributed under the License is distributed on an
+  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  KIND, either express or implied.  See the License for the
+  specific language governing permissions and limitations
+  under the License.
+
+//////////////////////////////////////////
+
+= Writing release notes for Apache Groovy
+The Groovy development team
+:groovydoc: https://groovy-lang.org/
+:jira: https://issues.apache.org/jira/browse/GROOVY
+
+This document captures the editorial conventions for the per-release
+notes pages under `site/src/site/releasenotes/groovy-X.Y.adoc`. It is
+the source of truth for *what good release notes look like* in this
+project. AI-specific guardrails (hallucination checks, link macros,
+build steps) live alongside it in
+link:.agents/skills/release-notes/SKILL.md[`.agents/skills/release-notes/SKILL.md`]
+and reference back to this guide.
+
+The release notes are the most-read page on the website around release
+time and the most quoted in third-party coverage, so accuracy and tone
+matter more here than on most pages.
+
+== Audience
+
+Release notes are written for two audiences simultaneously:
+
+* *Humans* — Groovy users deciding whether to upgrade, what to look at
+  first, and what might break.
+* *AI assistants* — increasingly the first thing a developer asks when
+  evaluating an upgrade ("what changed in Groovy X.Y?"). The release
+  notes are training data and retrieval material for those assistants.
+
+Write so that both audiences can pick up the document cold and form an
+accurate picture of the release. In particular, the *first time a
+class is mentioned*, point to its Groovydoc using the `gapi:` macro;
+this gives the fully-qualified name and gives both readers a reliable
+reference. When summarising a feature, include enough information that
+either audience knows whether they need to dive into the mainstream
+documentation for more.
+
+== Structure
+
+A canonical release notes page has these sections, in this order:
+
+. Highlights
+. New modules / module changes (when applicable)
+. Topical sections — one per major theme of the release
+. Breaking changes
+. JDK requirements
+. More information (link to the JIRA changelog)
+. Addenda for point releases (`Addendum for X.0.1`, `Addendum for X.0.2`, …) — added at the end as point releases ship
+
+Use the most recent shipped release notes file (e.g.
+`site/src/site/releasenotes/groovy-5.0.adoc`) as the structural
+template for the next one. New release notes derive from the previous
+file, not from a blank template.
+
+== Highlights
+
+The Highlights section is shown first but *usually written last*. It
+is a summary of all the features in the release and is meant to
+capture the reader's attention. Once the topical sections have settled
+down, return to Highlights and distil them.
+
+== New modules / module changes
+
+When the release adds, removes, deprecates, or moves a module, that
+information goes in a dedicated section — typically titled "New
+modules", "Module changes", or both. List:
+
+* New modules with their full Maven coordinates (groupId, artifactId,
+  version).
+* Modules that have been removed or deprecated.
+* Modules whose status has changed — for example, a module that has
+  moved between being included in `groovy-all` and being an optional
+  dependency.
+
+Internal modules are not typically mentioned.
+
+== Topical sections
+
+Each major theme of the release gets its own section. A topical
+section consists of:
+
+* A short description of the topic.
+* Between *one and four* interesting or relevant examples.
+* If more than three or four examples are worth covering, place the
+  remainder in a list that summarises the additional changes or
+  features.
+* When more examples or detail exist in the mainstream Groovy
+  documentation for that topic, include a reference to that
+  documentation rather than reproducing it here.
+
+=== Enhanced features vs new features
+
+When a topic is about an *enhanced* feature, provide a very short
+description of the existing functionality the enhancement builds upon
+before describing the change. The reader should not need to remember
+what existed in the previous release.
+
+When a topic is about a *new* feature, provide some context for why
+the feature is considered a worthwhile addition — for example,
+availability in other languages, alignment with industry trends, or a
+recurring user request. New features land better when their motivation
+is visible.
+
+=== Code examples
+
+Examples use AsciiDoc source blocks with the `groovy` language tag and
+favour `assert` statements over `println` so the reader can see the
+expected outcome inline:
+
+[source,asciidoc]
+----
+[source,groovy]
+----
+def words = ['row'].repeat(3) + ['your', 'boat']
+assert words.join(' ') == 'row row row your boat'
+----
+----
+
+Match the style of the surrounding file.
+
+== Breaking changes
+
+Any *major* breaking change gets its own subsection with full context
+and migration guidance. *Most* breaking changes are simply listed,
+each pointing back to the related JIRA issue.
+
+The JIRA issue should have the *`breaking` label* and a release
+version that matches the release notes being prepared. The JIRA filter
+on `labels = breaking AND fixVersion = X.Y.Z` is the canonical source
+list — start there rather than from `git log` or memory.
+
+== JDK requirements
+
+Every release notes page ends with a JDK requirements block. State:
+
+* The JDK floor for *building* Groovy.
+* The JDK floor for *running* Groovy (the runtime JRE minimum).
+* The range of JDK versions on which the release has been *tested*.
+
+Match what the release branch's CI actually exercises, not what the
+previous release supported.
+
+== More information
+
+Close the page with a "More information" section linking to the
+generated JIRA changelog:
+
+[source,asciidoc]
+----
+You can browse all the link:../changelogs/changelog-X.Y.Z-unreleased.html[tickets closed for Groovy X.Y in JIRA].
+----
+
+For pre-releases, retain the `-unreleased` marker until the release
+ships; remove it as part of the release-day update.
+
+== Addenda for point releases
+
+When a point release ships after the initial `X.0.0`, its notes are
+*added as a section at the end of the same `groovy-X.Y.adoc` page*,
+not given their own file. Use a heading of the form `Addendum for
+X.0.1`, `Addendum for X.0.2`, and so on.
+
+Within an addendum, the same structural conventions apply at a smaller
+scale: a brief intro, topical bullets, breaking changes if any, and
+issue links.
+
+== Editorial conventions summary
+
+* Write for both humans and AI; on first mention of a class, link its
+  Groovydoc via `gapi:`.
+* Bullets describe user-facing change and impact, not raw JIRA titles.
+* Every `GROOVY-NNNN` reference must resolve on JIRA — verify before
+  writing.
+* Issue links use the form
+  `link:{jira}/GROOVY-NNNN[GROOVY-NNNN]`. Bare URLs and inconsistent
+  display text break the visual flow of the page.
+* Don't reformat or restructure sections outside the scope of the
+  current change.
+* Don't commit generated artefacts (`build/`, `*.cache` files, IDE
+  files).
+
+== Process tips
+
+* Source the issue list from JIRA, not from memory or `git log` alone.
+  The JIRA filter / changelog for the release version is authoritative.
+* Group bullets by user-facing theme, not by issue number, before
+  drafting prose.
+* Write topical sections first, Highlights last.
+* Build the user site locally and check the deadlinks report before
+  declaring a change ready:
++
+----
+./gradlew :site-user:webzip
+----
++
+Inspect `site-user/build/reports/` for deadlinks and eyeball the
+rendered page under `site-user/build/site/releasenotes/`.
+
+== See also
+
+* link:README.adoc[`README.adoc`] — site structure and build.
+* link:AGENTS.md[`AGENTS.md`] — overall AI-contributor guidance and
+  ASF provenance rules.
+* link:.agents/skills/release-notes/SKILL.md[`.agents/skills/release-notes/SKILL.md`]
+  — AI-specific guardrails for release notes work; references this
+  guide as its source of truth.
+* `site/src/site/releasenotes/` — all prior release notes.
+* `generator/src/main/groovy/generator/LinkMacroProcessor.groovy` —
+  defines the `gapi:` and related link macros.
+* {jira}[Apache Groovy JIRA].
