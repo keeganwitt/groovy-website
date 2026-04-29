@@ -7,21 +7,22 @@
 [horizontal,options="compact"]
 *Number*:: GEP-21
 *Title*:: Broadening AST transform awareness under joint compilation
-*Version*:: 3
+*Version*:: 4
 *Type*:: Feature
 *Status*:: Draft
-*Leader*:: TBD
+*Leader*:: Paul King
 *Created*:: 2026-04-28
 *Last modification*:: 2026-04-29
 ****
 
 NOTE: A working spike for **Shape C** (the split-transform model described
 below) is available at https://github.com/apache/groovy/pull/2500. It
-covers nine transforms — `@Sortable`, `@TupleConstructor`,
-`@MapConstructor`, `@Lazy`, `@ToString`, `@EqualsAndHashCode`,
-`@Singleton`, `@IndexedProperty`, and `@ExternalizeMethods` — end-to-end
-through joint compilation, including before/after stub diffs. Findings
-from that spike are folded into this revision.
+covers all of Tier 1 plus several Tier 2 entries — `@Sortable`,
+`@TupleConstructor`, `@MapConstructor`, `@Singleton`, `@Bindable`,
+`@Vetoable`, `@ListenerList`, `@ExternalizeMethods`, `@IndexedProperty`,
+`@ToString`, `@EqualsAndHashCode`, `@Lazy`, `@Final` — end-to-end through
+joint compilation, plus compositional tests for `@Canonical` and
+`@Immutable`. Findings from that spike are folded into this revision.
 
 == Abstract
 
@@ -438,15 +439,61 @@ fails to compile.
 declared with placeholder bodies and the proper `throws IOException`
 on `writeExternal`. The full transform replaces the bodies with
 the real field-by-field write/read.
+
+|`@Final`
+|Class-level final-ness is not visible in the stub. Java code can
+declare `class JavaSub extends ImmutableThing` against the stub even
+though the runtime class is final — compiles in joint compilation,
+breaks immutability invariants at runtime.
+|`final class` in the stub. Smallest possible stubber: one
+`OR ACC_FINAL` per class / field / method target. The full
+transform's setter is idempotent so no metadata-key handoff is
+needed.
+
+|`@Bindable`
+|None of `add/removePropertyChangeListener`,
+`firePropertyChange`, or `getPropertyChangeListeners` are visible.
+Java code attaching a `PropertyChangeListener` fails to compile.
+|All seven JavaBeans property-change methods are declared with
+placeholder bodies; the full transform discards the placeholders,
+installs the property-change-support field, and adds the real
+bodies.
+
+|`@Vetoable`
+|Symmetric to `@Bindable`: the seven Vetoable-listener methods —
+including `fireVetoableChange` with its `throws PropertyVetoException`
+— are not visible to Java consumers.
+|All seven methods are declared, with the `throws` clause on
+`fireVetoableChange` rendered into the stub.
+
+|`@ListenerList`
+|Per-field `addXxxListener`, `removeXxxListener`,
+`getXxxListeners`, and `fireYyy` (one per public listener method)
+are not visible. Java code registering listeners or firing events
+fails to compile.
+|All listener-management methods plus per-listener-method `fireYyy`
+overloads are declared, with parameter types derived from the
+field's generic type at CONVERSION. Same-unit Groovy listener
+interfaces with their own transform-added methods fall under the
+Tier 3 cross-class limit; classpath listeners (e.g.
+`java.beans.PropertyChangeListener`,
+`java.awt.event.ActionListener`) work fully.
 |===
 
-In all nine cases the runtime output is unchanged — these are
+In all thirteen cases the runtime output is unchanged — these are
 stub-fidelity fixes, not behavioural changes.
+
+Two compositional cases — `@Canonical` and `@Immutable` — are
+covered by dedicated joint-compilation tests in the spike that
+exercise the `@AnnotationCollector` expansion path. They need no
+new stubbers; they confirm that once the constituent transforms are
+joint-compile-aware, meta-annotations compose with Shape C without
+extra framework support.
 
 ==== Recurring patterns and implementation gotchas
 
-Across the nine spiked transforms a small set of patterns emerged
-that future Shape C authors will want to know about:
+Across the spiked transforms a small set of patterns emerged that
+future Shape C authors will want to know about:
 
 * *Subset-via-class-annotation heuristic.* When a runtime guard
   depends on later-phase metadata (e.g. `@IndexedProperty`'s
@@ -494,7 +541,31 @@ that future Shape C authors will want to know about:
   `TupleConstructorASTTransformation.resolveDefaultsMode` is a
   smaller variant covering annotation-member resolution. Where the
   duplication isn't real (each piece's main loop is genuinely
-  transform-specific), no helper is needed — don't force it.
+  transform-specific), no helper is needed — don't force it. The
+  spike also extracts a small framework-level utility that any
+  stubber can use for the recurring add-and-tag pattern, alongside
+  predicates for "is this a stubber placeholder" and "clear the
+  placeholder tag".
+
+* *Bulk method removal needs `removeMethod`, not `removeIf`.*
+  `ClassNode` keeps both a `methodsList` and a parallel
+  name-to-methods map. `getMethods().removeIf(...)` mutates only the
+  list; the map keeps the stale entries and the next
+  `addGeneratedMethod` perceives a duplicate ("Repetitive method
+  name/signature" verifier error). Stubber-tag cleanup that needs to
+  remove methods (rather than replace bodies in place) must iterate
+  and call `classNode.removeMethod(...)` per node. Constructor
+  cleanup is unaffected: constructors live in only one list.
+
+* *Compositional ordering and "honour user-declared" guards.* When
+  two stubbers can target the same kind of member on the same class
+  (the canonical case is `@TupleConstructor` and `@MapConstructor`
+  combined under `@Immutable`), a guard like _"skip if the user
+  already declared a constructor"_ must filter out _other stubbers'_
+  placeholders. Otherwise whichever stubber fires second silently
+  no-ops. Single-transform tests don't catch this — only
+  compositional cases do; the spike's `@Canonical` and `@Immutable`
+  tests are the smallest reliable triggers.
 
 === What a stub contribution may emit
 
@@ -808,20 +879,23 @@ information is unconditionally available at `CONVERSION`.
  `addPropertyChangeListener(String, PropertyChangeListener)`,
  the matching removers, `firePropertyChange(String, Object, Object)`,
  `getPropertyChangeListeners()`,
- `getPropertyChangeListeners(String)`. Plus the
- `propertyChangeSupport` field if non-private propagation is
- desired.
-|Pending
+ `getPropertyChangeListeners(String)`. The
+ `propertyChangeSupport` field is private/synthetic and not stubbed.
+|*Spike: validated*
 
 |`@Vetoable` (class-level)
-|Symmetric to `@Bindable` with `VetoableChangeListener`.
-|Pending
+|Symmetric to `@Bindable` with `VetoableChangeListener`. Includes
+ `throws PropertyVetoException` on the stub's `fireVetoableChange`.
+|*Spike: validated*
 
 |`@ListenerList`
 |`addXxxListener`, `removeXxxListener`, `getXxxListeners`, and a
  `fireXxx(...)` per listener-interface method. Listener interface
- method enumeration uses the field type's resolved methods.
-|Pending
+ method enumeration uses the field type's resolved methods at
+ CONVERSION; works for classpath listener types, defers to Tier 3
+ for same-unit Groovy listener interfaces with their own
+ transform-added methods.
+|*Spike: validated*
 
 |`@ExternalizeMethods`
 |`writeExternal(ObjectOutput)`, `readExternal(ObjectInput)`, plus
@@ -891,6 +965,15 @@ already adequately covered by inheritance. They migrate after Tier
  backing-field rewiring). The full transform replaces the property
  entirely at `SEMANTIC_ANALYSIS`, so the final marker has no runtime
  effect.
+|*Spike: validated*
+
+|`@Final`
+|Modifier-only contribution: ORs `ACC_FINAL` onto the class / field /
+ method modifiers so the stub presents the runtime final-ness to
+ `javac`. Stubber skips interfaces (including `@interface` annotation
+ types) where final-on-abstract is illegal. Critical companion to
+ `@Immutable` — without it, Java code can spuriously declare
+ `extends ImmutableThing` against the stub.
 |*Spike: validated*
 
 |`@Builder` (`SimpleStrategy`, `DefaultStrategy`)
@@ -1123,4 +1206,5 @@ This category exists to make the GEP's coverage decisions explicit:
 
 1 (2026-04-28) Initial proposal: motivation, design principles, Shapes A and B, migration tiers +
 2 (2026-04-29) Added Shape C (split-transform model) and the working spike (https://github.com/apache/groovy/pull/2500) covering `@Sortable`, `@TupleConstructor`, `@Lazy`, `@ToString`; before/after spike-results table; framework-adjustments subsection (rail relaxation + customizer filter) +
-3 (2026-04-29) Spike extended to nine transforms with `@MapConstructor`, `@EqualsAndHashCode`, `@Singleton`, `@IndexedProperty`, `@ExternalizeMethods`; added "Recurring patterns and implementation gotchas" subsection; updated migration tiers to reflect the broader spike validation
+3 (2026-04-29) Spike extended to nine transforms with `@MapConstructor`, `@EqualsAndHashCode`, `@Singleton`, `@IndexedProperty`, `@ExternalizeMethods`; added "Recurring patterns and implementation gotchas" subsection; updated migration tiers to reflect the broader spike validation +
+4 (2026-04-29) Tier 1 complete: spike adds `@Final`, `@Bindable`, `@Vetoable`, `@ListenerList`; compositional `@Canonical` and `@Immutable` tests; "Transforms that need no stubber" subsection; two new gotchas (parallel-map method removal, compositional ordering guards)
