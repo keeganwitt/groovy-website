@@ -7,13 +7,19 @@
 [horizontal,options="compact"]
 *Number*:: GEP-21
 *Title*:: Broadening AST transform awareness under joint compilation
-*Version*:: 1
+*Version*:: 2
 *Type*:: Feature
 *Status*:: Draft
 *Leader*:: TBD
 *Created*:: 2026-04-28
-*Last modification*&#160;:: 2026-04-28
+*Last modification*:: 2026-04-29
 ****
+
+NOTE: A working spike for **Shape C** (the split-transform model described
+below) is available at https://github.com/apache/groovy/pull/2500. It
+covers `@Sortable`, `@TupleConstructor`, `@Lazy`, and `@ToString` end-to-end
+through joint compilation, including before/after stub diffs. Findings
+from that spike are folded into this revision.
 
 == Abstract
 
@@ -188,21 +194,33 @@ This proposal inserts a *fourth* step at `CONVERSION`, after
 annotation collection / alias expansion and before stub generation:
 
 [start=4]
-. *Stub contribution* — for each class node, every annotation whose
-  transform has opted in to joint-compile awareness gets a chance to
-  add Java-visible member signatures to the class node. The added
-  members carry placeholder bodies and are tagged so the later body
-  pass can recognise and complete them.
+. *Stub contribution* — for each class node, the framework gives
+  every joint-compile-aware annotation an early invocation. The
+  invocation may mutate the AST in any way that influences what
+  `JavaStubGenerator` will subsequently render: adding members
+  (interfaces, methods, constructors, fields) with placeholder
+  bodies, flipping modifiers on existing members so the embedded
+  `Verifier` sub-pass produces a different accessor shape,
+  augmenting or trimming property nodes, and so on. Mutations are
+  typically tagged with a metadata key so the authoritative later
+  invocation — the same transform's normal-phase call in Shapes A
+  and B, or the sibling transform's call in Shape C — can recognise
+  the early contribution and complete it (replacing a placeholder
+  body, discarding a stub-only artifact, etc.).
 
 When stub generation runs (step 3 in the original chain, now step 5),
-it sees the contributed members along with everything else and
-includes them in the rendered stub.
+it sees the post-contribution AST and renders the stub from that.
 
 === Joint-compile-aware transforms
 
 A transform opts into the new behaviour by declaring itself joint-
-compile-aware. Two equivalent shapes are available, chosen by the
-transform author:
+compile-aware. Three alternative shapes have been identified for
+how a transform expresses this opt-in. They are not mutually
+exclusive — the framework could support any one of them, or any
+combination — and the choice between them is a design question this
+GEP leaves open for discussion (see _Open question: which shapes to
+ship?_ below). The shapes are presented here so the discussion has
+concrete options to weigh.
 
 [source,java]
 ----
@@ -224,60 +242,194 @@ public class TupleConstructorASTTransformation
         implements StubContributor { ... }
 ----
 
-In Shape A, the transform's own `visit` method is invoked twice per
-target: once at `CONVERSION` with a context flag (or thread-local
-mode) indicating *stub contribution*, and again at the declared
-phase with the flag indicating *body completion*. The transform
-inspects the flag and self-selects what work to do. State carried
+[source,java]
+----
+// Shape C — split-transform model (existing Groovy idiom, validated by spike)
+@GroovyASTTransformationClass({
+    "org.codehaus.groovy.transform.TupleConstructorASTStubber",       // phase = CONVERSION
+    "org.codehaus.groovy.transform.TupleConstructorASTTransformation" // phase = CANONICALIZATION
+})
+public @interface TupleConstructor { ... }
+----
+
+In Shape A, the framework looks for the joint-compile-aware flag
+twice — once at `CONVERSION` during joint processing and once at
+the transform's declared phase. The transform's `visit` is invoked
+in both passes. The transform must be idempotent: state carried
 between calls lives on the AST nodes (e.g. via `putNodeMetaData`).
+A transform may distinguish the two passes via a context flag if
+the work is genuinely different, but this is not required by the
+framework.
 
 In Shape B, the framework invokes `contributeStubs(...)` at
 `CONVERSION` and the existing `visit(...)` at the declared phase as
 today. The two methods are independent code paths in the same
 class.
 
-Shape A is mechanically simpler: no new public interface, no
-additional method on existing transforms, less duplication when the
-same logic produces both signatures and bodies. Shape B is cleaner
-when the two passes are substantially different and the author
-prefers two short methods over one branching method. The proposal
-permits both; the choice is a transform-author decision and bears no
-on-the-wire compatibility consequence.
+In Shape C, the author writes two transform classes and lists both
+in `@GroovyASTTransformationClass`. The first class declares
+`phase = CompilePhase.CONVERSION` and runs only during joint
+compilation; the second class declares its normal phase
+(`CANONICALIZATION`, `SEMANTIC_ANALYSIS`, etc.) and is the
+authoritative pass for runtime output. Existing split-transform
+pairs in the codebase (`SealedASTTransformation` /
+`SealedCompletionASTTransformation`,
+`ExternalizeMethodsASTTransformation` /
+`ExternalizeVerifierASTTransformation`) follow the same idiom but
+both at non-CONVERSION phases; Shape C extends that pattern by
+allowing the first piece at `CONVERSION`.
 
-The proposal will fix one of the two shapes as the canonical form
-during implementation. Either way, the contract observed by the rest
-of the compiler — what runs when, on which target, with which
-information available — is identical.
+==== Equivalence and trade-offs
+
+All three shapes face the *same* scoping decision at `CONVERSION`
+(thin AST, no transform-cascade output, no static-type-checker
+results), the *same* subset-of-runtime invariant for stub fidelity,
+and the *same* idempotency requirement. They differ only in:
+
+* *Visible API surface.* Shapes A and B add it (a new annotation
+  attribute, a new interface). Shape C adds none — it composes
+  existing public mechanisms.
+* *Boundary visibility.* Shape C makes the early/late split
+  externally obvious because each phase is its own class. Shapes A
+  and B keep the split internal to a single transform class —
+  equally valid, just less immediately legible to a reader.
+* *Code reuse for shared logic.* In all three shapes, when the early
+  pass and the authoritative pass do overlapping work, a static
+  helper called from both pieces handles the duplication cleanly
+  (the spike demonstrates this with `addComparableSurface` shared
+  between `SortableASTStubber` and `SortableASTTransformation`).
+  This is ordinary refactoring, not a shape-specific tax.
+
+Whichever shapes are ultimately supported, the contract observed by
+the rest of the compiler — what runs when, on which target, with
+which information available — is identical, and a transform's
+choice of shape carries no on-the-wire compatibility consequence
+for users of that transform.
+
+NOTE: The "Stubber" naming convention used in the spike is just a
+naming convention. Where the early piece does substantial AST
+surgery (e.g. `LazyASTStubber` flipping a property modifier to
+suppress setter emission), a more neutral name such as
+`*ASTConversionPart` or `*ASTPreStub` may better reflect scope.
+The framework imposes no naming requirement.
+
+==== Open question: which shapes to ship?
+
+The three shapes can co-exist in the framework — adding any one
+does not preclude later adding the others — but committing to all
+three from day one is a larger surface area than may be warranted.
+Two reasonable positions for the GEP discussion:
+
+* *Ship Shape C only* (the spike's choice). It requires no new
+  public API — only the small framework adjustments documented
+  under _Compilation_ — and it composes existing mechanisms
+  (`@GroovyASTTransformationClass` lists, the standard transform-
+  collector and dispatcher). Shapes A and B can be added later if
+  concrete demand emerges or if some transform's needs aren't
+  comfortably expressible as a split.
+* *Ship Shape A or B in addition* if the in-class re-entrant model
+  is judged worth the visible API cost (a new annotation attribute
+  or a new interface), for example because authors of complex
+  transforms find the single-class model significantly easier to
+  reason about.
+
+This GEP does not pre-decide. Reviewers are invited to weigh in on
+which shapes to commit to in the first implementation.
+
+[[spike-results]]
+=== Spike results: before / after stub views
+
+The spike at https://github.com/apache/groovy/pull/2500 implements
+Shape C for four transforms. The table summarises what a Java source
+in the same joint-compilation unit sees via the generated stub
+before and after the transform opts in.
+
+[cols="1,2,2"]
+|===
+|Transform |Before (no stubber piece) |After (Shape C stubber)
+
+|`@Sortable`
+|Class does not declare `Comparable`; no `compareTo` method is
+visible. Java code calling `task.compareTo(other)` fails to compile
+even though the runtime supports it.
+|`implements java.lang.Comparable<Self>` is on the class header;
+`int compareTo(Self other) { return 0; }` is declared. Java code
+compiles and at runtime hits the real comparison body
+(metadata-key handoff at `CANONICALIZATION`).
+
+|`@TupleConstructor`
+|No tuple constructor visible — only the implicit no-arg. Java code
+writing `new Foo("bar")` fails to compile even though
+`defaults = true` would generate the overload at runtime.
+|For `defaults = true`/`defaultsMode = ON`: the full prefix-overload
+chain (`Foo()`, `Foo(p1)`, ..., `Foo(p1..pN)`) is in the stub,
+mirroring what `Verifier` will produce at runtime. For
+`defaults = false`/`defaultsMode = OFF`/`AUTO`: only the maximal
+form, matching the runtime exactly. (Trait-injected and super
+properties remain invisible — see _Tier 3_.)
+
+|`@Lazy`
+|Stub has both `getX()` and `setX(...)` (auto-property accessors).
+Runtime has only `getX()`. Java code calling `holder.setX(v)`
+compiles against the stub but fails at runtime with
+`NoSuchMethodError`.
+|Stub has only `getX()` — the stubber marks the property final at
+`CONVERSION`, which causes `Verifier` to skip setter generation.
+The full transform later replaces the property entirely, so the
+final marker has no effect on runtime.
+
+|`@ToString`
+|`toString()` is inherited from `Object` only — the class does not
+*declare* it. Java code chaining `super.toString()` resolves to
+`Object.toString()` at the source level, even though the runtime
+class has its own override. Tooling that distinguishes declared
+from inherited methods sees no override.
+|`toString()` is declared on the class with a placeholder body in
+the stub. Java's `super.toString()` chains correctly through
+`Object`-virtual dispatch to the runtime body, and tooling that
+introspects declared methods sees the override.
+|===
+
+In all four cases the runtime output is unchanged — these are stub-
+fidelity fixes, not behavioural changes.
 
 === What a stub contribution may emit
 
-A stub-contribution call may add to the target class node:
+A stub-contribution call may mutate the target class node in any
+of these ways:
 
-* New constructors, with parameters, exceptions, generics, and
+* Add new constructors, with parameters, exceptions, generics, and
   parameter annotations populated. The body is a placeholder
   (`super(...)` if a super constructor must be invoked, otherwise an
   empty block).
-* New methods, with the same signature fidelity as constructors. The
-  body is a placeholder consistent with the declared return type
+* Add new methods, with the same signature fidelity as constructors.
+  The body is a placeholder consistent with the declared return type
   (`return null;`, `return 0;`, `return false;`, or empty for
   `void`). The stub printer already understands such placeholders.
-* New fields, with declared type, modifiers, and any constant
+* Add new fields, with declared type, modifiers, and any constant
   initializer that is a literal expression. Non-literal initializers
-  are deferred to the body pass and rendered as default values in
-  the stub.
-* New declared interfaces (`addInterface(...)`).
-* A new declared super class (`setSuperClass(...)`), with the usual
-  caveat that changing the super class is a global decision and may
-  conflict with other transforms.
-* Annotations on any of the above, including the contributing
+  are deferred to the authoritative pass and rendered as default
+  values in the stub.
+* Add new declared interfaces (`addInterface(...)`).
+* Add a new declared super class (`setSuperClass(...)`), with the
+  usual caveat that changing the super class is a global decision
+  and may conflict with other transforms.
+* Add annotations on any of the above, including the contributing
   transform's own marker annotations.
+* Flip modifiers on existing user-declared members where the change
+  has no runtime effect — for example marking a `PropertyNode` final
+  to suppress the `Verifier` sub-pass's setter generation when the
+  authoritative pass will replace the property entirely (the
+  spike's `@Lazy` case).
 
 A stub contribution may *not*:
 
-* Modify existing user-declared members. Bodies of user-written
-  methods, the type of declared fields, and existing constructors
-  are owned by the source author and the body pass; the stub pass is
-  read-only for those.
+* Change runtime semantics of user-declared members — bodies of
+  user-written methods, types of declared fields, parameter lists of
+  user-written constructors, and similar. These are owned by the
+  source author and the authoritative pass; the stub pass must
+  produce a class node whose runtime is unchanged compared to a
+  pure-Groovy compilation of the same source.
 * Add behaviour that depends on inferred types from later phases
   (e.g. types derived by `StaticTypeCheckingVisitor`). The transform
   must declare types from information available at `CONVERSION`.
@@ -286,32 +438,38 @@ A stub contribution may *not*:
   declared members visible at `CONVERSION`; their own transforms
   haven't run yet. (See _Excluded and deferred features_.)
 
-=== Skeleton bodies and the body pass
+=== Skeleton members and the authoritative pass
 
 Every member added by a stub contribution is tagged with a metadata
-flag identifying it as a skeleton awaiting body completion. The
-body pass — the same transform running at its declared phase — uses
-the flag to decide between two paths per member:
+flag identifying it as a skeleton awaiting completion. The
+authoritative pass — whether that's the same transform running at
+its declared phase (Shapes A and B), or the sibling transform at
+its declared phase (Shape C) — uses the flag to decide between
+paths per member:
 
-* If a matching skeleton already exists on the class node, the body
-  pass *fills in the body* of that node (and any further annotations
-  or modifiers it intends to add) rather than creating a new node.
-  The skeleton flag is cleared.
-* If no matching skeleton exists, the body pass creates the member
-  as it does today.
+* If a matching skeleton already exists on the class node, the
+  authoritative pass *fills in the body* of that node (and any
+  further annotations or modifiers it intends to add) rather than
+  creating a new node. The skeleton flag is cleared.
+* If no matching skeleton exists, the authoritative pass creates
+  the member as it does today.
+* If the authoritative pass supersedes the skeleton entirely (as in
+  the spike's `@TupleConstructor`, where the full transform discards
+  any stubber-tagged constructors before generating its own), the
+  pass removes the skeletons before its main work.
 
-This contract makes the body pass robust against the stub pass
-having been run, having been partially run, or not having been run
-at all (e.g. for a non-joint-compilation build that goes straight
-through `CONVERSION` without touching the stub op chain). A
-transform written for the joint-compile-aware contract continues to
-work in all build modes.
+This contract makes the authoritative pass robust against the stub
+pass having been run, having been partially run, or not having been
+run at all (e.g. for a non-joint-compilation build that goes
+straight through `CONVERSION` without touching the stub op chain).
+A transform written for the joint-compile-aware contract continues
+to work in all build modes.
 
 The matching predicate is "same kind, same name, structurally equal
 parameter list, same declaring class". Generic substitution is
 applied before comparison so that a skeleton declared with type
-variables and a body-pass member declared with the same variables
-match.
+variables and a member emitted by the authoritative pass with the
+same variables match.
 
 === Ordering of contributions
 
@@ -389,23 +547,57 @@ mechanism instead.
 `JavaAwareCompilationUnit` and `JavaStubCompilationUnit` register a
 new phase operation at `Phases.CONVERSION`, ordered between the
 existing transform-collector op and the existing stub-generation op.
-The new op walks each top-level class node in the source unit,
-finds every annotation whose registered transform is joint-
-compile-aware, and dispatches the stub-contribution call for each.
+The new op invokes any AST transformations registered for the
+`CONVERSION` phase on each class node.
 
-The ordering rule is, per source unit, per class:
+The ordering rule for joint compilation is, per source unit, per class:
 
 . `JavaAwareResolveVisitor`
 . `ASTTransformationCollectorCodeVisitor` (collects + expands aliases)
-. *new:* `StubContributionVisitor` (calls contributions, in priority order)
+. *new:* `CONVERSION`-phase transform invocation
 . `JavaStubGenerator.generateClass(...)`
 
+The spike implements step 3 by reusing the existing
+`ASTTransformationVisitor` machinery — a public factory
+`ASTTransformationVisitor.invocationOperation(phase, context)`
+returns an `IPrimaryClassNodeOperation` that walks the class with
+the same dispatch logic as the SEMANTIC_ANALYSIS+ phases. No new
+visitor class is required.
+
 For non-joint-compilation builds (`CompilationUnit` rather than
-`JavaAwareCompilationUnit`), step 4 is absent. Step 3 is therefore
-either harmless (skeletons get filled in later by the body pass and
-the result is bit-for-bit identical to the no-skeleton path) or, as
-a perf optimisation, also skipped — the body pass handles
-everything as it does today.
+`JavaAwareCompilationUnit`), step 3 is absent. Shape A and Shape B
+transforms simply do their work at the declared phase as today.
+Shape C transforms see only the second (authoritative) piece run;
+the `CONVERSION`-phase piece is silently inert because no invoker
+fires it. This is by design: each shape's later piece must remain
+authoritative for pure-Groovy compilation regardless of how the
+early piece is wired.
+
+==== Required framework adjustments for Shape C
+
+The spike validated two small framework changes:
+
+* The existing guard in
+  `ASTTransformationCollectorCodeVisitor.verifyAndAddTransform`
+  rejected any local transform with `phase < SEMANTIC_ANALYSIS`. It
+  is relaxed to `phase < CONVERSION`. `CONVERSION`-phase local
+  transforms are now legal; they fire only in joint compilation
+  (where step 3 above invokes them) and are inert in pure-Groovy
+  compilation (no invoker exists for `CONVERSION` in standard
+  `CompilationUnit`).
+* `ASTTransformationCustomizer.findASTTransformationClass` previously
+  rejected annotations whose `@GroovyASTTransformationClass` listed
+  more than one transform class. With Shape C, that list grows to
+  two for any opted-in annotation. The customizer now drops
+  `CONVERSION`-phase entries when at least one non-`CONVERSION`
+  sibling exists, and otherwise keeps them all (preserving the
+  existing customizer-only `CONVERSION` use cases such as
+  `ContractAnnotation`).
+
+Other framework code that consumes
+`getAnnotation(GroovyASTTransformationClass).classes()` /
+`.value()` directly should adopt the same filter where the
+intent is "the canonical class for this annotation."
 
 === Resolver state at CONVERSION
 
@@ -450,22 +642,25 @@ generic specialisations are available. For a same-unit Groovy
 supertype, only source-declared members are available; transform-
 added abstract methods on the supertype are not yet seen.
 
-=== Body-pass replacement contract
+=== Authoritative-pass replacement contract
 
-The body pass — the existing transform `visit` running at the
-declared phase — is updated for each joint-compile-aware transform
-to:
+The authoritative pass — the same transform's normal-phase `visit`
+in Shapes A and B, or the sibling transform's `visit` in Shape C —
+is updated for each joint-compile-aware transform to:
 
 . Locate any skeleton members on the class node (via the metadata
-  flag) that match what the transform would have added.
-. For each match, replace the placeholder body and clear the flag.
-. For non-matches (skeleton pass not run, or new members the
+  flag) that match what the pass would have added.
+. For each match, either replace the placeholder body and clear the
+  flag, or — when the pass produces output that supersedes the
+  skeleton entirely — discard the skeleton before doing its work
+  (the spike's `@TupleConstructor` takes this approach).
+. For non-matches (stub pass not run, or new members the
   contribution did not anticipate), behave as today.
 
-This update is local to each transform. The body pass remains the
-canonical specification of what the transform produces; the stub
-contribution is constrained to be a subset (signature-only,
-annotations) of the body pass.
+This update is local to each transform. The authoritative pass
+remains the canonical specification of what the transform produces;
+the stub contribution is constrained to be a subset (signature-only
+plus modifier nudges, no body content) of the authoritative pass.
 
 == Migration
 
@@ -478,22 +673,29 @@ These transforms emit member signatures that depend only on the
 declared class generics and the declared field types. All required
 information is unconditionally available at `CONVERSION`.
 
-[cols="2,3"]
+[cols="2,3,1"]
 |===
-|Transform |Stub contribution
+|Transform |Stub contribution |Status
 
 |`@TupleConstructor`
 |Constructor signatures, including the cascade produced by the
- `defaults = true` shape. Parameters use field types with class
- generics applied. `pre` / `post` closures are body-only.
+ `defaults = true` shape. Parameters use directly-declared property
+ types with class generics applied. Trait-injected and super
+ properties are not visible at `CONVERSION` (see _Tier 3_); the
+ stubber's view is therefore a strict subset of the runtime
+ surface for those configurations. `pre` / `post` closures are
+ body-only.
+|*Spike: validated*
 
 |`@MapConstructor`
 |`MyClass(Map)` constructor signature.
+|Pending
 
 |`@Singleton`
 |Public static `INSTANCE` field of the enclosing type, public static
  `getInstance()` returning the enclosing type. Both with the
  enclosing class's generics applied.
+|Pending
 
 |`@Bindable` (class-level)
 |`addPropertyChangeListener(PropertyChangeListener)`,
@@ -503,25 +705,33 @@ information is unconditionally available at `CONVERSION`.
  `getPropertyChangeListeners(String)`. Plus the
  `propertyChangeSupport` field if non-private propagation is
  desired.
+|Pending
 
 |`@Vetoable` (class-level)
 |Symmetric to `@Bindable` with `VetoableChangeListener`.
+|Pending
 
 |`@ListenerList`
 |`addXxxListener`, `removeXxxListener`, `getXxxListeners`, and a
  `fireXxx(...)` per listener-interface method. Listener interface
  method enumeration uses the field type's resolved methods.
+|Pending
 
 |`@ExternalizeMethods`
 |`writeExternal(ObjectOutput)`, `readExternal(ObjectInput)`, plus
  `Externalizable` on the implements clause.
+|Pending
 
 |`@IndexedProperty`
 |Per indexed field: `getXxx(int)`, `setXxx(int, T)`, with `T` from
  the field's element type.
+|Pending
 
 |`@Sortable`
-|`compareTo(T)` and `Comparable<T>` on the implements clause.
+|`compareTo(T)` placeholder and `Comparable<T>` on the implements
+ clause; full transform replaces the placeholder body via the
+ metadata-key handoff at `CANONICALIZATION`.
+|*Spike: validated*
 |===
 
 These transforms are the proposal's primary beneficiaries. A Java
@@ -537,34 +747,47 @@ with Tier 1 transforms, or emit members whose Java visibility is
 already adequately covered by inheritance. They migrate after Tier
 1 with modest additional plumbing.
 
-[cols="2,3"]
+[cols="2,3,1"]
 |===
-|Transform |Notes
+|Transform |Notes |Status
 
 |`@ToString`
-|Emits `toString()`. Java callers reach it via `Object`-inherited
- dispatch even without a stub contribution, but the contribution
- makes the stub faithful (and unblocks `MethodHandles.lookup` /
- reflection-style code that introspects the stub).
+|Emits a placeholder `toString()` at `CONVERSION`; the full transform
+ replaces the body via the metadata-key handoff. Java callers reach
+ `toString()` via `Object`-inherited dispatch either way, but the
+ contribution makes the stub faithful — `super.toString()` chains
+ from a Java subclass resolve to the overridden form at runtime,
+ and tooling that distinguishes declared from inherited methods
+ sees the override.
+|*Spike: validated*
 
 |`@EqualsAndHashCode`
 |Same shape as `@ToString` — already callable via `Object` but a
  contribution improves stub fidelity.
+|Pending
 
 |`@Lazy`
-|Verifier already synthesises an accessor for the property; the
- contribution refines the field shape.
+|`Verifier` synthesises both `getX()` and `setX(...)` for the
+ property by default. The stubber marks the property final at
+ `CONVERSION`, which causes `Verifier` to skip setter generation
+ (a single modifier flip — no need to duplicate the full transform's
+ backing-field rewiring). The full transform replaces the property
+ entirely at `SEMANTIC_ANALYSIS`, so the final marker has no runtime
+ effect.
+|*Spike: validated*
 
 |`@Builder` (`SimpleStrategy`, `DefaultStrategy`)
 |Inner `Builder` class with fluent setters and a `build()` method.
  Configuration is in the `@Builder` annotation values
  (`builderClassName`, `builderMethodName`, `prefix`, etc.) and is
  fully readable at `CONVERSION`.
+|Pending
 
 |`@AutoClone`
 |Emits `clone()` and adds `Cloneable` to the implements clause. The
  interface addition needs the contribution; `clone()` itself is
  already on `Object`.
+|Pending
 
 |`@InheritConstructors`
 |Mirrors super-class constructors. Works for classpath super
@@ -572,11 +795,13 @@ already adequately covered by inheritance. They migrate after Tier
  `@TupleConstructor`-family transforms, the super's transform-added
  constructors are not yet visible at `CONVERSION` (deferred — see
  below).
+|Pending
 
 |`@RecordType` / record-style classes
 |Component accessors and the canonical constructor are derivable
  from declared components. Some record-specific finalisation runs
- later and is left to the body pass.
+ later and is left to the authoritative pass.
+|Pending
 |===
 
 === Tier 3 — deferred
@@ -728,9 +953,11 @@ already adequately covered by inheritance. They migrate after Tier
 
 == References
 
+* https://github.com/apache/groovy/pull/2500[GEP-21 spike PR — Shape C implementation for `@Sortable`, `@TupleConstructor`, `@Lazy`, and `@ToString`]
 * https://groovy-lang.org/metaprogramming.html#_compilation_phases_guide[Groovy compilation phases guide]
 * https://github.com/apache/groovy/blob/master/src/main/java/org/codehaus/groovy/tools/javac/JavaStubGenerator.java[`JavaStubGenerator` — current stub generator, including the `Verifier` sub-pass and the `@PackageScope` / trait back-channels]
 * https://github.com/apache/groovy/blob/master/src/main/java/org/codehaus/groovy/tools/javac/JavaAwareCompilationUnit.java[`JavaAwareCompilationUnit` — joint-compilation phase op chain]
 * https://github.com/apache/groovy/blob/master/src/main/java/org/codehaus/groovy/transform/ASTTransformationCollectorCodeVisitor.java[`ASTTransformationCollectorCodeVisitor` — `@AnnotationCollector` alias expansion at CONVERSION]
 * https://github.com/apache/groovy/blob/master/src/main/java/org/codehaus/groovy/transform/ASTTransformationVisitor.java[`ASTTransformationVisitor` — phase-dispatch wiring for local transforms]
 * https://groovy-lang.org/objectorientation.html#_traits[Traits — example of an existing stub-side back-channel for non-injection rendering decisions]
+* Existing split-transform precedents in the codebase: `SealedASTTransformation` / `SealedCompletionASTTransformation`, `ExternalizeMethodsASTTransformation` / `ExternalizeVerifierASTTransformation`. Both pairs run after `CONVERSION`; Shape C extends the same idiom by allowing the first piece at `CONVERSION`.
