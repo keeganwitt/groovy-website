@@ -940,18 +940,58 @@ already adequately covered by inheritance. They migrate after Tier
  was itself added by another transform, that method is not visible
  to the contribution at `CONVERSION`.
 
-|`@Immutable` as a meta-transform
-|`@Immutable` composes `@TupleConstructor`, `@MapConstructor`,
- `@ToString`, `@EqualsAndHashCode`, plus immutability-specific
- logic. Each constituent migrates independently as part of Tier 1 /
- Tier 2; `@Immutable` itself becomes joint-compile-aware once its
- constituents are.
-
 |`@AutoImplement` of generic same-unit Groovy supertypes
 |Requires generic substitution against a same-unit type whose
  declared abstract methods may be transform-added. Workable for
  classpath supertypes.
 |===
+
+NOTE: `@Immutable` was originally listed here as a deferred meta-transform
+pending its constituents. With Tier 1 / Tier 2 migrations and the
+addition of a `@Final` stubber, all of `@Immutable`'s composing
+transforms (`@TupleConstructor(defaults=false)`, `@MapConstructor`,
+`@ToString`, `@EqualsAndHashCode`, `@Final`) are now joint-compile-aware
+in the spike, so `@Immutable` itself is transitively covered through
+`@AnnotationCollector` expansion. See
+`ImmutableJointCompilationStubTest` for end-to-end validation.
+
+=== Transforms that need no stubber
+
+Some transforms are intentionally absent from the migration tiers
+above because they produce no stub-visible output. The work they do
+is real, but it sits below the line of what `JavaStubGenerator`
+renders. Adding a Shape C stubber for them would be dead code today.
+
+[cols="2,3"]
+|===
+|Transform |Why no stubber is needed
+
+|`@AutoFinal`
+|Sets {`Modifier.FINAL`} on each method / constructor / closure
+ *parameter*. The stub generator does not emit parameter modifiers
+ (`JavaStubGenerator.printParams` writes only annotations, type, and
+ name), so the change is invisible to Java consumers regardless of
+ when it runs. Pure internal-discipline annotation; if the stub
+ generator is ever enhanced to emit parameter modifiers, a stubber
+ mirroring the full transform's parameter-walk would be the minimal
+ fix.
+
+|`@ImmutableBase`
+|Sets fields to `private final`, adds `serialVersionUID`, marks
+ fields with the per-field `IMMUTABLE_BREADCRUMB` metadata key, and
+ wires the {`ImmutablePropertyHandler`}. All of these are runtime
+ semantics: defensive copies inside generated constructor bodies,
+ immutable-property handler integration, breadcrumbs that other
+ transforms (e.g. `@IndexedProperty`) consult later. The
+ *Java-visible API* — constructors, getters, no setters,
+ equals/hashCode/toString — is fully covered by the constituent
+ transforms (`@TupleConstructor`, `@MapConstructor`, `@ToString`,
+ `@EqualsAndHashCode`, `@Final`). Once those are migrated,
+ `@ImmutableBase`'s contribution is invisible to `javac`.
+|===
+
+This category exists to make the GEP's coverage decisions explicit:
+"considered, no work needed" rather than silently absent.
 
 == Compatibility
 
