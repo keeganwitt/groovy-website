@@ -33,8 +33,7 @@ layout 'layouts/main.groovy', true,
                                     li {
                                         a(href: "${gep.key}.html", "$gep.key: $gep.value.subtitle")
                                         if (!details.isEmpty()) {
-                                            br()
-                                            p(details.join(' | '))
+                                            p(class: 'gep-meta', details.join(' | '))
                                         }
                                     }
                                 }

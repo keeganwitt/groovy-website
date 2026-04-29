@@ -12,7 +12,7 @@
 *Status*:: Final
 *Leader*:: Jochen "blackdrag" Theodorou
 *Created*:: 2013-05-30
-*Last modification*&#160;:: 2018-10-29
+*Last modification*:: 2018-10-29
 ****
 
 == Abstract: SAM coercion

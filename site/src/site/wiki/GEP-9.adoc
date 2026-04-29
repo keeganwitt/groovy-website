@@ -13,7 +13,7 @@
 *Comment*:: Parts incorporated in Groovy 2.0
 *Leader*:: Paul King
 *Created*:: 2011-10-26
-*Last modification*&#160;:: 2018-10-24
+*Last modification*:: 2018-10-24
 ****
 
 == Abstract: Modularization

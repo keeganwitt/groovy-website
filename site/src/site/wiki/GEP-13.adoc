@@ -12,7 +12,7 @@
 *Status*:: Draft
 *Leader*:: Paul King
 *Created*:: 2021-07-22
-*Last modification*&#160;:: 2021-07-22
+*Last modification*:: 2021-07-22
 ****
 
 == Abstract: Sealed classes

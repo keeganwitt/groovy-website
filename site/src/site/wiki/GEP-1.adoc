@@ -12,7 +12,7 @@
 *Status*:: Final
 *Leader*:: Apache Project Leader
 *Created*:: 2009-03-26
-*Last modification*&#160;:: 2018-10-11
+*Last modification*:: 2018-10-11
 ****
 
 == Abstract: What is a GEP?

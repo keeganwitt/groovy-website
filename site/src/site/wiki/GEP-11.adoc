@@ -12,7 +12,7 @@
 *Status*:: Draft
 *Leader*:: Jochen "blackdrag" Theodorou
 *Created*:: 2012-06-26
-*Last modification*&#160;:: 2018-10-28
+*Last modification*:: 2018-10-28
 ****
 
 == Abstract: Groovy 3 semantics and new MOP

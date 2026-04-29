@@ -14,7 +14,7 @@
 *Leader*:: Guillaume Laforge
 *Contributors*:: Andres Almiray
 *Created*:: 2010-10-25
-*Last modification*&#160;:: 2018-10-12
+*Last modification*:: 2018-10-12
 ****
 
 == Abstract: JSON Support

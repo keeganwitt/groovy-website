@@ -13,7 +13,7 @@
 *Comment*:: Delivered in Groovy 2.3
 *Leader*:: Merlyn Albery-Speyer/Hamlet D'Arcy
 *Created*:: 2010-09-25
-*Last modification*&#160;:: 2018-10-12
+*Last modification*:: 2018-10-12
 ****
 
 == Abstract

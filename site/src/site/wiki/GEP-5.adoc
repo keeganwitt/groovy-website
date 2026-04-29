@@ -10,10 +10,10 @@
 *Version*:: 2
 *Type*:: Feature
 *Status*:: Rejected
-*Comment*:: A general compiler configuration mechanism was adopted instead and delivered in Groovy 1.8
+*Comment*:: Groovy 1.8 instead adopted a general compiler configuration mechanism
 *Leader*:: Alex Tkachman
 *Created*:: 2010-02-26
-*Last modification*&#160;:: 2018-10-12
+*Last modification*:: 2018-10-12
 ****
 
 == Abstract: What is a file extension dependent AST transformations?

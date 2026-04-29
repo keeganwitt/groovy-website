@@ -13,7 +13,7 @@
 *Comment*:: The approach used in Groovy macros was pursued instead
 *Leader*:: Hamlet D'Arcy
 *Created*:: 2010-02-16
-*Last modification*&#160;:: 2018-10-12
+*Last modification*:: 2018-10-12
 ****
 
 == Abstract

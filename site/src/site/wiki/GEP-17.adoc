@@ -12,7 +12,7 @@
 *Status*:: Draft
 *Leader*:: Paul King
 *Created*:: 2026-04-13
-*Last modification*&#160;:: 2026-04-14
+*Last modification*:: 2026-04-14
 *JIRA*:: https://issues.apache.org/jira/browse/GROOVY-11928[GROOVY-11928]
 ****
 

@@ -13,7 +13,7 @@
 *Comment*:: Delivered in Groovy 2.0 and enhanced in later versions
 *Leader*:: Cédric Champeau
 *Created*:: 2011-11-23
-*Last modification*&#160;:: 2018-10-26
+*Last modification*:: 2018-10-26
 ****
 
 == Abstract: Static compilation

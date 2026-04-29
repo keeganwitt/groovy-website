@@ -433,6 +433,27 @@ table.tableblock.grid-all td {
     background: none;
 }
 
+/* Horizontal lists inside sidebar blocks (e.g. GEP Metadata) — add cell
+   padding and tighten row spacing without affecting horizontal lists used
+   elsewhere on the site. */
+.sidebarblock .hdlist > table td.hdlist1,
+.sidebarblock .hdlist > table td.hdlist2 {
+    padding: 0.2em 0.7em;
+    vertical-align: top;
+}
+.sidebarblock .hdlist > table td.hdlist1 {
+    font-weight: bold;
+}
+.sidebarblock .hdlist > table td.hdlist2 > p {
+    margin: 0;
+}
+
+/* GEP list page: keep the status/metadata line tight against its link. */
+.gep-meta {
+    margin: 0;
+    font-size: 0.9em;
+}
+
 /* Listing/literal blocks */
 .listingblock pre,
 .literalblock pre {

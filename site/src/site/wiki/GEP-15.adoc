@@ -12,7 +12,7 @@
 *Status*:: Draft
 *Leader*:: Paul King
 *Created*:: 2026-04-12
-*Last modification*&#160;:: 2026-04-28
+*Last modification*:: 2026-04-28
 ****
 
 == Abstract
