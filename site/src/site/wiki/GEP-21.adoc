@@ -7,7 +7,7 @@
 [horizontal,options="compact"]
 *Number*:: GEP-21
 *Title*:: Broadening AST transform awareness under joint compilation
-*Version*:: 4
+*Version*:: 5
 *Type*:: Feature
 *Status*:: Draft
 *Leader*:: Paul King
@@ -17,12 +17,13 @@
 
 NOTE: A working spike for **Shape C** (the split-transform model described
 below) is available at https://github.com/apache/groovy/pull/2500. It
-covers all of Tier 1 plus several Tier 2 entries — `@Sortable`,
-`@TupleConstructor`, `@MapConstructor`, `@Singleton`, `@Bindable`,
-`@Vetoable`, `@ListenerList`, `@ExternalizeMethods`, `@IndexedProperty`,
-`@ToString`, `@EqualsAndHashCode`, `@Lazy`, `@Final` — end-to-end through
-joint compilation, plus compositional tests for `@Canonical` and
-`@Immutable`. Findings from that spike are folded into this revision.
+covers all of Tier 1 plus most of Tier 2 — `@Sortable`,
+`@TupleConstructor`, `@MapConstructor`, `@NamedVariant`, `@Singleton`,
+`@Bindable`, `@Vetoable`, `@ListenerList`, `@ExternalizeMethods`,
+`@IndexedProperty`, `@ToString`, `@EqualsAndHashCode`, `@Lazy`, `@Final`,
+`@AutoClone`, `@Builder` — end-to-end through joint compilation, plus
+compositional tests for `@Canonical` and `@Immutable`. Findings from that
+spike are folded into this revision.
 
 == Abstract
 
@@ -478,9 +479,47 @@ interfaces with their own transform-added methods fall under the
 Tier 3 cross-class limit; classpath listeners (e.g.
 `java.beans.PropertyChangeListener`,
 `java.awt.event.ActionListener`) work fully.
+
+|`@AutoClone`
+|`Object.clone()` is `protected`, so Java code calling
+`foo.clone()` against the stub fails to compile even though the
+runtime exposes a public covariant override.
+|`Cloneable` on the implements clause; public covariant
+`Foo clone() throws CloneNotSupportedException`. Behaviour is
+identical for all four styles (CLONE / COPY_CONSTRUCTOR /
+SERIALIZATION / SIMPLE) — they differ only in body, which is
+irrelevant for stubs.
+
+|`@NamedVariant`
+|The Map-arg variant of an annotated method or constructor is not
+visible. Java callers wanting the named-arg form (e.g.
+`Calc.makeSense(args)` where `args` is a `Map`) fail to compile
+even though the runtime exposes the variant. Also covers
+`@TupleConstructor(namedVariant = true)`, which uses the same
+`createMapVariant` helper.
+|Map-arg variant declared alongside the user-written original for
+both methods and constructors. Mixed
+`@NamedParam`/`@NamedDelegate` configurations produce a richer
+runtime signature that the stubber emits as a strict subset
+(single Map-arg form); the original was previously listed in
+Tier 3 and is now promoted to Tier 1 since the typical direct-use
+case has its target visible at CONVERSION.
+
+|`@Builder`
+|`Foo.builder()`, the inner builder class with its fluent setters,
+and the `build()` method are not visible. Java callers wanting
+`Foo.builder().name("a").age(7).build()` fail to compile.
+|For `DefaultStrategy` (the default): inner builder class declared
+inline in the stub with placeholder fluent setters and `build()`,
+plus a static `Foo.builder()` factory on the buildee. For
+`SimpleStrategy` with a non-default `prefix` (e.g.,
+`prefix = "with"`): chained `Foo prefixName(T)` setters on the
+buildee. Default-prefix `SimpleStrategy`, `InitializerStrategy`,
+`ExternalStrategy`, method/constructor targets, and `forClass` are
+documented limitations rather than deferrals.
 |===
 
-In all thirteen cases the runtime output is unchanged — these are
+In all sixteen cases the runtime output is unchanged — these are
 stub-fidelity fixes, not behavioural changes.
 
 Two compositional cases — `@Canonical` and `@Immutable` — are
@@ -566,6 +605,19 @@ future Shape C authors will want to know about:
   no-ops. Single-transform tests don't catch this — only
   compositional cases do; the spike's `@Canonical` and `@Immutable`
   tests are the smallest reliable triggers.
+
+* *Inner-class stubbing needs manual module wiring.* The natural API
+  (`module.addClass(innerClass)`) registers the class globally in
+  the `CompileUnit`'s by-name map. The full transform's
+  `addGeneratedInnerClass` then trips a "duplicate class definition"
+  error when it tries to register its own (untagged) replacement.
+  The workaround is to add to `module.getClasses()` and call
+  `setModule` manually, but skip the `CompileUnit` registration —
+  the stub generator finds the inner class via the outer's
+  `innerClasses` list and renders it inline. The full transform's
+  cleanup then removes the stubber-tagged entry from the module
+  before `addGeneratedInnerClass` runs. The spike's `@Builder` with
+  `DefaultStrategy` is the case that surfaces this.
 
 === What a stub contribution may emit
 
@@ -917,6 +969,17 @@ information is unconditionally available at `CONVERSION`.
  clause; full transform replaces the placeholder body via the
  metadata-key handoff at `CANONICALIZATION`.
 |*Spike: validated*
+
+|`@NamedVariant`
+|Map-arg variant alongside the user-written method or constructor
+ (typical direct-use case). Mixed
+ `@NamedParam`/`@NamedDelegate` configurations produce a richer
+ runtime signature; the stubber's single Map-arg form is a strict
+ subset. Promoted from Tier 3 — the original deferral assumed the
+ target method might be transform-added, but in practice
+ `@NamedVariant` sits on hand-written members, with the target
+ visible at CONVERSION.
+|*Spike: validated*
 |===
 
 These transforms are the proposal's primary beneficiaries. A Java
@@ -976,18 +1039,25 @@ already adequately covered by inheritance. They migrate after Tier
  `extends ImmutableThing` against the stub.
 |*Spike: validated*
 
-|`@Builder` (`SimpleStrategy`, `DefaultStrategy`)
-|Inner `Builder` class with fluent setters and a `build()` method.
- Configuration is in the `@Builder` annotation values
- (`builderClassName`, `builderMethodName`, `prefix`, etc.) and is
- fully readable at `CONVERSION`.
-|Pending
+|`@Builder`
+|For `DefaultStrategy` (the default): inner builder class with
+ fluent setters plus a `build()` method, accessed via a static
+ `Foo.builder()` factory. For `SimpleStrategy` with a non-default
+ `prefix`: chained setters on the buildee. Default-prefix
+ `SimpleStrategy` (return-type collision with auto-generated void
+ setters), `InitializerStrategy`, `ExternalStrategy`,
+ method/constructor targets, and `forClass` are documented
+ limitations rather than deferrals.
+|*Spike: validated*
 
 |`@AutoClone`
-|Emits `clone()` and adds `Cloneable` to the implements clause. The
- interface addition needs the contribution; `clone()` itself is
- already on `Object`.
-|Pending
+|`Cloneable` on the implements clause and a public covariant
+ `Foo clone() throws CloneNotSupportedException`. Body is a
+ placeholder; the four styles (CLONE / COPY_CONSTRUCTOR /
+ SERIALIZATION / SIMPLE) differ only in body content. Without the
+ stubber, `Object.clone()`'s `protected` visibility means Java
+ callers cannot invoke `foo.clone()` against the stub.
+|*Spike: validated*
 
 |`@InheritConstructors`
 |Mirrors super-class constructors. Works for classpath super
@@ -1018,16 +1088,20 @@ already adequately covered by inheritance. They migrate after Tier
  Workable for classpath delegate types; deferred for same-unit
  Groovy delegates pending a fixed-point scheduling model.
 
-|`@NamedVariant`
-|Generates an overload of an existing method. If the existing method
- was itself added by another transform, that method is not visible
- to the contribution at `CONVERSION`.
-
 |`@AutoImplement` of generic same-unit Groovy supertypes
 |Requires generic substitution against a same-unit type whose
  declared abstract methods may be transform-added. Workable for
  classpath supertypes.
 |===
+
+NOTE: `@NamedVariant` was originally listed here as deferred because a
+target method "added by another transform" wouldn't be visible at
+CONVERSION. In practice, transforms compose this kind of variant via
+`@NamedParam` annotations on parameters of an existing method, not by
+adding a `@NamedVariant`-annotated method; direct user-written
+`@NamedVariant` sits on hand-written members whose target is fully visible
+at CONVERSION. The original deferral was overly cautious; `@NamedVariant`
+is now in Tier 1.
 
 NOTE: `@Immutable` was originally listed here as a deferred meta-transform
 pending its constituents. With Tier 1 / Tier 2 migrations and the
@@ -1207,4 +1281,5 @@ This category exists to make the GEP's coverage decisions explicit:
 1 (2026-04-28) Initial proposal: motivation, design principles, Shapes A and B, migration tiers +
 2 (2026-04-29) Added Shape C (split-transform model) and the working spike (https://github.com/apache/groovy/pull/2500) covering `@Sortable`, `@TupleConstructor`, `@Lazy`, `@ToString`; before/after spike-results table; framework-adjustments subsection (rail relaxation + customizer filter) +
 3 (2026-04-29) Spike extended to nine transforms with `@MapConstructor`, `@EqualsAndHashCode`, `@Singleton`, `@IndexedProperty`, `@ExternalizeMethods`; added "Recurring patterns and implementation gotchas" subsection; updated migration tiers to reflect the broader spike validation +
-4 (2026-04-29) Tier 1 complete: spike adds `@Final`, `@Bindable`, `@Vetoable`, `@ListenerList`; compositional `@Canonical` and `@Immutable` tests; "Transforms that need no stubber" subsection; two new gotchas (parallel-map method removal, compositional ordering guards)
+4 (2026-04-29) Tier 1 complete: spike adds `@Final`, `@Bindable`, `@Vetoable`, `@ListenerList`; compositional `@Canonical` and `@Immutable` tests; "Transforms that need no stubber" subsection; two new gotchas (parallel-map method removal, compositional ordering guards) +
+5 (2026-04-29) Tier 2 covered: spike adds `@AutoClone` and `@Builder` (DefaultStrategy + non-default-prefix SimpleStrategy); `@NamedVariant` promoted from Tier 3 to Tier 1; new gotcha (inner-class stubbing needs manual module wiring)
