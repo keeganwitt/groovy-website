@@ -23,12 +23,17 @@ TBD
 
 == New Modules
 
-Groovy 6 ships seven new optional modules, plus a long-standing piece
+Groovy 6 ships eight new optional modules, plus a long-standing piece
 of core (Grape's Ivy backend) is split out into its own module:
 
 [cols="1,3", options="header"]
 |===
 | Module | Purpose
+
+| `groovy-concurrent-java`
+| Standalone Java library exposing the `groovy.concurrent` toolkit
+(structured concurrency, actors, agents, dataflow, pools) without
+the Groovy runtime -- see <<concurrent-java>>
 
 | `groovy-csv`
 | CSV parsing and writing via Jackson CSV
@@ -221,6 +226,311 @@ AsyncScope.run {
 
 | Executor configuration
 | Pluggable; default auto-selects virtual threads or cached pool
+|===
+
+== Integrated Concurrency and Parallel Processing (incubating)
+
+Groovy 6 brings a unified concurrency and parallel-processing toolkit
+into core under
+link:../wiki/GEP-18.html[GEP-18: Integrated Concurrency and Parallel Processing]
+(https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952],
+https://issues.apache.org/jira/browse/GROOVY-11953[GROOVY-11953]).
+The new abstractions live in the `groovy.concurrent` package and
+modernise patterns from
+http://gpars.org/[GPars] around virtual threads, structured concurrency,
+and Groovy 6's `async`/`await`. The same combinators
+(`await`, `Awaitable.all`, `for await`) work uniformly across all of
+them — agents, actors, dataflow variables, channels, and parallel
+collections — so you compose features rather than learning separate
+APIs.
+
+For Java-only consumers, the same APIs are also published as the
+new `groovy-concurrent-java` module — see <<concurrent-java>>.
+
+=== Agents — thread-safe mutable state
+
+An gapi:groovy.concurrent.Agent[Agent] wraps a value and serialises
+updates via functions, eliminating data races by design. Reads compose
+with `await`:
+
+[source,groovy]
+----
+import groovy.concurrent.Agent
+
+def counter = Agent.create(0)
+counter.send { it + 1 }
+counter.send { it + 1 }
+counter.send { it + 1 }
+
+assert await(counter.getAsync()) == 3
+----
+
+An agent also exposes its update stream as a
+`java.util.concurrent.Flow.Publisher` via `changes()`, so `for await`
+consumes state transitions directly:
+
+[source,groovy]
+----
+def agent = Agent.create(0)
+async {
+    3.times { agent.send { it + 1 } }
+    agent.shutdown()
+}
+def seen = []
+for await (v in agent.changes()) { seen << v }
+assert seen == [1, 2, 3]
+----
+
+=== `@ActiveObject` — actor semantics with class syntax
+
+A hand-written actor expresses concurrency by encoding a message
+protocol — typed messages, a `switch` over message kinds, and explicit
+`send`/`sendAndGet` plumbing at every call site:
+
+[source,groovy]
+----
+import groovy.concurrent.Actor
+
+// Hand-written actor — message protocol explicit
+def account = Actor.stateful(0.0) { balance, msg ->
+    switch (msg) {
+        case { it instanceof Map && it.deposit }:
+            return balance + msg.deposit
+        case { it instanceof Map && it.withdraw }:
+            if (msg.withdraw > balance) throw new RuntimeException('Insufficient funds')
+            return balance - msg.withdraw
+        default: return balance
+    }
+}
+
+account.send([deposit: 100])
+account.send([withdraw: 30])
+def balance = await(account.sendAndGet([deposit: 0]))
+assert balance == 70.0
+----
+
+To know whether the actor is being used safely, a reader (human or AI)
+has to follow each message kind through the dispatch loop and match it
+against every call site. gapi:groovy.transform.ActiveObject[@ActiveObject]
+inverts this: write a normal class, mark methods that participate in
+the actor's serialised mailbox with
+gapi:groovy.transform.ActiveMethod[@ActiveMethod], and the AST
+transform routes those calls through an internal actor:
+
+[source,groovy]
+----
+import groovy.transform.ActiveObject
+import groovy.transform.ActiveMethod
+
+@ActiveObject
+class Account {
+    private double balance = 0
+
+    @ActiveMethod
+    void deposit(double amount) { balance += amount }
+
+    @ActiveMethod
+    void withdraw(double amount) {
+        if (amount > balance) throw new RuntimeException('Insufficient funds')
+        balance -= amount
+    }
+
+    @ActiveMethod
+    double getBalance() { balance }
+}
+
+def account = new Account()
+account.deposit(100)
+account.deposit(50)
+account.withdraw(30)
+assert account.getBalance() == 120.0
+----
+
+The thread-safety contract is now explicit and local. The
+`@ActiveObject` annotation declares the concurrency model;
+`@ActiveMethod` bodies contain plain business logic; callers see
+ordinary method calls — no message types to invent, no `switch` to
+parse, no manual reply plumbing. For non-blocking use,
+`@ActiveMethod(blocking = false)` returns an `Awaitable` that plugs
+straight into `await` and `Awaitable.all`.
+
+=== Dataflow variables
+
+A gapi:groovy.concurrent.DataflowVariable[DataflowVariable] is a
+single-assignment variable: any thread that reads before it is bound
+blocks until a value is available. `DataflowVariable` implements
+`Awaitable`, so it composes directly with `await` and `async {}`
+regardless of which task binds first:
+
+[source,groovy]
+----
+import groovy.concurrent.DataflowVariable
+
+def x = new DataflowVariable()
+def y = new DataflowVariable()
+def z = new DataflowVariable()
+
+async { z << await(x) + await(y) }   // blocks until x and y bind
+async { x << 10 }                     // bind in any order
+async { y << 5 }
+
+assert await(z) == 15
+----
+
+The companion gapi:groovy.concurrent.Dataflows[Dataflows] class
+auto-creates variables on property access for an even more concise
+form (`async { df.fullName = "${df.first} ${df.last}" }`).
+
+=== Parallel collections
+
+For CPU-bound data parallelism, `Collection` gains a family of
+parallel methods backed by a `ForkJoinPool`:
+
+[source,groovy]
+----
+def squares = (1..1_000).toList().collectParallel { it * it }
+def adults  = people.findAllParallel { it.age >= 18 }
+def total   = amounts.sumParallel { a, b -> a + b }
+----
+
+gapi:groovy.concurrent.ParallelScope[ParallelScope]`.withPool`
+binds a pool for a block, and gapi:groovy.concurrent.Pool[Pool]
+offers `Pool.cpu()`, `Pool.fixed(n)`, `Pool.io()`, and
+`Pool.virtual()` factories so CPU-bound and I/O-bound workloads can
+use distinct pools without leaking into the common pool. The
+previously introduced gapi:groovy.transform.Parallel[@Parallel] loop
+annotation shares this infrastructure:
+
+[source,groovy]
+----
+import groovy.concurrent.ParallelScope
+import groovy.concurrent.Pool
+
+ParallelScope.withPool(Pool.cpu()) { scope ->
+    def hot = bigList.findAllParallel { it.score > threshold }
+    hot.eachParallel { archive(it) }
+}
+----
+
+As a rule of thumb, prefer parallel collections (or `@Parallel`) for
+CPU-bound work and `async`/`await` with virtual threads for
+I/O-bound work — `ForkJoinPool` workers are precious and should not
+be tied up in `Thread.sleep`, network calls, or blocking I/O.
+
+=== Channel composition and broadcast
+
+`AsyncChannel` (introduced with async/await) gains composable
+pipeline operations — `filter`, `map`, `merge`, `split`, `tap` — and
+gapi:groovy.concurrent.ChannelSelect[ChannelSelect] for Go-style
+multi-channel selection.
+gapi:groovy.concurrent.BroadcastChannel[BroadcastChannel] adds
+one-to-many delivery and exposes `asPublisher()` for direct
+`Flow.Publisher` interop, so any subscriber — including a `for await`
+loop — receives every message:
+
+[source,groovy]
+----
+import groovy.concurrent.BroadcastChannel
+
+def broadcast = BroadcastChannel.create()
+def publisher = broadcast.asPublisher()
+
+async {
+    ['hello', 'world'].each { broadcast.send(it) }
+    broadcast.close()
+}
+
+for await (msg in publisher) { println msg }   // hello, world
+----
+
+The same `for await` works against any JDK `Flow.Publisher`, Reactor
+`Flux` (via `groovy-reactor`), or RxJava `Observable` (via
+`groovy-rxjava`).
+
+[[concurrent-java]]
+=== Java-only module: `groovy-concurrent-java`
+
+For Java, Kotlin, and other JVM languages that want the same
+toolkit without the full Groovy runtime, the standalone
+`groovy-concurrent-java` module exposes `AsyncScope`, `Pool`,
+`ParallelScope`, `Actor`, `Agent`, `DataflowVariable`,
+`AsyncChannel`, `BroadcastChannel`, and `ChannelSelect` against
+plain `java.util.function` types. The Groovy-only sugar
+(`async`/`await` keywords, `for await`, `defer`, `@ActiveObject`,
+`Dataflows`, parallel extension methods) requires the full Groovy
+dependency.
+
+[source,java]
+----
+import groovy.concurrent.AsyncScope;
+import org.apache.groovy.runtime.async.AsyncSupport;
+
+var result = AsyncScope.withScope(scope -> {
+    var a = scope.async(() -> fetchUser(id));
+    var b = scope.async(() -> fetchOrders(id));
+    return Map.of(
+        "user",   AsyncSupport.await(a),
+        "orders", AsyncSupport.await(b)
+    );
+});
+----
+
+The module ships under the `org.apache.groovy:groovy-concurrent-java`
+coordinate and is mutually exclusive with the full `groovy` runtime
+(Gradle enforces this via a shared capability; a runtime warning
+fires if both jars are detected on the classpath).
+
+=== Feature summary
+
+[cols="2,3,1", options="header"]
+|===
+| Feature | Description | Ticket
+
+| `Agent`
+| Thread-safe mutable value updated via serialised functions; exposes
+a `Flow.Publisher` of state changes via `changes()`.
+| https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952],
+https://issues.apache.org/jira/browse/GROOVY-11953[GROOVY-11953]
+
+| `Actor.reactor` / `Actor.stateful`
+| Stateless and stateful actors with `Awaitable`-based reply via
+`sendAndGet`.
+| https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
+
+| `@ActiveObject` / `@ActiveMethod`
+| AST-driven actor semantics with class syntax. `blocking = false`
+returns an `Awaitable`.
+| https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
+
+| `DataflowVariable`, `Dataflows`
+| Single-assignment variables; `Dataflows` auto-creates on property
+access. Implements `Awaitable` and supports `then` chaining.
+| https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
+
+| `AsyncChannel.filter` / `map` / `merge` / `split` / `tap`
+| Composable channel pipelines.
+| https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
+
+| `BroadcastChannel`, `ChannelSelect`
+| One-to-many broadcast (with `asPublisher()` for Reactive Streams);
+Go-style multi-channel select.
+| https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952],
+https://issues.apache.org/jira/browse/GROOVY-11953[GROOVY-11953]
+
+| Parallel collection methods
+| `collectParallel`, `findAllParallel`, `eachParallel`, `sumParallel`,
+`injectParallel`, `groupByParallel`, etc., on `Collection`.
+| https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
+
+| `Pool` and `ParallelScope`
+| `Pool.cpu()`, `Pool.fixed(n)`, `Pool.io()`, `Pool.virtual()` pool
+factories; `ParallelScope.withPool { }` binds a pool for a block.
+| https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
+
+| `groovy-concurrent-java`
+| Standalone Java module exposing the same concurrent APIs without
+the Groovy runtime.
+| https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
 |===
 
 == HttpBuilder: HTTP Client Module (incubating)
@@ -1762,7 +2072,6 @@ to standard `JFrame`/`JWindow` alternatives.
 
 * Performance
 * Spec improvements
-* Further subprojects, e.g. maybe GPars
 
 [[Groovy6.0-requirements]]
 == JDK requirements

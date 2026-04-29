@@ -119,12 +119,16 @@ documentation {
     }
 
     section('Diving Deeper', 'fa-binoculars') {
-        item 'Runtime and compile-time metaprogramming',   'metaprogramming',  'core-metaprogramming'
-        item 'Domain-Specific Languages',                  'dsls',             'core-domain-specific-languages'
-        item 'Design patterns in Groovy',                  'design-patterns',  'design-patterns-in-groovy'
-        item 'Concurrency in Groovy',                      'concurrency',      'core-async-await'
-        item 'Integrating Groovy into applications',       'integrating',      'guide-integrating'
-        item 'Security',                                   'security',         'security'
+        item 'Runtime and compile-time metaprogramming',   'metaprogramming',      'core-metaprogramming'
+        item 'Domain-Specific Languages',                  'dsls',                 'core-domain-specific-languages'
+        item 'Design patterns in Groovy',                  'design-patterns',      'design-patterns-in-groovy'
+        item 'Async/await in Groovy',                      'async',                'core-async-await'
+        item 'Parallel collections',                       'parallel-collections', 'core-parallel-collections'
+        item 'Concurrent dataflow',                        'concurrent-dataflow',  'core-concurrent-dataflow'
+        item 'Concurrent actors and agents',               'concurrent-actors',    'core-concurrent-actors'
+        item 'Concurrent API for Java',                    'concurrent-java',      'core-concurrent-java'
+        item 'Integrating Groovy into applications',       'integrating',          'guide-integrating'
+        item 'Security',                                   'security',             'security'
     }
 
     section('Groovy module guides', 'fa-cubes') {
