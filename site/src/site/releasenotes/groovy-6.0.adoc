@@ -1981,6 +1981,16 @@ are now flagged as compile errors when applied to these constructs.
 This is a <<Groovy6.0-breaking,breaking change>> for code that
 previously relied on the lenient behavior.
 
+== Other Core API Changes
+
+* `ASTTransformationCustomizer` now supports annotations whose
+`@GroovyASTTransformationClass` lists multiple transforms (e.g. `@Sealed`,
+`@RecordBase`) and `@AnnotationCollector` aliases (e.g. `@AutoExternalize`),
+via a new `forAnnotation(...)` static factory that returns one customizer
+per resolved transform class
+(https://issues.apache.org/jira/browse/GROOVY-11973[GROOVY-11973]).
+For example: `config.addCompilationCustomizers(*ASTTransformationCustomizer.forAnnotation(Sealed))`.
+
 == Other Module Changes
 
 * *groovy-xml*: `XmlParser` and `XmlSlurper` now support named parameter
