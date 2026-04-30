@@ -7,23 +7,27 @@
 [horizontal,options="compact"]
 *Number*:: GEP-21
 *Title*:: Broadening AST transform awareness under joint compilation
-*Version*:: 5
+*Version*:: 6
 *Type*:: Feature
 *Status*:: Draft
 *Leader*:: Paul King
 *Created*:: 2026-04-28
-*Last modification*:: 2026-04-29
+*Last modification*:: 2026-04-30
 ****
 
 NOTE: A working spike for **Shape C** (the split-transform model described
 below) is available at https://github.com/apache/groovy/pull/2500. It
-covers all of Tier 1 plus most of Tier 2 — `@Sortable`,
-`@TupleConstructor`, `@MapConstructor`, `@NamedVariant`, `@Singleton`,
-`@Bindable`, `@Vetoable`, `@ListenerList`, `@ExternalizeMethods`,
-`@IndexedProperty`, `@ToString`, `@EqualsAndHashCode`, `@Lazy`, `@Final`,
-`@AutoClone`, `@Builder` — end-to-end through joint compilation, plus
-compositional tests for `@Canonical` and `@Immutable`. Findings from that
-spike are folded into this revision.
+covers all of Tier 1 and Tier 2 — `@Sortable`, `@TupleConstructor`,
+`@MapConstructor`, `@NamedVariant`, `@Singleton`, `@Bindable`, `@Vetoable`,
+`@ListenerList`, `@ExternalizeMethods`, `@IndexedProperty`, `@ToString`,
+`@EqualsAndHashCode`, `@Lazy`, `@Final`, `@AutoClone`, `@Builder`,
+`@AutoImplement`, `@InheritConstructors`, `@Delegate` — end-to-end through
+joint compilation, plus compositional tests for `@Canonical` and
+`@Immutable`. Tier 3 collapsed: the original entries graduated and the
+narrow remaining edges (transform-added abstract methods on same-unit
+supertypes; sub-declared-first ordering when a sibling stubber on the
+super hasn't run yet) are documented inline. Findings are folded into this
+revision.
 
 == Abstract
 
@@ -344,9 +348,9 @@ which shapes to commit to in the first implementation.
 === Spike results: before / after stub views
 
 The spike at https://github.com/apache/groovy/pull/2500 implements
-Shape C for four transforms. The table summarises what a Java source
-in the same joint-compilation unit sees via the generated stub
-before and after the transform opts in.
+Shape C across Tier 1 and Tier 2. The table summarises what a Java
+source in the same joint-compilation unit sees via the generated stub
+before and after each transform opts in.
 
 [cols="1,2,2"]
 |===
@@ -370,7 +374,7 @@ chain (`Foo()`, `Foo(p1)`, ..., `Foo(p1..pN)`) is in the stub,
 mirroring what `Verifier` will produce at runtime. For
 `defaults = false`/`defaultsMode = OFF`/`AUTO`: only the maximal
 form, matching the runtime exactly. (Trait-injected and super
-properties remain invisible — see _Tier 3_.)
+properties remain invisible — same-unit cross-class limit.)
 
 |`@Lazy`
 |Stub has both `getX()` and `setX(...)` (auto-property accessors).
@@ -476,8 +480,8 @@ fails to compile.
 overloads are declared, with parameter types derived from the
 field's generic type at CONVERSION. Same-unit Groovy listener
 interfaces with their own transform-added methods fall under the
-Tier 3 cross-class limit; classpath listeners (e.g.
-`java.beans.PropertyChangeListener`,
+same-unit cross-class limit (see _Excluded and deferred features_);
+classpath listeners (e.g. `java.beans.PropertyChangeListener`,
 `java.awt.event.ActionListener`) work fully.
 
 |`@AutoClone`
@@ -517,10 +521,60 @@ plus a static `Foo.builder()` factory on the buildee. For
 buildee. Default-prefix `SimpleStrategy`, `InitializerStrategy`,
 `ExternalStrategy`, method/constructor targets, and `forClass` are
 documented limitations rather than deferrals.
+
+|`@AutoImplement`
+|None of the abstract methods reachable through the supertype /
+interface graph are implemented on the stub. Java callers reaching
+for those methods get a stub-time compile error even though the
+runtime supplies default-value (or exception-throwing) implementations.
+|Each abstract reachable through the same walk the full transform uses
+(classpath supertypes, same-unit Groovy abstract classes, and same-unit
+Groovy traits with source-declared abstracts) is declared on the stub
+with a default-value placeholder body. Empirically wider than initially
+analysed: same-unit trait abstracts are visible at CONVERSION because
+the trait's source-declared `abstract` methods sit on the trait
+`ClassNode` from CONVERSION on. The narrow residual is abstracts that
+another transform *adds* (via `cNode.addMethod`) at SEMANTIC_ANALYSIS+
+on a same-unit supertype — no current transform does this.
+
+|`@InheritConstructors`
+|None of the super class's constructors are visible on the subclass
+stub. Java callers writing `new MyEx("boom")` against a
+`@InheritConstructors`-annotated `RuntimeException` subclass fail
+to compile.
+|Super class's non-private declared constructors copied onto the
+subclass stub with full generic substitution and a `super(args)`
+placeholder body. Recursive pre-processing handles chained
+`@InheritConstructors` (Sub → Mid → Base) within the stubber pass.
+Boundary: when the super class is in the same compilation unit and
+its constructors come from another CONVERSION-phase stubber (typically
+`@TupleConstructor`), visibility depends on within-phase ordering —
+super-declared-first works, sub-declared-first leaves those tuple-derived
+signatures off the stub. Locked in by an explicit subset assertion in
+the test.
+
+|`@Delegate`
+|None of the delegate type's public methods or properties are visible
+on the owner stub — Java callers writing `event.before(otherDate)`
+against an `@Delegate Date when` field fail to compile, and the owner
+does not appear to implement the delegate's interfaces.
+|Field-target and method-target both produce a stub that mirrors the
+runtime: every public delegate method is declared on the owner with a
+default-value placeholder body, property accessors honour the same
+`extractAccessorInfo` clash-avoidance the runtime uses, the array
+`getLength()` shortcut is included where applicable, and (when
+`interfaces=true`) the delegate's interface graph is unioned into the
+owner's `implements` clause. Filter mirroring is critical to the subset
+invariant: `excludes`, `excludeTypes`, `includes`, `includeTypes`,
+`deprecated`, and `allNames` reach the stubber via shared helpers
+extracted from the full transform, so any method the runtime won't add
+also won't appear on the stub. Generic owner with generic-typed
+delegate (`class Bag<T> { @Delegate List<T> items }`) propagates the
+type parameter through delegated method signatures correctly.
 |===
 
-In all sixteen cases the runtime output is unchanged — these are
-stub-fidelity fixes, not behavioural changes.
+In every case the runtime output is unchanged — these are stub-fidelity
+fixes, not behavioural changes.
 
 Two compositional cases — `@Canonical` and `@Immutable` — are
 covered by dedicated joint-compilation tests in the spike that
@@ -605,6 +659,22 @@ future Shape C authors will want to know about:
   no-ops. Single-transform tests don't catch this — only
   compositional cases do; the spike's `@Canonical` and `@Immutable`
   tests are the smallest reliable triggers.
+
+* *Filter mirroring prevents stub-superset divergence.* For most
+  spiked transforms the only failure mode is "stub is a strict subset of
+  runtime" — Java callers may get a stub-time compile error for things
+  that run fine, but never the reverse. Transforms with user-supplied
+  filters (`@Delegate`'s `includes` / `excludes` / `includeTypes` /
+  `excludeTypes` / `deprecated` / `allNames`) introduce the *opposite*
+  failure mode: if the stubber forgets to mirror the filter, the stub
+  exposes methods the full transform won't add, Java code compiles, then
+  runtime fails with `MissingMethodException`. The fix is to share the
+  enumeration / filter helpers between stubber and full transform rather
+  than reproduce them. The `@Delegate` spike does this by promoting
+  `collectMethods`, `filterMethods`, `extractAccessorInfo`, and friends
+  from `private` to package-private static on
+  `DelegateASTTransformation` and calling them from `DelegateASTStubber`
+  — same source of truth, same answers.
 
 * *Inner-class stubbing needs manual module wiring.* The natural API
   (`module.addClass(innerClass)`) registers the class globally in
@@ -907,10 +977,10 @@ information is unconditionally available at `CONVERSION`.
 |Constructor signatures, including the cascade produced by the
  `defaults = true` shape. Parameters use directly-declared property
  types with class generics applied. Trait-injected and super
- properties are not visible at `CONVERSION` (see _Tier 3_); the
- stubber's view is therefore a strict subset of the runtime
- surface for those configurations. `pre` / `post` closures are
- body-only.
+ properties are not visible at `CONVERSION` (same-unit cross-class
+ limit); the stubber's view is therefore a strict subset of the
+ runtime surface for those configurations. `pre` / `post` closures
+ are body-only.
 |*Spike: validated*
 
 |`@MapConstructor`
@@ -944,9 +1014,9 @@ information is unconditionally available at `CONVERSION`.
 |`addXxxListener`, `removeXxxListener`, `getXxxListeners`, and a
  `fireXxx(...)` per listener-interface method. Listener interface
  method enumeration uses the field type's resolved methods at
- CONVERSION; works for classpath listener types, defers to Tier 3
- for same-unit Groovy listener interfaces with their own
- transform-added methods.
+ CONVERSION; works for classpath listener types, partial for
+ same-unit Groovy listener interfaces whose methods are
+ transform-added (same-unit cross-class limit).
 |*Spike: validated*
 
 |`@ExternalizeMethods`
@@ -1060,12 +1130,47 @@ already adequately covered by inheritance. They migrate after Tier
 |*Spike: validated*
 
 |`@InheritConstructors`
-|Mirrors super-class constructors. Works for classpath super
- classes; for same-unit Groovy super classes that themselves use
- `@TupleConstructor`-family transforms, the super's transform-added
- constructors are not yet visible at `CONVERSION` (deferred — see
- below).
-|Pending
+|Mirrors super-class constructors with full generic substitution and a
+ `super(args)` placeholder body so the stub Java compiles when the
+ super has no no-arg constructor. Recursive pre-processing handles
+ chained `@InheritConstructors` (Sub → Mid → Base). Boundary: when the
+ super is in the same compilation unit and its constructors come from
+ another CONVERSION-phase stubber (typically `@TupleConstructor`),
+ within-phase ordering matters — super-declared-first sees those
+ signatures, sub-declared-first does not. The runtime always produces
+ the full surface; the stub remains a strict subset.
+|*Spike: validated*
+
+|`@AutoImplement`
+|Walks the supertype / interface graph (shared
+ `getAllCorrectedMethodsMap` with the full transform) and emits a
+ default-value placeholder for each abstract reachable. Covers
+ classpath supertypes, same-unit Groovy abstract classes, and
+ same-unit Groovy traits with source-declared abstracts (the trait's
+ `abstract` method is on the trait `ClassNode` from CONVERSION
+ onward; `TraitASTTransformation` rewriting at CANONICALIZATION is
+ irrelevant to the walk). Narrow residual: a hypothetical transform
+ that calls `cNode.addMethod(abstractMethod)` at SEMANTIC_ANALYSIS+
+ on a same-unit supertype — no current transform does this.
+|*Spike: validated*
+
+|`@Delegate`
+|Walks the delegate type's methods, properties, and interfaces with
+ the same enumeration and filter helpers the full transform uses
+ (refactor-and-share via package-private statics on
+ `DelegateASTTransformation`). Honours `interfaces`, `deprecated`,
+ `includes` / `excludes`, `includeTypes` / `excludeTypes`, and
+ `allNames` so the stub never exposes methods the runtime won't add.
+ Field-target and method-target are both supported. Generic owner
+ with generic-typed delegate (e.g. `class Bag<T> { @Delegate List<T>
+ items }`) propagates correctly. Boundary: when the delegate type is
+ in the same compilation unit and gains methods from another
+ CONVERSION-phase stubber, within-phase ordering applies (same as
+ `@InheritConstructors` above). Default-arg prefix-overload expansion
+ inside `collectMethods` (lines 224-251 of
+ `DelegateASTTransformation`) is left to a future iteration; bites
+ only for same-unit Groovy delegates with default-argument methods.
+|*Spike: validated*
 
 |`@RecordType` / record-style classes
 |Component accessors and the canonical constructor are derivable
@@ -1076,23 +1181,17 @@ already adequately covered by inheritance. They migrate after Tier
 
 === Tier 3 — deferred
 
-[cols="2,3"]
-|===
-|Transform |Reason for deferral
-
-|`@Delegate` of a same-unit Groovy delegate type
-|At `CONVERSION` the delegate type's source-declared methods are
- visible, but its transform-added methods (e.g. when the delegate
- itself uses `@Delegate` recursively) are not. The contribution
- would emit a strictly smaller method set than the runtime class.
- Workable for classpath delegate types; deferred for same-unit
- Groovy delegates pending a fixed-point scheduling model.
-
-|`@AutoImplement` of generic same-unit Groovy supertypes
-|Requires generic substitution against a same-unit type whose
- declared abstract methods may be transform-added. Workable for
- classpath supertypes.
-|===
+No transforms remain in this tier. The original entries —
+`@Delegate` of a same-unit Groovy delegate type, `@AutoImplement` of
+generic same-unit Groovy supertypes, `@NamedVariant` over
+transform-added methods, and `@Immutable` as a meta-transform —
+have all graduated into Tier 1 or Tier 2 as the spike progressed.
+The narrow residuals (within-phase ordering with a sibling
+constructor-generating stubber on the super; abstracts contributed by
+a hypothetical transform on a same-unit supertype) are documented
+inline on each Tier 2 entry; the framework-level limitation that
+underlies them is captured in _Excluded and deferred features_ as
+"Same-unit cross-class transitive transform output."
 
 NOTE: `@NamedVariant` was originally listed here as deferred because a
 target method "added by another transform" wouldn't be visible at
@@ -1238,16 +1337,6 @@ This category exists to make the GEP's coverage decisions explicit:
  Contributing transforms produce placeholder bodies in the same
  style.
 
-|`@Delegate` of same-unit Groovy delegate types
-|Deferred
-|See Tier 3. A skeleton emitting only source-declared methods of the
- delegate is feasible but partial; full coverage needs the
- fixed-point model.
-
-|`@NamedVariant` over transform-added methods
-|Deferred
-|Same root cause as `@Delegate` Tier 3.
-
 |Re-running the entire transform pipeline at `CONVERSION`
 |Not planned
 |Some transforms have legitimate dependencies on later-phase
@@ -1267,7 +1356,7 @@ This category exists to make the GEP's coverage decisions explicit:
 
 == References
 
-* https://github.com/apache/groovy/pull/2500[GEP-21 spike PR — Shape C implementation covering nine transforms: `@Sortable`, `@TupleConstructor`, `@MapConstructor`, `@Lazy`, `@ToString`, `@EqualsAndHashCode`, `@Singleton`, `@IndexedProperty`, `@ExternalizeMethods`]
+* https://github.com/apache/groovy/pull/2500[GEP-21 spike PR — Shape C implementation covering all of Tier 1 and Tier 2]
 * https://groovy-lang.org/metaprogramming.html#_compilation_phases_guide[Groovy compilation phases guide]
 * https://github.com/apache/groovy/blob/master/src/main/java/org/codehaus/groovy/tools/javac/JavaStubGenerator.java[`JavaStubGenerator` — current stub generator, including the `Verifier` sub-pass and the `@PackageScope` / trait back-channels]
 * https://github.com/apache/groovy/blob/master/src/main/java/org/codehaus/groovy/tools/javac/JavaAwareCompilationUnit.java[`JavaAwareCompilationUnit` — joint-compilation phase op chain]
@@ -1282,4 +1371,5 @@ This category exists to make the GEP's coverage decisions explicit:
 2 (2026-04-29) Added Shape C (split-transform model) and the working spike (https://github.com/apache/groovy/pull/2500) covering `@Sortable`, `@TupleConstructor`, `@Lazy`, `@ToString`; before/after spike-results table; framework-adjustments subsection (rail relaxation + customizer filter) +
 3 (2026-04-29) Spike extended to nine transforms with `@MapConstructor`, `@EqualsAndHashCode`, `@Singleton`, `@IndexedProperty`, `@ExternalizeMethods`; added "Recurring patterns and implementation gotchas" subsection; updated migration tiers to reflect the broader spike validation +
 4 (2026-04-29) Tier 1 complete: spike adds `@Final`, `@Bindable`, `@Vetoable`, `@ListenerList`; compositional `@Canonical` and `@Immutable` tests; "Transforms that need no stubber" subsection; two new gotchas (parallel-map method removal, compositional ordering guards) +
-5 (2026-04-29) Tier 2 covered: spike adds `@AutoClone` and `@Builder` (DefaultStrategy + non-default-prefix SimpleStrategy); `@NamedVariant` promoted from Tier 3 to Tier 1; new gotcha (inner-class stubbing needs manual module wiring)
+5 (2026-04-29) Tier 2 covered: spike adds `@AutoClone` and `@Builder` (DefaultStrategy + non-default-prefix SimpleStrategy); `@NamedVariant` promoted from Tier 3 to Tier 1; new gotcha (inner-class stubbing needs manual module wiring) +
+6 (2026-04-30) Tier 2 complete and Tier 3 collapsed: spike adds `@AutoImplement`, `@InheritConstructors`, `@Delegate` (refactor-and-share with full transform); new gotcha (filter mirroring prevents stub-superset divergence)
