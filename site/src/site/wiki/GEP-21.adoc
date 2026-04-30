@@ -16,7 +16,7 @@
 ****
 
 NOTE: A working spike for **Shape C** (the split-transform model described
-below) is available at https://github.com/apache/groovy/pull/2500. It
+below) is available at https://github.com/apache/groovy/pull/2503. It
 covers `@Sortable`, `@TupleConstructor`, `@MapConstructor`,
 `@NamedVariant`, `@Singleton`, `@Bindable`, `@Vetoable`, `@ListenerList`,
 `@ExternalizeMethods`, `@IndexedProperty`, `@ToString`,
@@ -348,7 +348,7 @@ which shapes to commit to in the first implementation.
 [[spike-results]]
 === Spike results: before / after stub views
 
-The spike at https://github.com/apache/groovy/pull/2500 implements
+The spike at https://github.com/apache/groovy/pull/2503 implements
 Shape C for every transform listed below. The table summarises what
 a Java source in the same joint-compilation unit sees via the
 generated stub before and after each transform opts in.
@@ -1179,7 +1179,8 @@ plus modifier nudges, no body content) of the authoritative pass.
 
 == References
 
-* https://github.com/apache/groovy/pull/2500[GEP-21 spike PR — Shape C implementation covering every transform whose runtime output has stub-visible signatures]
+* https://github.com/apache/groovy/pull/2503[GROOVY-11976: stub generation should better account for the shape that will exist after later transforms run when known]
+* [.line-through]#https://github.com/apache/groovy/pull/2500[GEP-21 spike PR — Shape C implementation covering every transform whose runtime output has stub-visible signatures#] [Original PR]
 * https://groovy-lang.org/metaprogramming.html#_compilation_phases_guide[Groovy compilation phases guide]
 * https://github.com/apache/groovy/blob/master/src/main/java/org/codehaus/groovy/tools/javac/JavaStubGenerator.java[`JavaStubGenerator` — current stub generator, including the `Verifier` sub-pass and the `@PackageScope` / trait back-channels]
 * https://github.com/apache/groovy/blob/master/src/main/java/org/codehaus/groovy/tools/javac/JavaAwareCompilationUnit.java[`JavaAwareCompilationUnit` — joint-compilation phase op chain]
