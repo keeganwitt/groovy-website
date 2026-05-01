@@ -72,6 +72,11 @@ broadcast machinery, and per-session async logic will not need to change.
 
 == A 60-second tour of MINA
 
+MINA's API surface is deliberately small -- five concepts and a thin filter chain, with
+no surprise machinery layered on top. That simplicity is part of what makes the bridging
+pattern below pleasant: we're refactoring _what we put inside_ the handler, not fighting
+the framework.
+
 A MINA server only needs five concepts:
 
 * `NioSocketAcceptor` -- the TCP listener (UDP, in-VM and serial transports also exist).
@@ -499,12 +504,12 @@ attention; the consumer side -- everything we built in this post -- stays unchan
 == Conclusion
 
 Apache MINA's filter chain and `IoHandler` model still give us a clean, well-understood
-place to plug in a network protocol. What changes with Groovy 6 is what we put _inside_
-the handler: instead of cramming protocol logic into callbacks and synchronising on shared
-collections, we let the handler shuttle events into a channel and write the protocol as
-one straightforward async method. The new toolkit -- `async`/`await`, channels, broadcast,
-`@ActiveObject`, and `AsyncScope` -- composes naturally with MINA, and the result is
-network code you can read top-to-bottom.
+place to plug in a network protocol -- and a deliberately small one. What changes with
+Groovy 6 is what we put _inside_ the handler: instead of cramming protocol logic into
+callbacks and synchronising on shared collections, we let the handler shuttle events into
+a channel and write the protocol as one straightforward async method. The new toolkit --
+`async`/`await`, channels, broadcast, `@ActiveObject`, and `AsyncScope` -- composes
+naturally with MINA, and the result is network code you can read top-to-bottom.
 
 .Update history
 ****

@@ -28,7 +28,7 @@ import javax.inject.Inject
 
 plugins {
     id 'base'                  // common lifecycle tasks and artifact types
-    id 'org.ajoberstar.grgit' version '5.3.0' // to publish website to asf-git branch
+    id 'org.ajoberstar.grgit' version '5.3.3' // to publish website to asf-git branch
 }
 
 ext.watchmode = project.hasProperty('watchmode') ? project.getProperty('watchmode') : 'false'
