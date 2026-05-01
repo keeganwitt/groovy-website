@@ -154,6 +154,32 @@ sessions; spawning the work onto a virtual thread is the modern fix.
 * Each broker carries a small per-call price jitter, so different brokers report slightly
 different prices for the same symbol -- giving us something interesting to aggregate.
 
+== Reacting to handshake completion
+
+Right before `sshd.start()`, we register a `SessionListener` so each broker logs when the
+encrypted SSH transport is up for an inbound connection. In production this is the
+natural place for post-handshake configuration -- session-scoped audit, tightening of
+algorithms, resource limits, and so on:
+
+[source,groovy]
+----
+sshd.addSessionListener(new SessionListener() {
+    @Override
+    void sessionEvent(Session session, SessionListener.Event event) {
+        if (event == SessionListener.Event.KeyEstablished) {
+            println "[$name] SECURED ${session.ioSession.remoteAddress}"
+        }
+    }
+})
+----
+
+`SessionListener.Event` has three values; `KeyEstablished` is the one that fires when
+the encrypted channel is up but the user has not yet authenticated. Note that
+`Fleet.fetchQuotes` chose a one-shot SSH shape -- `connect` → `auth` → `exec` → `close`
+per call -- so `SECURED` fires on every sweep, not once per host. In production you would
+typically pool the SSH sessions and reuse them, and the line would appear once per host
+at fleet startup.
+
 == The fleet -- parallel fan-out via SSH
 
 Here is the heart of Part 2:
