@@ -1079,6 +1079,135 @@ a variable, method, or class name. Wildcard
 See https://openjdk.org/jeps/511[JEP 511] for the corresponding
 Java language feature.
 
+== Multi-assignment Destructuring
+
+Groovy 6 extends `def (...)` multi-assignment with rest bindings and
+map-style key destructuring
+(https://issues.apache.org/jira/browse/GROOVY-11964[GROOVY-11964]).
+Three idioms common in modern languages but previously unavailable in
+Groovy are now supported. The extension is strictly additive --
+every program valid in Groovy 4 / 5 compiles with identical semantics --
+because each new shape uses an unparseable token sequence in the
+existing grammar.
+
+See link:../wiki/GEP-20.html[GEP-20] for the full specification.
+
+=== Tail rest binding
+
+A trailing `*ident` captures the remaining elements:
+
+[source,groovy]
+----
+def (h, *t) = [1, 2, 3, 4]
+assert h == 1
+assert t == [2, 3, 4]
+
+def (a, b, c, *rest) = 'hello'
+assert a == 'h' && b == 'e' && c == 'l'
+assert rest == 'lo'    // String slice — type tracks the RHS
+----
+
+The rest binding works against any RHS supporting either
+`getAt(IntRange)` or `iterator()`. The compiler picks one of three
+lowerings -- a `Stream` rewrap that keeps lazy pipelines lazy, an
+`getAt(IntRange)` slice (whose return type drives the rest binder's
+type), or an iterator fallback that supports unbounded sources without
+materialising them:
+
+[source,groovy]
+----
+// Lazy iterator — rest stays lazy
+def naturals = (1..Integer.MAX_VALUE).iterator()
+def (first, *more) = naturals
+assert first == 1
+assert more.next() == 2 && more.next() == 3
+
+// Stream — pipeline preserved, sequential
+def (header, *body) = Stream.of('# title', 'line 1', 'line 2')
+assert header == '# title'
+assert body.collect(Collectors.toList()) == ['line 1', 'line 2']
+----
+
+=== Rest binding in head and middle positions
+
+`*ident` in non-tail position lowers via indexed access against a
+sized, indexable RHS:
+
+[source,groovy]
+----
+def (*front, last) = [1, 2, 3, 4]
+assert front == [1, 2, 3]
+assert last == 4
+
+def (l, *middle, r) = [1, 2, 3, 4, 5]
+assert l == 1 && r == 5
+assert middle == [2, 3, 4]
+
+def (a, b, *m, y, z) = 1..6
+assert a == 1 && b == 2 && y == 5 && z == 6
+assert m == [3, 4]
+----
+
+=== Map-style destructuring
+
+`key: ident` pairs in the declarator list bind via property access
+(map keys, JavaBean getters, or `getProperty` via the MOP):
+
+[source,groovy]
+----
+def person = [name: 'Alice', age: 30, role: 'admin']
+def (name: n, age: a) = person
+assert n == 'Alice' && a == 30
+
+// Type ascriptions pin or coerce binding types
+def (name: String fullName, age: int years) = person
+
+// Works on JavaBeans too
+def (year: y, month: m) = Calendar.instance
+----
+
+=== Type ascriptions on rest binders
+
+The rest binder may carry a type ascription, mirroring the existing
+positional form:
+
+[source,groovy]
+----
+def (h, List<Integer> *t) = [1, 2, 3, 4]
+def (c, String *cs)       = 'hello'
+def (l, List<Integer> *m, r) = [1, 2, 3, 4, 5]
+----
+
+=== `def` / `var` binder markers and modifier propagation
+
+For symmetry with switch case patterns and bracket-form declarations,
+`def` and `var` may appear before any binder; they are equivalent to
+omitting a type. Modifiers on the outer declaration propagate to every
+binder (including rest and map-style):
+
+[source,groovy]
+----
+def (var a, var b)             = [1, 2]                    // same as: def (a, b) = [1, 2]
+def (def a, var b, int c)      = [1, 2, 3]                 // mix and match
+final (a, *t)                  = [1, 2, 3]                 // both `a` and `t` are final
+final (name: n, age: a)        = [name: 'A', age: 1]       // both `n` and `a` are final
+----
+
+=== `_` for unwanted slots
+
+The "discard" convention (`def (_, y, m) = Calendar.instance`) applies
+uniformly across every new form. `_` is a regular identifier
+throughout -- no wildcard semantics, no special parser node:
+
+[source,groovy]
+----
+def (_, *t)           = [1, 2, 3]              // _ binds to the head
+def (h, *_)           = [1, 2, 3]              // _ binds to the rest
+def (*_, last)        = [1, 2, 3]              // _ binds to the front
+def (l, *_, r)        = [1, 2, 3, 4, 5]        // _ binds to the middle
+def (name: _, age: a) = [name: 'A', age: 30]   // _ binds to the name slot
+----
+
 == Extension method additions and improvements
 
 Groovy provides over 2000 extension methods to 150+ JDK classes to enhance
