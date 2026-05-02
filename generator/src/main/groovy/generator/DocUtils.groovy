@@ -18,13 +18,15 @@
  */
 package generator
 
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+
 class DocUtils {
     @Lazy public static final String DOCS_BASEURL = System.getProperty('docs_baseurl')
-    private static final RFC3339 = "yyyy-MM-dd'T'HH:mm:ssXXX"
-    private static final PRETTY = "yyyy-MM-dd hh:mmaa"
+    private static final DateTimeFormatter PRETTY = DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mma", Locale.ENGLISH)
 
     static String prettyDate(String s) {
-        Date.parse(RFC3339, s).format(PRETTY)
+        OffsetDateTime.parse(s).format(PRETTY)
     }
 
     static String prettyAuthors(author) {

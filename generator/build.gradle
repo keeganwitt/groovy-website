@@ -25,16 +25,15 @@ repositories {
     mavenCentral()
 }
 
-ext.groovyVersion = '3.0.25'
+ext.groovyVersion = '5.0.5'
 ext.asciidocVersion = '2.5.11'
-ext.asciidoctorDiagram='2.2.10'
+ext.asciidoctorDiagram='2.2.17'
 
 dependencies {
-    implementation "org.codehaus.groovy:groovy:$groovyVersion"
-    implementation "org.codehaus.groovy:groovy-dateutil:$groovyVersion"
-    implementation "org.codehaus.groovy:groovy-json:$groovyVersion"
-    implementation "org.codehaus.groovy:groovy-templates:$groovyVersion"
-    implementation "org.codehaus.groovy:groovy-xml:$groovyVersion"
+    implementation "org.apache.groovy:groovy:$groovyVersion"
+    implementation "org.apache.groovy:groovy-json:$groovyVersion"
+    implementation "org.apache.groovy:groovy-templates:$groovyVersion"
+    implementation "org.apache.groovy:groovy-xml:$groovyVersion"
     implementation("org.asciidoctor:asciidoctorj:$asciidocVersion") {
         // to fix intermittent errors, e.g. as described here:
         // https://github.com/asciidoctor/asciidoctorj/issues/680
@@ -45,5 +44,5 @@ dependencies {
     //compile "org.jruby:jruby-complete:9.1.17.0"
 }
 
-compileGroovy.sourceCompatibility = '1.8'
-compileGroovy.targetCompatibility = '1.8'
+compileGroovy.sourceCompatibility = '11'
+compileGroovy.targetCompatibility = '11'
