@@ -61,9 +61,9 @@ bracket form, no marker words) while filling the gaps.
   today.
 
 * *No new keywords* — the new shapes use only existing tokens (`*`,
-  `:`). `def` and `var` are also accepted before a binder for
+  `:`). `def`, `var`, and `val` are also accepted before a binder for
   symmetry with switch case patterns and the bracket-form grammar in
-  GEP-19, but neither is required: `def (a, b) = ...` works without
+  GEP-19, but no marker is required: `def (a, b) = ...` works without
   any inner marker.
 
 * *`_` stays an identifier* — existing idioms like
@@ -124,18 +124,16 @@ and the value is reachable, but by convention typically not used.
 Under `@TypeChecked` / `@CompileStatic`, reading `+_+` is reported
   as `The variable [_] is undeclared`.
 
-=== Binder markers (`def`, `var`)
+=== Binder markers (`def`, `var`, `val`)
 
-`def` and `var` may appear before any binder; both are equivalent to
-omitting a type. This is provided for symmetry with switch case
-patterns and the bracket-form declaration grammar in GEP-19, which
-use `var` as the canonical binding marker:
+`def`, `var`, and `val` may appear before any binder; all are equivalent to
+omitting a type:
 
 [source,groovy]
 ----
 def (var a, var b) = [1, 2]                  // same as: def (a, b) = [1, 2]
 def (def a, var b, int c) = [1, 2, 3]        // mix and match
-def (name: var n, age: var a) = person       // also in map-style
+def (name: var n, age: val a) = person       // also in map-style
 ----
 
 === Modifier propagation

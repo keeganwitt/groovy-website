@@ -491,16 +491,6 @@ parallel collection methods (`collectParallel`, `eachParallel`), `Pool.virtual()
 I/O pool, and async file I/O on `Path` for log capture. The producer side gets all the
 attention; the consumer side -- everything we built in this post -- stays unchanged.
 
-== Further information
-
-* https://mina.apache.org/[Apache MINA]
-* https://mina.apache.org/mina-project/features.html[Apache MINA features overview]
-* https://mina.apache.org/mina-project/quick-start-guide.html[Apache MINA quick-start guide]
-* https://commons.apache.org/proper/commons-rng/[Apache Commons RNG]
-* https://groovy.apache.org/blog/groovy-async-await[Groovy 6 async/await blog post]
-* link:../wiki/GEP-18.html[GEP-18: Integrated Concurrency and Parallel Processing]
-* https://github.com/paulk-asert/groovy-mina[Source code on GitHub]
-
 == Conclusion
 
 Apache MINA's filter chain and `IoHandler` model still give us a clean, well-understood
@@ -510,6 +500,16 @@ callbacks and synchronising on shared collections, we let the handler shuttle ev
 a channel and write the protocol as one straightforward async method. The new toolkit --
 `async`/`await`, channels, broadcast, `@ActiveObject`, and `AsyncScope` -- composes
 naturally with MINA, and the result is network code you can read top-to-bottom.
+
+== Further information
+
+* https://mina.apache.org/[Apache MINA]
+* https://mina.apache.org/mina-project/features.html[Apache MINA features overview]
+* https://mina.apache.org/mina-project/quick-start-guide.html[Apache MINA quick-start guide]
+* https://commons.apache.org/proper/commons-rng/[Apache Commons RNG]
+* https://groovy.apache.org/blog/groovy-async-await[Groovy 6 async/await blog post]
+* link:../wiki/GEP-18.html[GEP-18: Integrated Concurrency and Parallel Processing]
+* https://github.com/paulk-asert/groovy-mina[Source code on GitHub]
 
 .Update history
 ****
