@@ -317,17 +317,34 @@ The disambiguation works the same way as `var`: the parser uses
 `SemanticPredicates.isInvalidLocalVariableDeclaration()` to check
 what follows. `val = 42` is an assignment; `val x = 42` is a declaration.
 
-==== Field named `val` (or `var`) before a method declaration
+The remaining edge cases all share the same root: `val` (and `var`)
+are contextual keywords, so a few positions where they could be either
+keyword or identifier have to resolve one way. In summary:
+
+* Field named `val` (or `var`) before a method or constructor declaration --
+  parsed as modifiers on the member that follows
+* `val` as a cast expression -- `val as Type` reads `val` as the keyword
+* Java class named `val` -- the keyword wins in declared-type positions
+
+Each is detailed below with workarounds.
+
+==== Field named `val` (or `var`) before a method or constructor declaration
 
 A field declared as `def val` (or `def var`) immediately before a method
-declaration is misinterpreted by the parser as modifiers on the method.
-This is a pre-existing issue with `var` that equally applies to `val`:
+or constructor declaration is misinterpreted by the parser as modifiers
+on the member that follows. This is a pre-existing issue with `var` that
+equally applies to `val`:
 
 [source,groovy]
 ----
 class Foo {
     def val            // intended as field, but parsed as
     void doSomething() {} // modifiers for this method -> error
+}
+
+class Bar {
+    def val            // intended as field, but parsed as
+    Bar() {}           // return type for a method named Bar -> error
 }
 ----
 
