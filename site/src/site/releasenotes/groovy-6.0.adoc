@@ -1301,6 +1301,73 @@ def (l, *_, r)        = [1, 2, 3, 4, 5]        // _ binds to the middle
 def (name: _, age: a) = [name: 'A', age: 30]   // _ binds to the name slot
 ----
 
+[[compound-assignment-overloading]]
+== Compound Assignment Operator Overloading
+
+Groovy 6 lets classes overload the compound assignment operators
+(`+=`, `-=`, `*=`, ...) independently from their base operators
+(https://issues.apache.org/jira/browse/GROOVY-11970[GROOVY-11970]).
+Historically, `x += y` always desugared to `x = x.plus(y)` -- creating a
+new value and rebinding the variable. That forced mutable types into
+inefficient create-and-reassign patterns and made compound assignment
+unavailable on `final` fields and variables.
+
+A class can now define a dedicated `*Assign` method (`plusAssign`,
+`minusAssign`, `multiplyAssign`, and so on). When such a method is
+resolved on the receiver, the operator mutates the receiver in place
+instead of reassigning the LHS:
+
+[source,groovy]
+----
+class Accumulator {
+    int total = 0
+    void plusAssign(int n) { total += n }                      // mutate in place
+    Accumulator plus(int n) { new Accumulator(total: total + n) } // create new
+}
+
+def acc = new Accumulator()
+acc += 5            // calls plusAssign — no reassignment
+assert acc.total == 5
+----
+
+Because no reassignment occurs when `*Assign` is used, compound
+assignment now works on `final` fields and variables under
+`@CompileStatic`/`@TypeChecked` whenever a matching `*Assign` method
+exists on the receiver type. For property LHS, the setter is *not*
+invoked. The expression value of `x op= y` is the (mutated) `x`, not the
+return value of `*Assign`.
+
+The change is strictly additive: if no `*Assign` method matches, the
+legacy `x = x.op(y)` desugar still applies, so existing code keeps
+working. Resolution is direct under static compilation and via the MOP
+in dynamic code; `*Assign` methods are also discoverable as extension
+methods or categories. Names can be remapped via
+gapi:groovy.transform.OperatorRename[@OperatorRename] (e.g.
+`@OperatorRename(plusAssign='addInPlace')`).
+
+The full set of compound assignment operators and their corresponding
+`*Assign` methods (with `op` fallbacks) is:
+
+[cols="1,2,2" options="header"]
+|====
+| Operator | Assign method | Fallback method
+
+| `+=`   | `plusAssign`               | `plus`
+| `-=`   | `minusAssign`              | `minus`
+| `*=`   | `multiplyAssign`           | `multiply`
+| `/=`   | `divAssign`                | `div`
+| `%=`   | `remainderAssign`          | `remainder`
+| `**=`  | `powerAssign`              | `power`
+| `<<=`  | `leftShiftAssign`          | `leftShift`
+| `>>=`  | `rightShiftAssign`         | `rightShift`
+| `>>>=` | `rightShiftUnsignedAssign` | `rightShiftUnsigned`
+| `&=`   | `andAssign`                | `and`
+| `\|=`  | `orAssign`                 | `or`
+| `^=`   | `xorAssign`                | `xor`
+|====
+
+See link:../wiki/GEP-15.html[GEP-15] for the full specification.
+
 == Extension method additions and improvements
 
 Groovy provides over 2000 extension methods to 150+ JDK classes to enhance
@@ -2307,10 +2374,10 @@ Code that explicitly used the applet-related factories should migrate
 to standard `JFrame`/`JWindow` alternatives.
 (https://issues.apache.org/jira/browse/GROOVY-11912[GROOVY-11912])
 
-== Under exploration
+== Under exploration (before GA release)
 
-* Performance
-* Spec improvements
+* Further performance improvements
+* Further improvements to the language specification documentation
 
 [[Groovy6.0-requirements]]
 == JDK requirements
