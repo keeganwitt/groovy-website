@@ -1079,6 +1079,52 @@ a variable, method, or class name. Wildcard
 See https://openjdk.org/jeps/511[JEP 511] for the corresponding
 Java language feature.
 
+[[val-keyword]]
+== `val` Keyword for Final Declarations
+
+Groovy 6 adds `val` as a contextual keyword for declaring final
+variables and fields
+(https://issues.apache.org/jira/browse/GROOVY-9308[GROOVY-9308]).
+`val` complements the existing `var` keyword: `val` declares an
+immutable binding (equivalent to `final def`), while `var` continues
+to declare a mutable one. The shape and naming will be familiar to
+anyone who has seen Kotlin or Scala code declaring read-only (immutable) variables.
+
+[source,groovy]
+----
+val name = 'Groovy'         // equivalent to: final def name = 'Groovy'
+val list = [1, 2, 3]        // shallow finality — list contents may still mutate
+list << 4                   // OK
+name = 'Other'              // compile error: cannot assign to final variable
+----
+
+Like `var`, `val` is contextual -- it remains usable as a variable
+name, method name, map key, or property name. Existing code such as
+`def val = 1`, `obj.val`, and `[val: 42]` continues to work
+unchanged. `val` is rejected only where it would be ambiguous with a
+type (for example, as a method return type or in a `class val {}`
+declaration), mirroring the restrictions already in place for `var`.
+
+When statically type-checking code, `val` carries the same type
+inference rules as `var`:
+
+[source,groovy]
+----
+val x = 42                  // inferred as int
+val s = 'hello'             // inferred as String
+val list = [1, 2, 3]        // inferred as ArrayList<Integer>
+----
+
+A small number of pre-existing parser edge cases around `var` apply
+equally to `val` -- chiefly a field named `val` (or `var`) declared
+immediately before a method or constructor, and `val as Type` cast
+expressions. For codebases that need more time to migrate, a
+`-Dgroovy.val.enabled=false` system property disables the keyword
+entirely, lexing `val` as a plain identifier.
+
+See link:../wiki/GEP-16.html[GEP-16] for the full specification,
+including the migration flag and the complete list of edge cases.
+
 == Multi-assignment Destructuring
 
 Groovy 6 extends `def (...)` multi-assignment with rest bindings and
@@ -2171,6 +2217,13 @@ Groovy 5 still includes such support on JDK versions that support it.
 
 === Other changes
 
+* `val` is now a contextual keyword for declaring final variables
+(see <<val-keyword>>). A few pre-existing edge cases around the
+sibling `var` keyword now apply to `val` as well -- chiefly a field
+named `val` declared immediately before a method or constructor, and
+`val as Type` cast expressions. The `-Dgroovy.val.enabled=false`
+system property reverts to the prior behavior as a porting aid.
+(https://issues.apache.org/jira/browse/GROOVY-9308[GROOVY-9308])
 * Annotation target validation is now enforced for import and loop statements
 (see <<annotation-validation>>).
 (https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884])
