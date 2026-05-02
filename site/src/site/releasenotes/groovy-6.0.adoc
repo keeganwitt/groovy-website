@@ -2015,6 +2015,73 @@ Previously, users had to manually set `args` within their script
 as a workaround. A new _Set Script Arguments_ option in the _Script_ menu
 lets you specify space-separated arguments that are passed to the script.
 
+== Theming Improvements
+
+To match recent theming improvements to the Groovy website -- which
+gained light, dark, and "follow system" options earlier in the year --
+Groovy 6 brings consistent light/dark/custom theming to its
+documentation tooling and to GroovyConsole.
+
+Theming is more than visual polish or matching personal preference:
+it is also an accessibility improvement. Readers with light
+sensitivity, low-vision users running high-contrast palettes, and
+anyone working in a low-light environment all benefit from a tool
+surface that respects the system colour scheme rather than forcing
+one on them.
+
+=== GroovyDoc
+
+GroovyDoc gained a `-theme` flag controlling the output palette
+strategy
+(https://issues.apache.org/jira/browse/GROOVY-11947[GROOVY-11947]):
+
+- `auto` (default) -- follow the reader's OS
+  `prefers-color-scheme`. Both palettes are emitted; the browser
+  picks at view time.
+- `light` / `dark` -- lock the output to a single palette regardless
+  of OS preference.
+
+The default stylesheet has been refactored around semantic CSS
+custom properties (`--fg`, `--bg`, `--link`, `--bg-panel`, etc.), so
+author stylesheets supplied via `--add-stylesheet` can reference the
+same tokens and become theme-aware automatically -- the same hook
+that enables fully custom palettes. When Prism.js syntax
+highlighting is enabled, the highlight theme swaps in sync with the
+page palette
+(https://issues.apache.org/jira/browse/GROOVY-11946[GROOVY-11946]).
+
+image:img/groovydoc_light.png[Groovydoc light theme]
+
+image:img/groovydoc_dark.png[Groovydoc dark theme]
+
+image:img/groovydoc_custom.png[Groovydoc custom theme]
+
+
+=== docgenerator (Groovy user guide)
+
+The same theming model has been extended to `docgenerator`, the
+tool that produces the Groovy user guide and other
+distribution-bundled documentation. Output supports light, dark,
+and custom themes, following the OS preference by default and
+sharing the GroovyDoc CSS-custom-property approach so that custom
+stylesheets remain palette-aware.
+
+image:img/gdk_light.png[GDK light theme]
+
+image:img/gdk_dark.png[GDK dark theme]
+
+=== GroovyConsole
+
+GroovyConsole now offers light, dark, follow-system, and custom
+theme options, applied across the editor pane, output pane, and
+surrounding chrome. The active choice is persisted between sessions.
+
+image:img/console_light.png[GroovyConsole light theme]
+
+image:img/console_dark.png[GroovyConsole dark theme]
+
+image:img/console_custom.png[GroovyConsole custom theme]
+
 == GroovyDoc Enhancements
 
 Groovy 6 brings GroovyDoc substantially closer to modern Javadoc
@@ -2233,6 +2300,19 @@ NPE on closures in annotations fixed
 long-standing stray-brace bug in `{@inheritDoc}` rendering resolved
 (https://issues.apache.org/jira/browse/GROOVY-3782[GROOVY-3782])
 |===
+
+=== Build tool support
+
+The new options above are exposed through the GroovyDoc CLI
+(`groovydoc`) and the Ant task. Gradle's built-in `groovydoc`
+task currently lags behind both surfaces and does not yet expose
+every new flag.
+
+Until that gap closes, we recommend either driving GroovyDoc via
+the Ant task from Gradle, or replicating the approach used by the
+Apache Groovy and Grails builds themselves -- both projects wrap
+GroovyDoc in their own plugin/build glue to access the full
+feature set.
 
 [[annotation-validation]]
 == Improved Annotation Validation
