@@ -19,7 +19,85 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 == Highlights
 
-TBD
+*_Native Async/Await (incubating)_*
+
+- Sequential-style concurrent code — no callbacks or `CompletableFuture` chains.
+- Automatic *virtual threads* on JDK 21+; cached thread pool fallback on JDK 17–20.
+- Generators with `yield return`, Go-style channels, `for await`, structured concurrency via `AsyncScope`.
+
+*_Integrated Concurrency Toolkit (incubating)_*
+
+- Unified `groovy.concurrent` package: agents, actors, dataflow variables, channels, and parallel collections.
+- `@ActiveObject` adds actor semantics to ordinary classes — no message protocols to hand-write.
+- Parallel `Collection` methods (`collectParallel`, `findAllParallel`, `eachParallel`, ...) for CPU-bound work.
+- Same APIs available to Java, Kotlin and other JVM languages via the standalone `groovy-concurrent-java` module.
+
+*_New HTTP Client Module (incubating)_*
+
+- `groovy-http-builder` offers both an imperative DSL and a declarative `@HttpBuilderClient` interface.
+- Built on the JDK's `java.net.http.HttpClient` with native async support.
+- Auto-parsed JSON, XML and HTML responses; typed return objects driven by interface signatures.
+
+*_New Language Features_*
+
+- `val` contextual keyword for final declarations — a clean companion to `var`.
+- Module imports (JEP 511): `import module java.sql` covers every exported package in one line.
+- Destructuring with rest binders (`def (h, *t) = list`) and map-style keys (`def (name: n) = person`).
+- Compound-assignment operator overloading (`plusAssign`, `minusAssign`, ...) for efficient in-place mutation, even on `final` fields.
+- AST transforms now valid on loop statements — `@Parallel` for-loops, `@Invariant`, `@Decreases`.
+
+*_Designed for Human and AI Reasoning_*
+
+- New `NullChecker` type checker with an optional flow-sensitive `strict` mode requiring no annotations.
+- `@Modifies` frame conditions and `@Pure` purity declarations, verified at compile time by `ModifiesChecker` and `PurityChecker`.
+- Loop invariants and termination measures via `@Invariant`/`@Decreases`.
+- Contracts (`@Requires`, `@Ensures`, `@Invariant`) now also work in scripts.
+- Each method becomes a self-contained specification — readable without descending into bodies.
+
+*_Joint Compilation Stub Improvements (incubating)_*
+
+- AST-transform-generated members (`@Immutable`, `@Builder`, `@TupleConstructor`, `@Delegate`, ...) are now visible in generated stubs.
+- Java code in mixed-language projects can finally call constructors and methods contributed by transforms.
+
+*_New Optional Modules_*
+
+- `groovy-csv` — RFC 4180 CSV reading/writing with optional Jackson-backed typed parsing.
+- `groovy-markdown` — CommonMark parser with section, code-block and table extraction helpers.
+- `groovy-grape-maven` — `@Grab` powered by Maven Resolver, alongside the existing Ivy engine.
+- `groovy-reactor` / `groovy-rxjava` — `await` and `for await` over reactive `Mono`/`Flux`/`Observable` types.
+- `groovy-test-junit6` — Run JUnit Jupiter 6 tests as Groovy scripts.
+
+*_Extension Method Additions_*
+
+- New methods including `groupByMany`, `waitForResult`, `findGroups`/`findAllGroups`, `isSorted`, and lazy `grepping`.
+- Asynchronous file I/O on `Path` (`textAsync`, `bytesAsync`, `writeAsync`) returning `CompletableFuture` — composes with `await`.
+- Streamlined process handling: `pipeline`, `onExit`, `toProcessBuilder`, named-parameter `execute(dir:, env:, ...)`.
+- Finer-grained `groovy.extension.disable` — target single overloads by parameter signature.
+
+*_GINQ and Data Format Improvements_*
+
+- GINQ `groupby ... into` binds each group to a named variable with aggregate access.
+- SQL-style set operators in GINQ: `union`, `intersect`, `minus`, `unionall`.
+- Consistent typed parsing across JSON, CSV, TOML, YAML and XML modules.
+
+*_GroovyDoc and Tooling Improvements_*
+
+- JEP 467 Markdown doc comments (`///`) and JEP 413 `{@snippet}` blocks for inline and external code samples.
+- Prism.js syntax highlighting, class-hierarchy tree pages, `{@value}`/`{@inheritDoc}` support, script documentation.
+- Light, dark, "follow system" and custom themes for GroovyDoc, the GDK reference, and GroovyConsole.
+- GroovyConsole gains a Set Script Arguments UI option.
+
+*_Other Improvements_*
+
+- `groovyToString()` protocol for customising display in string interpolation, `println` and collection formatting.
+- Platform Logging API: Groovy diagnostics route through standard JVM logging (SLF4J, Log4j2, JUL, ...).
+- JUnit 6 (Jupiter 6) support.
+- Improved annotation target validation on import and loop statements.
+
+*_Broader JDK Support_*
+
+- Tested across JDK 17–26; JDK 17 is now the minimum supported runtime.
+- Security Manager support removed in line with JEP 411.
 
 == New Modules
 
