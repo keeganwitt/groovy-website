@@ -30,6 +30,11 @@ layout 'layouts/main.groovy', true,
                     div(class: 'row-fluid') {
                         div(class: 'col-lg-3') {
                             ul(class: 'nav-sidebar') {
+                                if (title.startsWith('GEP-')) {
+                                    li {
+                                        a(href: 'geps.html', 'GEP index')
+                                    }
+                                }
                                 li(class:'active') {
                                     a(href: '#doc', title)
                                 }
