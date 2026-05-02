@@ -715,6 +715,53 @@ contract as class/method/field-level transforms. See
 <<annotation-validation>> for the corresponding compile-time
 validation rules.
 
+[[joint-compilation-stubs]]
+== Joint Compilation Stub Improvements (incubating)
+
+When mixing Groovy and Java sources, Groovy generates Java stubs so
+`javac` can compile Java files that reference Groovy classes.
+Historically, those stubs were generated before AST transforms ran, so
+members contributed by transforms such as `@TupleConstructor`,
+`@Immutable`, or `@Builder` were absent from the stubs and Java code
+relying on them failed to compile.
+
+Groovy 6 extends the AST transform framework so that opt-in transforms
+can contribute member signatures (constructors, methods, fields) to the
+generated stubs. The change is strictly additive -- transforms that do
+not opt in behave exactly as before
+(https://issues.apache.org/jira/browse/GROOVY-11976[GROOVY-11976]).
+
+For example, a Groovy class using `@Immutable`:
+
+[source,groovy]
+----
+// UserAccount.groovy
+@groovy.transform.Immutable
+class UserAccount {
+    String name
+    int age
+}
+----
+
+is now visible to Java callers during joint compilation:
+
+[source,java]
+----
+// Caller.java
+UserAccount user = new UserAccount("alice", 30);
+----
+
+A wide range of built-in transforms have been updated to contribute
+stubs, including `@AutoClone`, `@AutoImplement`, `@Bindable`, `@Builder`,
+`@Delegate`, `@EqualsAndHashCode`, `@ExternalizeMethods`, `@Final`,
+`@Immutable`, `@IndexedProperty`, `@InheritConstructors`, `@Lazy`,
+`@ListenerList`, `@MapConstructor`, `@NamedVariant`, `@RecordType`,
+`@Singleton`, `@Sortable`, `@ToString`, `@TupleConstructor`, and
+`@Vetoable`. Custom transforms can opt in via one of three shapes
+(annotation attribute, marker interface, or split-transform classes).
+
+See link:../wiki/GEP-21.html[GEP-21] for the full specification.
+
 [[groovy-contracts]]
 == Groovy-Contracts Enhancements (incubating)
 
