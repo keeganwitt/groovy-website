@@ -1277,6 +1277,13 @@ If you have classes in the default (no) package with the same names as classes i
 you will need to rename those classes, or place them in a package, or use an import alias, to avoid conflicts.
 The most common classes that might conflict are `Year`, `Month`, and `Duration`.
 (link:https://issues.apache.org/jira/browse/GROOVY-11513[GROOVY-11513])
+* `File` and `Path` instances now coerce to a boolean based on whether the file or path exists on the filesystem,
+via a new `asBoolean` extension method. Previously, any non-null `File` or `Path` was truthy under the default
+`!= null` rule. Code that used `if (file) { ... }` to test "the variable is set" rather than "the file exists"
+should switch to an explicit `!= null` check. The change can also surface indirectly when a `File`-valued entry
+is read from a map via `get`; in that case, prefer `containsKey` (or an explicit `!= null`) over relying on
+truthiness.
+(link:https://issues.apache.org/jira/browse/GROOVY-10949[GROOVY-10949])
 
 [[Groovy5.0-requirements]]
 == JDK requirements
