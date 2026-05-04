@@ -61,8 +61,11 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 *_New Optional Modules_*
 
+- `groovy-concurrent-java` — Standalone Java library exposing the `groovy.concurrent` toolkit; no Groovy runtime required.
+- `groovy-http-builder` — HTTP client with imperative DSL and declarative `@HttpBuilderClient` interface.
 - `groovy-csv` — RFC 4180 CSV reading/writing with optional Jackson-backed typed parsing.
 - `groovy-markdown` — CommonMark parser with section, code-block and table extraction helpers.
+- `groovy-grape-ivy` — `@Grab` Ivy backend, now its own optional module (previously bundled in core).
 - `groovy-grape-maven` — `@Grab` powered by Maven Resolver, alongside the existing Ivy engine.
 - `groovy-reactor` / `groovy-rxjava` — `await` and `for await` over reactive `Mono`/`Flux`/`Observable` types.
 - `groovy-test-junit6` — Run JUnit Jupiter 6 tests as Groovy scripts.
@@ -688,8 +691,8 @@ interface AsyncApi {
 }
 ----
 
-If the `groovy-async` module is on the classpath, these are
-automatically `await`-able: `def data = await api.getDataAsync('42')`.
+These `CompletableFuture` returns are first-class `await` targets in
+Groovy 6: `def data = await api.getDataAsync('42')`.
 
 === Feature summary
 
