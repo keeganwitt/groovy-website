@@ -2,7 +2,6 @@
 Paul King
 :revdate: 2026-04-30T12:00:00+00:00
 :keywords: groovy, mina, async, await, channels, broadcast, activeobject, structured concurrency, virtual threads, networking
-:draft: true
 :description: Build a small streaming server on Apache MINA and refactor its IoHandler around Groovy 6's async/await, channels, broadcast and @ActiveObject.
 
 ++++
@@ -25,7 +24,7 @@ Once a handler needs to do anything beyond echo bytes -- talk to a database, fan
 backends, broadcast to other sessions -- the linear flow disappears into a tangle of `synchronized`
 sets, futures, and follow-on callbacks.
 
-Groovy 6 adds a unified concurrency toolkit that lets us refactor those handlers into top-to-bottom
+Groovy 6, still in early prerelease stages, adds a unified concurrency toolkit that lets us refactor those handlers into top-to-bottom
 async code:
 
 * Native `async { }` / `await` running on virtual threads (JDK 21+)
