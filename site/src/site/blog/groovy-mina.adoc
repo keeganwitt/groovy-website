@@ -38,7 +38,7 @@ clients subscribe to symbols and receive a stream of price ticks; they can also 
 multi-symbol `QUOTE` that fans out concurrently. The result is a MINA server whose entire protocol
 fits in one method that you can read straight through.
 
-Examples in this post use the freshly released Apache MINA 2.2.6 and
+Examples in this post use the freshly released Apache MINA 2.2.7 and
 Apache Commons RNG Simple 1.7, together with Groovy 6 on JDK 21+.
 The full source is available
 https://github.com/paulk-asert/groovy-mina[on GitHub].
