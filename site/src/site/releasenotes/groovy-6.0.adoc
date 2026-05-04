@@ -19,20 +19,20 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 == Highlights
 
-*_Native Async/Await (incubating)_*
+*_Native Async/Await (incubating)_* (see <<async-await>>)
 
 - Sequential-style concurrent code — no callbacks or `CompletableFuture` chains.
 - Automatic *virtual threads* on JDK 21+; cached thread pool fallback on JDK 17–20.
 - Generators with `yield return`, Go-style channels, `for await`, structured concurrency via `AsyncScope`.
 
-*_Integrated Concurrency Toolkit (incubating)_*
+*_Integrated Concurrency Toolkit (incubating)_* (see <<concurrency-toolkit>>)
 
 - Unified `groovy.concurrent` package: agents, actors, dataflow variables, channels, and parallel collections.
 - `@ActiveObject` adds actor semantics to ordinary classes — no message protocols to hand-write.
 - Parallel `Collection` methods (`collectParallel`, `findAllParallel`, `eachParallel`, ...) for CPU-bound work.
-- Same APIs available to Java, Kotlin and other JVM languages via the standalone `groovy-concurrent-java` module.
+- Same APIs available to Java, Kotlin and other JVM languages via the standalone `groovy-concurrent-java` module (see <<concurrent-java>>).
 
-*_New HTTP Client Module (incubating)_*
+*_New HTTP Client Module (incubating)_* (see <<http-builder>>)
 
 - `groovy-http-builder` offers both an imperative DSL and a declarative `@HttpBuilderClient` interface.
 - Built on the JDK's `java.net.http.HttpClient` with native async support.
@@ -40,68 +40,69 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 *_New Language Features_*
 
-- `val` contextual keyword for final declarations — a clean companion to `var`.
-- Module imports (JEP 511): `import module java.sql` covers every exported package in one line.
-- Destructuring with rest binders (`def (h, *t) = list`) and map-style keys (`def (name: n) = person`).
-- Compound-assignment operator overloading (`plusAssign`, `minusAssign`, ...) for efficient in-place mutation, even on `final` fields.
-- AST transforms now valid on loop statements — `@Parallel` for-loops, `@Invariant`, `@Decreases`.
+- `val` contextual keyword for final declarations — a clean companion to `var` (see <<val-keyword>>).
+- Module imports (JEP 511): `import module java.sql` covers every exported package in one line (see <<module-imports>>).
+- Destructuring with rest binders (`def (h, *t) = list`) and map-style keys (`def (name: n) = person`) (see <<destructuring>>).
+- Compound-assignment operator overloading (`plusAssign`, `minusAssign`, ...) for efficient in-place mutation, even on `final` fields (see <<compound-assignment-overloading>>).
+- AST transforms now valid on loop statements — `@Parallel` for-loops, `@Invariant`, `@Decreases` (see <<loop-transforms>>).
 
-*_Designed for Human and AI Reasoning_*
+*_Designed for Human and AI Reasoning_* (see <<human-ai-reasoning>>)
 
-- New `NullChecker` type checker with an optional flow-sensitive `strict` mode requiring no annotations.
+- New `NullChecker` type checker with an optional flow-sensitive `strict` mode requiring no annotations (see <<type-checking-extensions>>).
 - `@Modifies` frame conditions and `@Pure` purity declarations, verified at compile time by `ModifiesChecker` and `PurityChecker`.
-- Loop invariants and termination measures via `@Invariant`/`@Decreases`.
+- Loop invariants and termination measures via `@Invariant`/`@Decreases` (see <<groovy-contracts>>).
 - Contracts (`@Requires`, `@Ensures`, `@Invariant`) now also work in scripts.
 - Each method becomes a self-contained specification — readable without descending into bodies.
 
-*_Joint Compilation Stub Improvements (incubating)_*
+*_Joint Compilation Stub Improvements (incubating)_* (see <<joint-compilation-stubs>>)
 
 - AST-transform-generated members (`@Immutable`, `@Builder`, `@TupleConstructor`, `@Delegate`, ...) are now visible in generated stubs.
 - Java code in mixed-language projects can finally call constructors and methods contributed by transforms.
 
-*_New Optional Modules_*
+*_New Optional Modules_* (see <<g6-new-modules>>)
 
-- `groovy-concurrent-java` — Standalone Java library exposing the `groovy.concurrent` toolkit; no Groovy runtime required.
-- `groovy-http-builder` — HTTP client with imperative DSL and declarative `@HttpBuilderClient` interface.
-- `groovy-csv` — RFC 4180 CSV reading/writing with optional Jackson-backed typed parsing.
-- `groovy-markdown` — CommonMark parser with section, code-block and table extraction helpers.
-- `groovy-grape-ivy` — `@Grab` Ivy backend, now its own optional module (previously bundled in core).
-- `groovy-grape-maven` — `@Grab` powered by Maven Resolver, alongside the existing Ivy engine.
+- `groovy-concurrent-java` — Standalone Java library exposing the `groovy.concurrent` toolkit; no Groovy runtime required (see <<concurrent-java>>).
+- `groovy-http-builder` — HTTP client with imperative DSL and declarative `@HttpBuilderClient` interface (see <<http-builder>>).
+- `groovy-csv` — RFC 4180 CSV reading/writing with optional Jackson-backed typed parsing (see <<csv>>).
+- `groovy-markdown` — CommonMark parser with section, code-block and table extraction helpers (see <<markdown>>).
+- `groovy-grape-ivy` — `@Grab` Ivy backend, now its own optional module (previously bundled in core) (see <<grape>>).
+- `groovy-grape-maven` — `@Grab` powered by Maven Resolver, alongside the existing Ivy engine (see <<grape>>).
 - `groovy-reactor` / `groovy-rxjava` — `await` and `for await` over reactive `Mono`/`Flux`/`Observable` types.
-- `groovy-test-junit6` — Run JUnit Jupiter 6 tests as Groovy scripts.
+- `groovy-test-junit6` — Run JUnit Jupiter 6 tests as Groovy scripts (see <<junit6>>).
 
-*_Extension Method Additions_*
+*_Extension Method Additions_* (see <<g6-extensions>>)
 
 - New methods including `groupByMany`, `waitForResult`, `findGroups`/`findAllGroups`, `isSorted`, and lazy `grepping`.
 - Asynchronous file I/O on `Path` (`textAsync`, `bytesAsync`, `writeAsync`) returning `CompletableFuture` — composes with `await`.
 - Streamlined process handling: `pipeline`, `onExit`, `toProcessBuilder`, named-parameter `execute(dir:, env:, ...)`.
-- Finer-grained `groovy.extension.disable` — target single overloads by parameter signature.
+- Finer-grained `groovy.extension.disable` — target single overloads by parameter signature (see <<g6-extension-disable>>).
 
-*_GINQ and Data Format Improvements_*
+*_GINQ and Data Format Improvements_* (see <<ginq>>, <<typed-parsing>>)
 
 - GINQ `groupby ... into` binds each group to a named variable with aggregate access.
 - SQL-style set operators in GINQ: `union`, `intersect`, `minus`, `unionall`.
 - Consistent typed parsing across JSON, CSV, TOML, YAML and XML modules.
 
-*_GroovyDoc and Tooling Improvements_*
+*_GroovyDoc and Tooling Improvements_* (see <<groovydoc>>, <<theming>>)
 
 - JEP 467 Markdown doc comments (`///`) and JEP 413 `{@snippet}` blocks for inline and external code samples.
 - Prism.js syntax highlighting, class-hierarchy tree pages, `{@value}`/`{@inheritDoc}` support, script documentation.
 - Light, dark, "follow system" and custom themes for GroovyDoc, the GDK reference, and GroovyConsole.
-- GroovyConsole gains a Set Script Arguments UI option.
+- GroovyConsole gains a Set Script Arguments UI option (see <<groovy-console-args>>).
 
 *_Other Improvements_*
 
-- `groovyToString()` protocol for customising display in string interpolation, `println` and collection formatting.
-- Platform Logging API: Groovy diagnostics route through standard JVM logging (SLF4J, Log4j2, JUL, ...).
-- JUnit 6 (Jupiter 6) support.
-- Improved annotation target validation on import and loop statements.
+- `groovyToString()` protocol for customising display in string interpolation, `println` and collection formatting (see <<groovy-to-string>>).
+- Platform Logging API: Groovy diagnostics route through standard JVM logging (SLF4J, Log4j2, JUL, ...) (see <<platform-logging>>).
+- JUnit 6 (Jupiter 6) support (see <<junit6>>).
+- Improved annotation target validation on import and loop statements (see <<annotation-validation>>).
 
-*_Broader JDK Support_*
+*_Broader JDK Support_* (see <<Groovy6.0-requirements>>)
 
 - Tested across JDK 17–26; JDK 17 is now the minimum supported runtime.
 - Security Manager support removed in line with JEP 411.
 
+[[g6-new-modules]]
 == New Modules
 
 Groovy 6 ships eight new optional modules, plus a long-standing piece
@@ -150,12 +151,13 @@ https://github.com/ReactiveX/RxJava[RxJava 3]
 
 Each module has a dedicated section below covering its public API, examples, and any migration notes.
 
+[[async-await]]
 == Native Async/Await (incubating)
 
 Groovy 6 adds native `async`/`await` support
 (https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381]),
 enabling developers to write concurrent code in a sequential, readable style --
-no callbacks, no `CompletableFuture` chains, no manual thread management.
+no callbacks, no jdk:java.util.concurrent.CompletableFuture[] chains, no manual thread management.
 On JDK 21+, tasks automatically leverage virtual threads.
 
 See also the https://groovy.apache.org/blog/groovy-async-await[async/await blog post]
@@ -223,7 +225,8 @@ assert fibonacci.take(8).collect() == [0, 1, 1, 2, 3, 5, 8, 13]
 
 === Channels
 
-Go-style inter-task communication. A producer sends values into a channel;
+Go-style inter-task communication. A producer sends values into a channel
+(gapi:groovy.concurrent.AsyncChannel[AsyncChannel]);
 a consumer receives them:
 
 [source,groovy]
@@ -309,6 +312,7 @@ AsyncScope.run {
 | Pluggable; default auto-selects virtual threads or cached pool
 |===
 
+[[concurrency-toolkit]]
 == Integrated Concurrency and Parallel Processing (incubating)
 
 Groovy 6 brings a unified concurrency and parallel-processing toolkit
@@ -364,7 +368,7 @@ assert seen == [1, 2, 3]
 
 === `@ActiveObject` — actor semantics with class syntax
 
-A hand-written actor expresses concurrency by encoding a message
+A hand-written actor (gapi:groovy.concurrent.Actor[Actor]) expresses concurrency by encoding a message
 protocol — typed messages, a `switch` over message kinds, and explicit
 `send`/`sendAndGet` plumbing at every call site:
 
@@ -393,9 +397,9 @@ assert balance == 70.0
 To know whether the actor is being used safely, a reader (human or AI)
 has to follow each message kind through the dispatch loop and match it
 against every call site. gapi:groovy.transform.ActiveObject[@ActiveObject]
-inverts this: write a normal class, mark methods that participate in
+(applicable target: `TYPE`) inverts this: write a normal class, mark methods that participate in
 the actor's serialised mailbox with
-gapi:groovy.transform.ActiveMethod[@ActiveMethod], and the AST
+gapi:groovy.transform.ActiveMethod[@ActiveMethod] (applicable target: `METHOD`), and the AST
 transform routes those calls through an internal actor:
 
 [source,groovy]
@@ -614,6 +618,7 @@ the Groovy runtime.
 | https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
 |===
 
+[[http-builder]]
 == HttpBuilder: HTTP Client Module (incubating)
 
 Groovy 6 introduces a new `groovy-http-builder` module
@@ -627,6 +632,11 @@ The two entry points are gapi:groovy.http.HttpBuilder[HttpBuilder]
 for the imperative DSL and
 gapi:groovy.http.HttpBuilderClient[@HttpBuilderClient] for the
 declarative client; supporting types live in the `groovy.http` package.
+
+Applicable targets for the new annotations: `@HttpBuilderClient` — `TYPE`;
+`@Get`/`@Post`/`@Put`/`@Delete`/`@Patch`/`@Form`/`@Timeout` — `METHOD`;
+`@Body`/`@BodyText`/`@Query` — `PARAMETER`;
+`@Header` — `TYPE`, `METHOD`.
 
 === Imperative DSL
 
@@ -702,7 +712,7 @@ Groovy 6: `def data = await api.getDataAsync('42')`.
 
 | HTTP methods (GET, POST, PUT, DELETE, PATCH)
 | All
-| All (gapi:groovy.http.Get[@Get], `@Post`, `@Put`, `@Delete`, `@Patch`)
+| All (gapi:groovy.http.Get[@Get], gapi:groovy.http.Post[@Post], gapi:groovy.http.Put[@Put], gapi:groovy.http.Delete[@Delete], gapi:groovy.http.Patch[@Patch])
 
 | JSON body / response
 | `json()` / `result.json`
@@ -761,6 +771,7 @@ Groovy 6: `def data = await api.getDataAsync('42')`.
 | `create { clientConfig { ... } }`
 |===
 
+[[loop-transforms]]
 == AST Transforms in More Places (incubating)
 
 Groovy 6 extends the AST transformation infrastructure to support
@@ -770,7 +781,7 @@ The following built-in transforms now declare `LOOP` as a valid target:
 
 * gapi:groovy.transform.Parallel[@Parallel] -- runs each iteration on
 its own task; uses virtual threads on JDK 21+ and falls back to
-platform threads otherwise
+platform threads otherwise (applicable target: `LOOP` only)
 * gapi:groovy.contracts.Invariant[@Invariant] -- asserts a condition
 at the start of each iteration (also valid on imports; see
 <<groovy-contracts>>)
@@ -799,11 +810,12 @@ validation rules.
 [[joint-compilation-stubs]]
 == Joint Compilation Stub Improvements (incubating)
 
+This work is specified by link:../wiki/GEP-21.html[GEP-21].
 When mixing Groovy and Java sources, Groovy generates Java stubs so
 `javac` can compile Java files that reference Groovy classes.
 Historically, those stubs were generated before AST transforms ran, so
-members contributed by transforms such as `@TupleConstructor`,
-`@Immutable`, or `@Builder` were absent from the stubs and Java code
+members contributed by transforms such as gapi:groovy.transform.TupleConstructor[@TupleConstructor],
+gapi:groovy.transform.Immutable[@Immutable], or gapi:groovy.transform.builder.Builder[@Builder] were absent from the stubs and Java code
 relying on them failed to compile.
 
 Groovy 6 extends the AST transform framework so that opt-in transforms
@@ -920,6 +932,7 @@ for more on how contracts support correctness reasoning.
 | Assert a condition at the start of each iteration of any loop type
 (for-in, classic for, while, do-while). Multiple invariants can be stacked.
 Violations throw `LoopInvariantViolation`.
+Targets: `TYPE` (existing) plus extended `LOOP` and `IMPORT` (new in 6.0).
 | https://issues.apache.org/jira/browse/GROOVY-11878[GROOVY-11878]
 
 | gapi:groovy.contracts.Decreases[@Decreases]
@@ -927,12 +940,14 @@ Violations throw `LoopInvariantViolation`.
 value or list of values that must strictly decrease each iteration while
 remaining non-negative. Lists use lexicographic comparison.
 Violations throw `LoopVariantViolation`.
+Targets: `TYPE` plus extended `LOOP`.
 | https://issues.apache.org/jira/browse/GROOVY-11890[GROOVY-11890]
 
 | gapi:groovy.contracts.Modifies[@Modifies]
 | Frame condition declaring which fields a method may change.
 Everything not listed is guaranteed unchanged.
 gapi:groovy.transform.Pure[@Pure] is shorthand for `@Modifies({ [] })`.
+Targets: `CONSTRUCTOR`, `METHOD` (both `@Modifies` and `@Pure`).
 | https://issues.apache.org/jira/browse/GROOVY-11909[GROOVY-11909]
 
 | Contracts in scripts
@@ -941,6 +956,7 @@ statements as a class-level invariant for the script.
 | https://issues.apache.org/jira/browse/GROOVY-11885[GROOVY-11885]
 |===
 
+[[type-checking-extensions]]
 == Type Checking Extensions
 
 Groovy's type checking is extensible, allowing you to strengthen
@@ -980,7 +996,7 @@ assert safeLength(null) == -1
 Without the null guard, dereferencing a `@Nullable` parameter
 produces a compile-time error.
 The checker also recognises safe navigation, early-exit patterns,
-`@NullCheck`, and `@MonotonicNonNull` for lazy initialisation.
+gapi:groovy.transform.NullCheck[@NullCheck], and `@MonotonicNonNull` for lazy initialisation.
 
 === Strict mode: no annotations needed
 
@@ -1036,7 +1052,7 @@ with a `null` branch.
 | Recognises null-safety facts from `groovy-contracts`: top-level
 `x != null` conjuncts in `@Requires` mark parameters as implicit
 `@NonNull`, and `result != null` in `@Ensures` marks the return as
-implicit `@NonNull`.).
+implicit `@NonNull`.
 | https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]
 
 | gapi:groovy.typecheckers.ModifiesChecker[ModifiesChecker]
@@ -1053,6 +1069,7 @@ Also recognises `@SideEffectFree`, `@Contract(pure = true)`, and `@Memoized`.
 | https://issues.apache.org/jira/browse/GROOVY-11914[GROOVY-11914]
 |===
 
+[[human-ai-reasoning]]
 == Designed for Human and AI Reasoning
 
 A key design goal for Groovy 6 is making code easier to reason about --
@@ -1161,6 +1178,7 @@ methods have no side effects. Without that guarantee, annotations
 would be just comments -- claims you'd still need to verify by
 reading the code.
 
+[[module-imports]]
 == Module Import Declarations
 
 Groovy 6 supports Java's module import declarations
@@ -1212,7 +1230,8 @@ Java language feature.
 
 Groovy 6 adds `val` as a contextual keyword for declaring final
 variables and fields
-(https://issues.apache.org/jira/browse/GROOVY-9308[GROOVY-9308]).
+(https://issues.apache.org/jira/browse/GROOVY-9308[GROOVY-9308],
+link:../wiki/GEP-16.html[GEP-16]).
 `val` complements the existing `var` keyword: `val` declares an
 immutable binding (equivalent to `final def`), while `var` continues
 to declare a mutable one. The shape and naming will be familiar to
@@ -1253,6 +1272,7 @@ entirely, lexing `val` as a plain identifier.
 See link:../wiki/GEP-16.html[GEP-16] for the full specification,
 including the migration flag and the complete list of edge cases.
 
+[[destructuring]]
 == Multi-assignment Destructuring
 
 Groovy 6 extends `def (...)` multi-assignment with rest bindings and
@@ -1387,7 +1407,8 @@ def (name: _, age: a) = [name: 'A', age: 30]   // _ binds to the name slot
 
 Groovy 6 lets classes overload the compound assignment operators
 (`+=`, `-=`, `*=`, ...) independently from their base operators
-(https://issues.apache.org/jira/browse/GROOVY-11970[GROOVY-11970]).
+(https://issues.apache.org/jira/browse/GROOVY-11970[GROOVY-11970],
+link:../wiki/GEP-15.html[GEP-15]).
 Historically, `x += y` always desugared to `x = x.plus(y)` -- creating a
 new value and rebinding the variable. That forced mutable types into
 inefficient create-and-reassign patterns and made compound assignment
@@ -1449,6 +1470,7 @@ The full set of compound assignment operators and their corresponding
 
 See link:../wiki/GEP-15.html[GEP-15] for the full specification.
 
+[[g6-extensions]]
 == Extension method additions and improvements
 
 Groovy provides over 2000 extension methods to 150+ JDK classes to enhance
@@ -1595,6 +1617,7 @@ each capture group.
 | https://issues.apache.org/jira/browse/GROOVY-11958[GROOVY-11958]
 |===
 
+[[g6-extension-disable]]
 == Selectively Disabling Extension Methods
 
 The `groovy.extension.disable` system property has been enhanced
@@ -1649,6 +1672,7 @@ def result = [a:1,b:2,c:3,d:4].groupBy { it.value % 2 }
 assert result == [0:[b:2, d:4], 1:[a:1, c:3]]
 ----
 
+[[groovy-to-string]]
 == Customisable Object Display with `groovyToString`
 
 Groovy 6 introduces a `groovyToString()` protocol
@@ -1676,6 +1700,7 @@ familiar Groovy formatting (e.g. `[1, 2, 3]` for `int[]` rather than
 Java's `[I@hashcode`). These can be selectively disabled using the
 `groovy.extension.disable` system property if needed.
 
+[[ginq]]
 == GINQ Enhancements
 
 === `groupby` ... `into`
@@ -1723,6 +1748,7 @@ assert GQL {
 See the dochome:using-ginq.html[GINQ user guide]
 for the full set of clauses and operators.
 
+[[csv]]
 == CSV Module (incubating)
 
 Groovy 6 adds a new `groovy-csv` module
@@ -1786,6 +1812,7 @@ assert sales[0].amount == 1500.00
 See the dochome:processing-csv.html[Processing CSV user guide]
 for the full API and configuration options.
 
+[[typed-parsing]]
 == Typed Parsing and Writing Across Format Modules
 
 Groovy 6 brings typed parsing support across all data format modules,
@@ -1816,7 +1843,7 @@ def config = new XmlParser().parseTextAs(ServerConfig, xml)
 | Format | Typed Parsing | Typed Writing
 
 | JSON
-| `as` coercion (no deps); `ObjectMapper` for advanced cases
+| gapi:groovy.json.JsonSlurper[JsonSlurper] + `as` coercion (no deps); `ObjectMapper` for advanced cases
 | gapi:groovy.json.JsonOutput[JsonOutput]`.toJson()`
 
 | CSV
@@ -1847,6 +1874,7 @@ For simple cases, Groovy's `as` coercion works without Jackson.
 For XML, `jackson-dataformat-xml` can be used directly for full
 Jackson XML annotation support.
 
+[[markdown]]
 == Markdown Module (incubating)
 
 Groovy 6 adds a new optional `groovy-markdown` module
@@ -1927,6 +1955,7 @@ Supported node types include `heading`, `paragraph`, `code_block`,
 See the dochome:processing-markdown.html[Processing Markdown user guide]
 for the full node schema and additional examples.
 
+[[grape]]
 == Grape: Dual Engine Support (incubating)
 
 Groovy 6 introduces a major evolution of the Grape dependency
@@ -2015,6 +2044,7 @@ See the dochome:grape.html[Grape user guide]
 for the full per-engine specification, custom-engine registration steps,
 per-engine logging configuration, and detailed migration walkthrough.
 
+[[platform-logging]]
 == Platform Logging
 
 Groovy 6 replaces direct `System.err` output with the JDK's
@@ -2052,6 +2082,7 @@ JSON, Servlet, Swing, Testing) -- see the
 https://groovy-lang.org/logging.html[logging guide]
 for the full list of logger names and their levels.
 
+[[junit6]]
 == JUnit 6 Support
 
 Groovy 6 updates its testing support to include JUnit 6
@@ -2088,6 +2119,7 @@ provides additional capabilities for users who need them:
 Similarly, the existing `groovy-test-junit5` module continues
 to provide the same capabilities for JUnit 5 users.
 
+[[groovy-console-args]]
 == GroovyConsole: Script Arguments
 
 GroovyConsole now supports setting script arguments directly from the UI
@@ -2096,6 +2128,7 @@ Previously, users had to manually set `args` within their script
 as a workaround. A new _Set Script Arguments_ option in the _Script_ menu
 lets you specify space-separated arguments that are passed to the script.
 
+[[theming]]
 == Theming Improvements
 
 To match recent theming improvements to the Groovy website -- which
@@ -2163,6 +2196,7 @@ image:img/console_dark.png[GroovyConsole dark theme]
 
 image:img/console_custom.png[GroovyConsole custom theme]
 
+[[groovydoc]]
 == GroovyDoc Enhancements
 
 Groovy 6 brings GroovyDoc substantially closer to modern Javadoc
