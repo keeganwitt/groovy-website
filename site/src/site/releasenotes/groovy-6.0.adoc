@@ -1861,7 +1861,7 @@ def config = new XmlParser().parseTextAs(ServerConfig, xml)
 | gapi:groovy.yaml.YamlSlurper[YamlSlurper]`.parseTextAs(Type, yaml)` (Jackson)
 | gapi:groovy.yaml.YamlBuilder[YamlBuilder]`.toYaml(object)`
 
-| XML
+| XML (see <<xml-processing>>)
 (https://issues.apache.org/jira/browse/GROOVY-11927[GROOVY-11927])
 | gapi:groovy.xml.XmlParser[XmlParser]`.parseTextAs(Type, xml)` (optional Jackson);
 `Node.toMap()` + `as` coercion (no deps)
@@ -1873,6 +1873,105 @@ Jackson databinding and support `@JsonProperty`, `@JsonFormat`, etc.
 For simple cases, Groovy's `as` coercion works without Jackson.
 For XML, `jackson-dataformat-xml` can be used directly for full
 Jackson XML annotation support.
+
+[[xml-processing]]
+== XML Processing Improvements
+
+The `groovy-xml` module gains secure-by-default XML processing,
+StAX streaming helpers, named-parameter construction for parsers,
+and a richer gapi:groovy.xml.XmlUtil[XmlUtil]`.serialize` API.
+For typed parsing of XML documents into POJOs, see <<typed-parsing>>.
+
+=== Secure-by-default XML processing
+
+XXE attacks, billion-laughs entity expansion, and unintended network
+access via external DTDs all stem from JDK XML factories that ship with
+permissive defaults. The front-line Groovy parsers --
+gapi:groovy.xml.XmlParser[XmlParser],
+gapi:groovy.xml.XmlSlurper[XmlSlurper], the static
+gapi:groovy.xml.dom.DOMBuilder[DOMBuilder]`.parse(...)` overloads, and
+`XmlUtil.newSAXParser` -- were already secure-by-default. Groovy 6
+closes the remaining gaps in `XmlUtil.serialize`, `FactorySupport`, and
+`DOMBuilder.newInstance`
+(https://issues.apache.org/jira/browse/GROOVY-11979[GROOVY-11979],
+https://issues.apache.org/jira/browse/GROOVY-11981[GROOVY-11981]) --
+see <<Groovy6.0-breaking>> for the per-API migration knobs. A new XML
+security chapter in the user guide documents the contract end-to-end.
+
+=== StAX streaming helpers
+
+Two new `XmlUtil` methods stream over XML sources without loading the
+whole document into memory
+(https://issues.apache.org/jira/browse/GROOVY-11979[GROOVY-11979]):
+`events(reader)` returns a `Stream<XMLEvent>`, and
+`streamElements(reader, [namespaceURI,] localName)` pulls each matching
+subtree as a small DOM `Node`. Both run on a hardened `XMLInputFactory`,
+so streaming an untrusted feed is safe out of the box.
+
+Combined with the new <<http-builder,HttpBuilder>>, we can fetch a
+published Groovy pom from Maven Central and extract its license:
+
+[source,groovy]
+----
+import groovy.xml.XmlUtil
+import static groovy.http.HttpBuilder.http
+
+def pom = http('https://repo1.maven.org/maven2')
+    .get('/org/apache/groovy/groovy/5.0.5/groovy-5.0.5.pom').body
+
+def licenses = XmlUtil.streamElements(new StringReader(pom), 'license')
+    .map { l -> l.getElementsByTagName('name').item(0).textContent }
+    .toList()
+
+assert licenses == ['The Apache Software License, Version 2.0']
+----
+
+The lower-level `events` API suits counts and scans where a DOM `Node`
+per match would be wasteful -- counting `<dependency>` entries across
+both `dependencyManagement` and `dependencies` is a single filter:
+
+[source,groovy]
+----
+import javax.xml.stream.events.XMLEvent
+
+def deps = XmlUtil.events(new StringReader(pom))
+    .filter { it.eventType == XMLEvent.START_ELEMENT &&
+              it.asStartElement().name.localPart == 'dependency' }
+    .count()
+
+assert deps == 5
+----
+
+=== Other improvements
+
+[cols="1,3,1", options="header"]
+|===
+| Feature | Description | Ticket
+
+| Named-parameter construction
+| `XmlParser` and `XmlSlurper` accept all parser options as named
+parameters, including `validating`, `namespaceAware`,
+`allowDocTypeDeclaration`, and `trimWhitespace`. For example:
+`new XmlParser(namespaceAware: false, trimWhitespace: true)`.
+| https://issues.apache.org/jira/browse/GROOVY-7633[GROOVY-7633]
+
+| `SerializeOptions` for `XmlUtil.serialize`
+| `XmlUtil.serialize` accepts a
+gapi:groovy.xml.SerializeOptions[SerializeOptions] bundle controlling
+encoding, indentation, DOCTYPE handling, and `allowExternalResources`
+in one parameter. For example:
+`XmlUtil.serialize(node, new SerializeOptions(encoding: 'ISO-8859-1', indent: 4))`.
+| https://issues.apache.org/jira/browse/GROOVY-7571[GROOVY-7571]
+
+| Extended JAXP factory access
+| gapi:groovy.xml.FactorySupport[FactorySupport] now covers all six
+JAXP factory types -- the existing `DocumentBuilderFactory` and
+`SAXParserFactory` plus new `XMLInputFactory`, `TransformerFactory`,
+`SchemaFactory`, and `XPathFactory` accessors -- with
+`allowDocTypeDeclaration` / `allowExternalResources` overloads where
+appropriate.
+| https://issues.apache.org/jira/browse/GROOVY-11979[GROOVY-11979]
+|===
 
 [[markdown]]
 == Markdown Module (incubating)
@@ -2477,30 +2576,10 @@ For example: `config.addCompilationCustomizers(*ASTTransformationCustomizer.forA
 
 == Other Module Changes
 
-* *groovy-xml*: `XmlParser` and `XmlSlurper` now support named parameter
-construction for all parser options including `validating`,
-`namespaceAware`, and `allowDocTypeDeclaration`
-(https://issues.apache.org/jira/browse/GROOVY-7633[GROOVY-7633]).
-For example: `new XmlParser(namespaceAware: false, trimWhitespace: true)`.
-* *groovy-xml*: `XmlUtil.serialize` now accepts a `SerializeOptions`
-parameter for controlling encoding, indentation, and DOCTYPE handling
-(https://issues.apache.org/jira/browse/GROOVY-7571[GROOVY-7571]).
-For example: `XmlUtil.serialize(node, new SerializeOptions(encoding: 'ISO-8859-1', indent: 4))`.
-* *groovy-xml*: New StAX streaming helpers and secure-by-default JAXP factory
-accessors. `groovy.xml.FactorySupport` is extended to cover all six JAXP
-factory types (adds `XMLInputFactory`, `TransformerFactory`, `SchemaFactory`
-and `XPathFactory` alongside the existing `DocumentBuilderFactory` and
-`SAXParserFactory`), with explicit `allowDocTypeDeclaration` /
-`allowExternalResources` overloads where appropriate.
-`XmlUtil.events(reader)` returns a `Stream<XMLEvent>` over a hardened
-`XMLInputFactory`; `XmlUtil.streamElements(reader, [namespaceURI,] localName)`
-pulls each matching subtree as a small DOM `Node`, suitable for streaming
-multi-gigabyte feeds without loading them into memory.
-`SerializeOptions` adds an `allowExternalResources` field; `DOMBuilder.newInstance`
-adds a 3-arg overload taking `allowDocTypeDeclaration`. A new XML security
-chapter in the XML user guide documents the secure-by-default contract
-end-to-end.
-(https://issues.apache.org/jira/browse/GROOVY-11979[GROOVY-11979]).
+For the `groovy-xml` module changes (secure-by-default XML processing,
+StAX streaming helpers, `SerializeOptions`, and named-parameter
+construction), see <<xml-processing>>.
+
 * *groovy-sql*: The `DataSet` class now correctly handles
 non-literal expressions in queries
 (https://issues.apache.org/jira/browse/GROOVY-5373[GROOVY-5373]).
@@ -2568,34 +2647,28 @@ responsible for closing resources they create, following standard conventions.
 (https://issues.apache.org/jira/browse/GROOVY-11925[GROOVY-11925],
 https://issues.apache.org/jira/browse/GROOVY-11926[GROOVY-11926])
 * `XmlParser.parse(File)` and `XmlParser.parse(Path)` now properly
-close the underlying `InputStream` after parsing. Previously, the stream
-was not closed, which could cause file descriptor leaks.
+close the underlying `InputStream` after parsing (see <<xml-processing>>).
+Previously, the stream was not closed, which could cause file descriptor leaks.
 (https://issues.apache.org/jira/browse/GROOVY-11927[GROOVY-11927])
 * `XmlParser.setNamespaceAware(boolean)` now throws `IllegalStateException`
-if called after parsing has started. Previously, the setter silently
+if called after parsing has started (see <<xml-processing>>). Previously, the setter silently
 updated the field but had no effect since the SAX parser was already configured.
 (https://issues.apache.org/jira/browse/GROOVY-7633[GROOVY-7633])
 * *groovy-xml* hardening: three default-behaviour changes to behind-the-scenes
-XML factory creation paths. The front-line parsers (`XmlParser`, `XmlSlurper`,
-the static `DOMBuilder.parse(...)` overloads, `XmlUtil.newSAXParser`) were
-already secure-by-default and are unaffected.
-(1) `XmlUtil.serialize` now blocks external `<xsl:import>`/`<xsl:include>`
-and external DTD references in the underlying `TransformerFactory`. Affects
-callers passing XSLT documents with external resource references through
-`serialize`; opt back in via `SerializeOptions.allowExternalResources=true`.
-The common case of pretty-printing already-parsed nodes or DOM trees is
-unaffected.
-(2) `FactorySupport.createDocumentBuilderFactory()` and
-`createSaxParserFactory()` zero-arg variants now return hardened factories
-instead of bare JDK factories. Direct callers that were parsing
-DOCTYPE-bearing input through them should switch to the new `(true)` overload.
-(3) Mostly theoretical: `DOMBuilder.newInstance()` and
-`newInstance(validating, namespaceAware)` now return a builder backed by a
-hardened factory. The DSL-build path doesn't parse external input and
-`parseText` already routed through the hardened static `parse`, so this
-only bites code that reaches into `domBuilder.documentBuilder` and parses
-DOCTYPE-bearing XML directly. New `newInstance(validating, namespaceAware,
-allowDocTypeDeclaration)` overload provides a relax knob.
+XML factory creation paths -- see <<xml-processing>> for the security
+rationale and per-API details. The front-line parsers (`XmlParser`,
+`XmlSlurper`, the static `DOMBuilder.parse(...)` overloads,
+`XmlUtil.newSAXParser`) were already secure-by-default and are unaffected.
+Migration knobs:
+(1) `SerializeOptions.allowExternalResources = true` re-enables external
+XSL imports/includes and external DTD references in `XmlUtil.serialize`.
+(2) Direct callers of the zero-arg
+`FactorySupport.createDocumentBuilderFactory()` /
+`createSaxParserFactory()` parsing DOCTYPE-bearing input should switch
+to the new `(true)` overload.
+(3) Code that reaches into `domBuilder.documentBuilder` and parses
+DOCTYPE-bearing XML directly should use the new three-arg
+`DOMBuilder.newInstance(validating, namespaceAware, allowDocTypeDeclaration)`.
 (https://issues.apache.org/jira/browse/GROOVY-11981[GROOVY-11981])
 * The last references to `javax.swing.JApplet` have been removed from
 `groovy-swing` (the `SwingBuilder` factory registration) and from the
