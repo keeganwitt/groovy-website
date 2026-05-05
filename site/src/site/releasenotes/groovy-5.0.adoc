@@ -16,39 +16,39 @@ In addition, it incorporates numerous new features and streamlines various legac
 * Full compatibility with JDK 11–25 (see <<Groovy5.0-requirements>>).
 * Many JDK 17–25 language features available for use on earlier JDKs.
 
-*_Substantial Extension Method Expansion_*
+*_<<g5-extensions,Substantial Extension Method Expansion>>_*
 
-- 350+ new and improved methods to boost productivity (see <<g5-extensions>>).
-- Up to *10× faster* array operations (see <<g5-array-ext>>).
-- Lazy iterator methods offering stream-like behavior *without the overhead* (see <<g5-iterator-ext>>).
+- 350+ new and improved methods to boost productivity.
+- Up to *10× faster* <<g5-array-ext,array operations>>.
+- <<g5-iterator-ext,Lazy iterator methods>> offering stream-like behavior *without the overhead*.
 - New utilities beyond the standard JDK for richer out-of-the-box functionality.
 
 *_Enhanced AST Transforms_*
 
-- New `@OperatorRename` transform for seamless operator overloading in third-party libraries (see <<g5-operatorrename>>).
+- New <<g5-operatorrename,`@OperatorRename` transform>> for seamless operator overloading in third-party libraries.
 
-*_Revamped REPL (groovysh)_*
+*_<<Groovy5.0-groovysh,Revamped REPL (groovysh)>>_*
 
-- Built on JLine 3 with cross-platform terminal support (see <<Groovy5.0-groovysh>>).
+- Built on JLine 3 with cross-platform terminal support.
 - Colorized syntax highlighting, intelligent output, history, and completion.
 
 *_Improved Java Interoperability_*
 
-- Pattern matching for `instanceof` (see <<g5-instanceof>>).
-- Support for JEP-512 compact source files and instance main methods (see <<g5-jep512>>).
+- <<g5-instanceof,Pattern matching for `instanceof`>>.
+- Support for <<g5-jep512,JEP-512>> compact source files and instance main methods.
 
 *_Modern Web Standards_*
 
-- Enhanced web content creation with both Jakarta and legacy Javax support (see <<g5-jakarta>>).
+- Enhanced <<g5-jakarta,web content creation>> with both Jakarta and legacy Javax support.
 
 *_Type Checking Enhancements_*
 
-- Stronger-than-Java format string checking (see <<g5-format-checker>>).
+- Stronger-than-Java <<g5-format-checker,format string checking>>.
 
 *_Additional Language Goodies_*
 
-- Infinite iterator generation (see <<g5-infinite>>).
-- Index variables in loops (see <<g5-loop-index>>).
+- <<g5-infinite,Infinite iterator generation>>.
+- <<g5-loop-index,Index variables in loops>>.
 
 [[g5-extensions]]
 == Extension method additions and improvements
