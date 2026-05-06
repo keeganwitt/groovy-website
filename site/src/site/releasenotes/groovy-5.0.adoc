@@ -1317,3 +1317,14 @@ Groovy 5 has been tested on JDK versions 11 through 25.
 == More information
 
 You can browse all the link:../changelogs/changelog-5.0.0-unreleased.html[tickets closed for Groovy 5.0 in JIRA].
+
+[[Groovy5.0releasenotes-5.0.7]]
+== Addendum for 5.0.7 (pending)
+
+* The Groovy 5.0 change to `File`/`Path` truthiness -- whereby a
+non-existent file is _falsy_ -- can be reverted as a porting aid by
+setting `-Dgroovy.truth.file.exists.enabled=false`. With the flag set
+to `false`, any non-`null` `File` or `Path` reference is truthy
+(matching Groovy 4 behaviour); the default (`true`) preserves the
+Groovy 5 existence-aware semantics
+(https://issues.apache.org/jira/browse/GROOVY-11996[GROOVY-11996]).

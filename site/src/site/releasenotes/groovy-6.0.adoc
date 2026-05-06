@@ -1267,7 +1267,8 @@ equally to `val` -- chiefly a field named `val` (or `var`) declared
 immediately before a method or constructor, and `val as Type` cast
 expressions. For codebases that need more time to migrate, a
 `-Dgroovy.val.enabled=false` system property disables the keyword
-entirely, lexing `val` as a plain identifier.
+entirely, lexing `val` as a plain identifier
+(https://issues.apache.org/jira/browse/GROOVY-11994[GROOVY-11994]).
 
 See link:../wiki/GEP-16.html[GEP-16] for the full specification,
 including the migration flag and the complete list of edge cases.
@@ -2212,6 +2213,18 @@ provides additional capabilities for users who need them:
   for JUnit Jupiter's conditional execution annotations
   (https://issues.apache.org/jira/browse/GROOVY-11887[GROOVY-11887]),
   allowing conditions to be expressed as Groovy scripts
+* **`@ForkedJvm`** -- runs an annotated test method or class in a
+  freshly forked JVM, with optional `systemProperties` and `jvmArgs`
+  attributes. Useful for tests that need a clean process state, an
+  isolated system property, or specific module-access flags
+  (e.g.&nbsp;`--add-opens=...`)
+  (https://issues.apache.org/jira/browse/GROOVY-11997[GROOVY-11997]).
+* **`@ExpectedToFail`** -- inverts the pass/fail outcome of a test:
+  the test passes when it throws (optionally an exception of a given
+  type or with a message containing a given substring), and fails
+  when it does not. Composes with `@ForkedJvm` in either declaration
+  order
+  (https://issues.apache.org/jira/browse/GROOVY-11997[GROOVY-11997]).
 * **Convenient dependency management** -- a single dependency that
   transitively pulls in compatible JUnit 6 libraries
 
@@ -2573,6 +2586,22 @@ via a new `forAnnotation(...)` static factory that returns one customizer
 per resolved transform class
 (https://issues.apache.org/jira/browse/GROOVY-11973[GROOVY-11973]).
 For example: `config.addCompilationCustomizers(*ASTTransformationCustomizer.forAnnotation(Sealed))`.
+* Static compilation now supports *serializable method references* and
+serializable lambdas. When the target functional interface is a
+`Serializable` intersection type (e.g.&nbsp;`(Function & Serializable)`),
+the generated synthetic class implements `Serializable` and emits the
+required `$deserializeLambda$` plumbing, so the resulting reference
+or lambda can be persisted, sent across JVMs, or used in frameworks
+that rely on serialised lambdas (such as JPA Criteria APIs and some
+distributed-computing libraries)
+(https://issues.apache.org/jira/browse/GROOVY-11993[GROOVY-11993]).
+* The Groovy 5.0 change to `File`/`Path` truthiness -- whereby a
+non-existent file is _falsy_ -- can be reverted as a porting aid by
+setting `-Dgroovy.truth.file.exists.enabled=false`. With the flag set
+to `false`, any non-`null` `File` or `Path` reference is truthy
+(matching Groovy 4 behaviour); the default (`true`) preserves the
+Groovy 5 existence-aware semantics
+(https://issues.apache.org/jira/browse/GROOVY-11996[GROOVY-11996]).
 
 == Other Module Changes
 
@@ -2595,6 +2624,18 @@ existing named-parameter support on `eachRow`, `rows`, etc.
 project's Ant properties when running in forked mode, matching the
 behaviour of non-forked execution
 (https://issues.apache.org/jira/browse/GROOVY-6908[GROOVY-6908]).
+* *groovy-ant*: The `<groovyc>` task gains nested `<jvmarg>`,
+`<sysproperty>`, and `<syspropertyset>` elements (mirroring Ant's
+`<java>` task) that are passed to the spawned compiler JVM when
+`fork="true"`, plus an `inheritAll` attribute to pass _all_ parent-
+project properties as system properties at once. Useful for
+compile-time configuration consumed by AST transforms, the
+parser/lexer, or annotation processors -- for example
+`<jvmarg value="--add-opens=java.base/java.lang=ALL-UNNAMED"/>` or
+`<sysproperty key="groovy.val.enabled" value="false"/>`. Explicit
+`<sysproperty>` / `<syspropertyset>` entries take precedence on name
+collision with `inheritAll`
+(https://issues.apache.org/jira/browse/GROOVY-11995[GROOVY-11995]).
 * *groovy-jmx*: Removed dead IIOP support and refreshed documentation
 (https://issues.apache.org/jira/browse/GROOVY-11921[GROOVY-11921]).
 * *groovy-servlet*: Jakarta EE 11 compatibility
@@ -2626,7 +2667,8 @@ sibling `var` keyword now apply to `val` as well -- chiefly a field
 named `val` declared immediately before a method or constructor, and
 `val as Type` cast expressions. The `-Dgroovy.val.enabled=false`
 system property reverts to the prior behavior as a porting aid.
-(https://issues.apache.org/jira/browse/GROOVY-9308[GROOVY-9308])
+(https://issues.apache.org/jira/browse/GROOVY-9308[GROOVY-9308],
+https://issues.apache.org/jira/browse/GROOVY-11994[GROOVY-11994])
 * Annotation target validation is now enforced for import and loop statements
 (see <<annotation-validation>>).
 (https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884])
