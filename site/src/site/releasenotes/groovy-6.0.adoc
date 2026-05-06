@@ -44,6 +44,7 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - <<module-imports,Module imports>> (JEP 511): `import module java.sql` covers every exported package in one line.
 - <<destructuring,Destructuring>> with rest binders (`def (h, *t) = list`) and map-style keys (`def (name: n) = person`).
 - <<compound-assignment-overloading,Compound-assignment operator overloading>> (`plusAssign`, `minusAssign`, ...) for efficient in-place mutation, even on `final` fields.
+- <<intersection-cast,Intersection-type cast>> for lambdas, method references and closures — `(Runnable & Serializable) () -> ...` — with full `LambdaMetafactory` marker support and an `as (A & B)` coercion form.
 - AST transforms now valid on <<loop-transforms,loop statements>> — `@Parallel` for-loops, `@Invariant`, `@Decreases`.
 
 *_<<human-ai-reasoning,Designed for Human and AI Reasoning>>_*
@@ -2214,10 +2215,14 @@ provides additional capabilities for users who need them:
   (https://issues.apache.org/jira/browse/GROOVY-11887[GROOVY-11887]),
   allowing conditions to be expressed as Groovy scripts
 * **`@ForkedJvm`** -- runs an annotated test method or class in a
-  freshly forked JVM, with optional `systemProperties` and `jvmArgs`
-  attributes. Useful for tests that need a clean process state, an
-  isolated system property, or specific module-access flags
-  (e.g.&nbsp;`--add-opens=...`)
+  freshly forked JVM, with optional `systemProperties`, `jvmArgs`, and
+  `inheritProperties` attributes. Useful for tests that need a clean
+  process state, an isolated system property, or specific module-access
+  flags (e.g.&nbsp;`--add-opens=...`). `inheritProperties` accepts
+  exact property names or prefix patterns ending in `*`
+  (e.g.&nbsp;`'spock.*'`) and propagates matching properties from the
+  parent JVM to the child -- handy when the build (Gradle, Maven) sets
+  a property the forked test still needs
   (https://issues.apache.org/jira/browse/GROOVY-11997[GROOVY-11997]).
 * **`@ExpectedToFail`** -- inverts the pass/fail outcome of a test:
   the test passes when it throws (optionally an exception of a given
