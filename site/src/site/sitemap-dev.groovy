@@ -87,8 +87,13 @@ downloads {
             a(href: 'versioning.html', 'version')
             yield ' of Groovy designed for JDK11+.'
         }
+        version('5.0.6') {
+            stable true
+//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.0.6/'
+        }
         version('5.0.5') {
             stable true
+            archive true
             windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.0.5/'
         }
     }
