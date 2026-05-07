@@ -80,6 +80,18 @@ documentation {
 }
 
 downloads {
+    distribution('Groovy 6.0') {
+        description {
+            a(href: "${userSiteBase}releasenotes/groovy-6.0.html", 'Groovy 6.0')
+            yield ' is the next major '
+            a(href: 'versioning.html', 'version')
+            yield ' of Groovy designed for JDK17+. Alpha releases are not recommended for production use.'
+        }
+        version('6.0.0-alpha-1') {
+            stable false
+//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-alpha-1/'
+        }
+    }
     distribution('Groovy 5.0') {
         description {
             a(href: "${userSiteBase}releasenotes/groovy-5.0.html", 'Groovy 5.0')
