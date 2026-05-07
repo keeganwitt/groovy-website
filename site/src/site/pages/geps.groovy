@@ -30,7 +30,7 @@ layout 'layouts/main.groovy', true,
                                     }
                                     if (gep.value.Target) details << "Target: ${gep.value.Target}"
                                     if (gep.value.Comment) details << "Comment: ${gep.value.Comment}"
-                                    li {
+                                    li(id: gep.key) {
                                         a(href: "${gep.key}.html", "$gep.key: $gep.value.subtitle")
                                         if (!details.isEmpty()) {
                                             p(class: 'gep-meta', details.join(' | '))
