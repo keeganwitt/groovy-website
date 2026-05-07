@@ -7,12 +7,12 @@
 [horizontal,options="compact"]
 *Number*:: GEP-16
 *Title*:: `val` type placeholder for final declarations
-*Version*:: 4
+*Version*:: 6
 *Type*:: Feature
 *Status*:: Draft
 *Leader*:: Paul King
 *Created*:: 2026-04-12
-*Last modification*:: 2026-04-12
+*Last modification*:: 2026-05-07
 ****
 
 == Abstract
@@ -324,6 +324,8 @@ keyword or identifier have to resolve one way. In summary:
 * Field named `val` (or `var`) before a method or constructor declaration --
   parsed as modifiers on the member that follows
 * `val` as a cast expression -- `val as Type` reads `val` as the keyword
+* Standalone `val` (or `var`) expression-statement before a declaration --
+  parsed as a modifier on the declaration that follows
 * Java class named `val` -- the keyword wins in declared-type positions
 
 Each is detailed below with workarounds.
@@ -382,12 +384,61 @@ this.val as String   // qualify with this
 
 NOTE: This also applies to `var`. It is a pre-existing issue.
 
+==== Standalone `val` (or `var`) expression-statement before a declaration
+
+A bare `val` reference used as an expression-statement immediately before
+a declaration is misparsed as a modifier on the declaration that follows:
+
+[source,groovy]
+----
+def m(Object obj) {
+    def val = obj
+    if (val instanceof String) {
+        println val.trim()
+    }
+    val                       // intended: reference the variable
+    def var = obj             // ...but parsed as `val def var = obj`
+}
+----
+
+*Workarounds:*
+
+[source,groovy]
+----
+val;                          // terminate the statement explicitly
+(val)                         // parenthesise
+                              // or simply remove the reference if it has no effect
+----
+
+NOTE: This also applies to `var`. It is a pre-existing issue.
+
 ==== Java class named `val`
 
 A Java class named `val` cannot be used directly as a declared type or
 method return type in Groovy -- the keyword takes precedence in those
 positions. The workaround is to use a fully-qualified name or import alias.
 This matches the behavior `var` would have if Java permitted `class var`.
+
+==== IDE syntax highlighting (cosmetic)
+
+A pre-existing `var` issue (https://issues.apache.org/jira/browse/GROOVY-9630[GROOVY-9630])
+extends to `val` under GEP-16. When `def val` (or `def var`) is followed by
+a line break or trailing comment and then a separate assignment:
+
+[source,groovy]
+----
+def val //
+val = 1
+----
+
+The Groovy parser folds these into a single declaration -- the first `val`
+is treated as a modifier and the second as the variable name -- so the
+runtime result is the same as the intended `def val; val = 1`. However,
+some IDEs (e.g. Eclipse) tokenize independently and may colorize the first
+`val` as a variable declaration rather than a modifier, leading to
+misleading highlighting. This is purely cosmetic; no workaround is needed
+for correctness, but adding a semicolon (`def val;`) or initializer
+(`def val = null`) makes the intent unambiguous to both parser and IDE.
 
 === Migration flag: `groovy.val.enabled`
 
@@ -404,6 +455,7 @@ All breaking changes listed above are resolved:
 
 * `def val` as a field name works (no modifier ambiguity)
 * `val as String` works (cast expression)
+* Standalone `val` expression-statement before a declaration works
 * `class val {}` works (type declaration)
 * `val x` as explicit type works (if a class named `val` exists)
 * `val = something` and `def val = 1` work (assignment and declaration)
@@ -431,6 +483,10 @@ https://github.com/apache/groovy/tree/valSpike
   was less widely understood. Since then, Kotlin adoption has grown
   significantly and `val`/`var` semantics are now familiar to a broad
   audience, making the case for this feature stronger.
+* https://issues.apache.org/jira/browse/GROOVY-9630[GROOVY-9630: var/val IDE syntax highlighting]
+  -- pre-existing cosmetic issue for `var` (declaration split across lines is
+  colorized as if the keyword were the variable name). The same situation
+  applies to `val` under GEP-16; runtime behavior is unaffected.
 
 == Update history
 
@@ -438,4 +494,5 @@ https://github.com/apache/groovy/tree/valSpike
 2 (2026-04-12) Added Java interop edge cases, spike implementation summary +
 3 (2026-04-12) Added field naming edge case, Gradle motivation +
 4 (2026-04-12) Added cast expression edge case, split code stats, linked spike branch and JIRA +
-5 (2026-04-16) Added `groovy.val.enabled` migration flag
+5 (2026-04-16) Added `groovy.val.enabled` migration flag +
+6 (2026-05-07) Added standalone `val` expression-statement edge case; noted IDE highlighting issue (GROOVY-9630)
