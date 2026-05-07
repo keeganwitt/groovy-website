@@ -50,5 +50,6 @@ class AsciidoctorFactory {
         registry.inlineMacro(new LinkMacroProcessor('gapi',    groovydocUrl("${docsBase}/html/gapi/index.html".toString())))
         registry.inlineMacro(new LinkMacroProcessor('gapid',   groovydocUrl("${docsBase}/html/gapi/".toString())))
         registry.inlineMacro(new LinkMacroProcessor('dochome', { String target -> "${docsBase}/html/documentation/${target}".toString() }))
+        registry.inlineMacro(new LinkMacroProcessor('dochome6', { String target -> "https://docs.groovy-lang.org/docs/latest6/html/documentation/${target}".toString() }))
     }
 }

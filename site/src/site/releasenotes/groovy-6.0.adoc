@@ -32,12 +32,6 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - Parallel `Collection` methods (`collectParallel`, `findAllParallel`, `eachParallel`, ...) for CPU-bound work.
 - Same APIs available to Java, Kotlin and other JVM languages via the standalone <<concurrent-java,`groovy-concurrent-java`>> module.
 
-*_<<http-builder,New HTTP Client Module>> (incubating)_*
-
-- `groovy-http-builder` offers both an imperative DSL and a declarative `@HttpBuilderClient` interface.
-- Built on the JDK's `java.net.http.HttpClient` with native async support.
-- Auto-parsed JSON, XML and HTML responses; typed return objects driven by interface signatures.
-
 *_New Language Features_*
 
 - <<val-keyword,`val` contextual keyword>> for final declarations — a clean companion to `var`.
@@ -55,11 +49,6 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - Contracts (`@Requires`, `@Ensures`, `@Invariant`) now also work in scripts.
 - Each method becomes a self-contained specification — readable without descending into bodies.
 
-*_<<joint-compilation-stubs,Joint Compilation Stub Improvements>> (incubating)_*
-
-- AST-transform-generated members (`@Immutable`, `@Builder`, `@TupleConstructor`, `@Delegate`, ...) are now visible in generated stubs.
-- Java code in mixed-language projects can finally call constructors and methods contributed by transforms.
-
 *_<<g6-new-modules,New Optional Modules>>_*
 
 - <<concurrent-java,`groovy-concurrent-java`>> — Standalone Java library exposing the `groovy.concurrent` toolkit; no Groovy runtime required.
@@ -70,6 +59,12 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - <<grape,`groovy-grape-maven`>> — `@Grab` powered by Maven Resolver, alongside the existing Ivy engine.
 - `groovy-reactor` / `groovy-rxjava` — `await` and `for await` over reactive `Mono`/`Flux`/`Observable` types.
 - <<junit6,`groovy-test-junit6`>> — Run JUnit Jupiter 6 tests as Groovy scripts.
+
+*_<<http-builder,New HTTP Client Module>> (incubating)_*
+
+- `groovy-http-builder` offers both an imperative DSL and a declarative `@HttpBuilderClient` interface.
+- Built on the JDK's `java.net.http.HttpClient` with native async support.
+- Auto-parsed JSON, XML and HTML responses; typed return objects driven by interface signatures.
 
 *_<<g6-extensions,Extension Method Additions>>_*
 
@@ -90,6 +85,11 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - Prism.js syntax highlighting, class-hierarchy tree pages, `{@value}`/`{@inheritDoc}` support, script documentation.
 - Light, dark, "follow system" and custom themes for GroovyDoc, the GDK reference, and GroovyConsole.
 - GroovyConsole gains a <<groovy-console-args,Set Script Arguments>> UI option.
+
+*_<<joint-compilation-stubs,Joint Compilation Stub Improvements>> (incubating)_*
+
+- AST-transform-generated members (`@Immutable`, `@Builder`, `@TupleConstructor`, `@Delegate`, ...) are now visible in generated stubs.
+- Java code in mixed-language projects can finally call constructors and methods contributed by transforms.
 
 *_Other Improvements_*
 
@@ -312,6 +312,9 @@ AsyncScope.run {
 | Executor configuration
 | Pluggable; default auto-selects virtual threads or cached pool
 |===
+
+See the dochome6:core-async-await.html[Async/Await user guide]
+for the full API and additional examples.
 
 [[concurrency-toolkit]]
 == Integrated Concurrency and Parallel Processing (incubating)
@@ -619,6 +622,12 @@ the Groovy runtime.
 | https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
 |===
 
+See the user guides for the full APIs and additional examples:
+dochome6:core-concurrent-actors.html[concurrent actors and agents],
+dochome6:core-concurrent-dataflow.html[concurrent dataflow],
+dochome6:core-parallel-collections.html[parallel collections], and
+dochome6:core-concurrent-java.html[the Java-only module].
+
 [[http-builder]]
 == HttpBuilder: HTTP Client Module (incubating)
 
@@ -772,6 +781,9 @@ Groovy 6: `def data = await api.getDataAsync('42')`.
 | `create { clientConfig { ... } }`
 |===
 
+See the dochome6:http-builder.html[HTTP client user guide]
+for the full API and configuration options.
+
 [[loop-transforms]]
 == AST Transforms in More Places (incubating)
 
@@ -807,54 +819,6 @@ Custom transforms can opt into loop targeting by declaring
 contract as class/method/field-level transforms. See
 <<annotation-validation>> for the corresponding compile-time
 validation rules.
-
-[[joint-compilation-stubs]]
-== Joint Compilation Stub Improvements (incubating)
-
-This work is specified by link:../wiki/GEP-21.html[GEP-21].
-When mixing Groovy and Java sources, Groovy generates Java stubs so
-`javac` can compile Java files that reference Groovy classes.
-Historically, those stubs were generated before AST transforms ran, so
-members contributed by transforms such as gapi:groovy.transform.TupleConstructor[@TupleConstructor],
-gapi:groovy.transform.Immutable[@Immutable], or gapi:groovy.transform.builder.Builder[@Builder] were absent from the stubs and Java code
-relying on them failed to compile.
-
-Groovy 6 extends the AST transform framework so that opt-in transforms
-can contribute member signatures (constructors, methods, fields) to the
-generated stubs. The change is strictly additive -- transforms that do
-not opt in behave exactly as before
-(https://issues.apache.org/jira/browse/GROOVY-11976[GROOVY-11976]).
-
-For example, a Groovy class using `@Immutable`:
-
-[source,groovy]
-----
-// UserAccount.groovy
-@groovy.transform.Immutable
-class UserAccount {
-    String name
-    int age
-}
-----
-
-is now visible to Java callers during joint compilation:
-
-[source,java]
-----
-// Caller.java
-UserAccount user = new UserAccount("alice", 30);
-----
-
-A wide range of built-in transforms have been updated to contribute
-stubs, including `@AutoClone`, `@AutoImplement`, `@Bindable`, `@Builder`,
-`@Delegate`, `@EqualsAndHashCode`, `@ExternalizeMethods`, `@Final`,
-`@Immutable`, `@IndexedProperty`, `@InheritConstructors`, `@Lazy`,
-`@ListenerList`, `@MapConstructor`, `@NamedVariant`, `@RecordType`,
-`@Singleton`, `@Sortable`, `@ToString`, `@TupleConstructor`, and
-`@Vetoable`. Custom transforms can opt in via one of three shapes
-(annotation attribute, marker interface, or split-transform classes).
-
-See link:../wiki/GEP-21.html[GEP-21] for the full specification.
 
 [[groovy-contracts]]
 == Groovy-Contracts Enhancements (incubating)
@@ -1811,7 +1775,7 @@ assert sales[0].customer == 'Acme'
 assert sales[0].amount == 1500.00
 ----
 
-See the dochome:processing-csv.html[Processing CSV user guide]
+See the dochome6:csv-userguide.html[Processing CSV user guide]
 for the full API and configuration options.
 
 [[typed-parsing]]
@@ -2053,7 +2017,7 @@ Supported node types include `heading`, `paragraph`, `code_block`,
 `inline_code`, `emphasis`/`strong`, `html_block`/`html_inline`,
 `thematic_break`, line breaks, and (with the GFM extension) `table`.
 
-See the dochome:processing-markdown.html[Processing Markdown user guide]
+See the dochome6:markdown-userguide.html[Processing Markdown user guide]
 for the full node schema and additional examples.
 
 [[grape]]
@@ -2182,6 +2146,54 @@ Loggers are organized by module (Core, Grape, Ant, Console, GroovyDoc,
 JSON, Servlet, Swing, Testing) -- see the
 https://groovy-lang.org/logging.html[logging guide]
 for the full list of logger names and their levels.
+
+[[joint-compilation-stubs]]
+== Joint Compilation Stub Improvements (incubating)
+
+This work is specified by link:../wiki/GEP-21.html[GEP-21].
+When mixing Groovy and Java sources, Groovy generates Java stubs so
+`javac` can compile Java files that reference Groovy classes.
+Historically, those stubs were generated before AST transforms ran, so
+members contributed by transforms such as gapi:groovy.transform.TupleConstructor[@TupleConstructor],
+gapi:groovy.transform.Immutable[@Immutable], or gapi:groovy.transform.builder.Builder[@Builder] were absent from the stubs and Java code
+relying on them failed to compile.
+
+Groovy 6 extends the AST transform framework so that opt-in transforms
+can contribute member signatures (constructors, methods, fields) to the
+generated stubs. The change is strictly additive -- transforms that do
+not opt in behave exactly as before
+(https://issues.apache.org/jira/browse/GROOVY-11976[GROOVY-11976]).
+
+For example, a Groovy class using `@Immutable`:
+
+[source,groovy]
+----
+// UserAccount.groovy
+@groovy.transform.Immutable
+class UserAccount {
+    String name
+    int age
+}
+----
+
+is now visible to Java callers during joint compilation:
+
+[source,java]
+----
+// Caller.java
+UserAccount user = new UserAccount("alice", 30);
+----
+
+A wide range of built-in transforms have been updated to contribute
+stubs, including `@AutoClone`, `@AutoImplement`, `@Bindable`, `@Builder`,
+`@Delegate`, `@EqualsAndHashCode`, `@ExternalizeMethods`, `@Final`,
+`@Immutable`, `@IndexedProperty`, `@InheritConstructors`, `@Lazy`,
+`@ListenerList`, `@MapConstructor`, `@NamedVariant`, `@RecordType`,
+`@Singleton`, `@Sortable`, `@ToString`, `@TupleConstructor`, and
+`@Vetoable`. Custom transforms can opt in via one of three shapes
+(annotation attribute, marker interface, or split-transform classes).
+
+See link:../wiki/GEP-21.html[GEP-21] for the full specification.
 
 [[junit6]]
 == JUnit 6 Support
