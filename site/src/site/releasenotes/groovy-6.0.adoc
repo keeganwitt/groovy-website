@@ -1355,8 +1355,8 @@ final (name: n, age: a)        = [name: 'A', age: 1]       // both `n` and `a` a
 
 === `_` for unwanted slots
 
-The "discard" convention (`def (_, y, m) = Calendar.instance`) applies
-uniformly across every new form. `_` is a regular identifier
+The "discard" convention, e.g. `def (+_+, y, m) = Calendar.instance`,
+applies uniformly across every new form. `+_+` is a regular identifier
 throughout -- no wildcard semantics, no special parser node:
 
 [source,groovy]
@@ -2605,7 +2605,7 @@ per resolved transform class
 For example: `config.addCompilationCustomizers(*ASTTransformationCustomizer.forAnnotation(Sealed))`.
 * Static compilation now supports *serializable method references* and
 serializable lambdas. When the target functional interface is a
-`Serializable` intersection type (e.g.&nbsp;`(Function & Serializable)`),
+`Serializable` intersection type (e.g. `(Function & Serializable)`),
 the generated synthetic class implements `Serializable` and emits the
 required `$deserializeLambda$` plumbing, so the resulting reference
 or lambda can be persisted, sent across JVMs, or used in frameworks
