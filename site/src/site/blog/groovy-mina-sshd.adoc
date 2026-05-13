@@ -2,7 +2,6 @@
 Paul King
 :revdate: 2026-05-07T12:00:00+00:00
 :keywords: groovy, mina, sshd, parallel collections, virtual threads, pool, async, await, fleet, networking
-:draft: true
 :description: A fleet of broker boxes over Apache MINA SSHD with Groovy 6 parallel collections, Pool.virtual and ParallelScope -- replacing Part 1's stub feed.
 
 ++++
