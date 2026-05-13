@@ -35,8 +35,8 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 *_New Language Features_*
 
 - <<val-keyword,`val` contextual keyword>> for final declarations — a clean companion to `var`.
-- <<module-imports,Module imports>> (JEP 511): `import module java.sql` covers every exported package in one line.
-- <<destructuring,Destructuring>> with rest binders (`def (h, *t) = list`) and map-style keys (`def (name: n) = person`).
+- <<module-imports,Module imports>> (JEP 511): `import module java.sql` covers every exported package in one line even on JDK17.
+- Additional <<destructuring,destructuring>> e.g. with rest binders: `def (h, *t) = list`.
 - <<compound-assignment-overloading,Compound-assignment operator overloading>> (`plusAssign`, `minusAssign`, ...) for efficient in-place mutation, even on `final` fields.
 - <<intersection-cast,Intersection-type cast>> for lambdas, method references and closures — `(Runnable & Serializable) () -> ...` — with full `LambdaMetafactory` marker support and an `as (A & B)` coercion form.
 - AST transforms now valid on <<loop-transforms,loop statements>> — `@Parallel` for-loops, `@Invariant`, `@Decreases`.
@@ -53,6 +53,7 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 - <<concurrent-java,`groovy-concurrent-java`>> — Standalone Java library exposing the `groovy.concurrent` toolkit; no Groovy runtime required.
 - <<http-builder,`groovy-http-builder`>> — HTTP client with imperative DSL and declarative `@HttpBuilderClient` interface.
+Auto-parsed JSON, XML and HTML responses; typed return objects driven by interface signatures.
 - <<csv,`groovy-csv`>> — RFC 4180 CSV reading/writing with optional Jackson-backed typed parsing.
 - <<markdown,`groovy-markdown`>> — CommonMark parser with section, code-block and table extraction helpers.
 - <<grape,`groovy-grape-ivy`>> — `@Grab` Ivy backend, now its own optional module (previously bundled in core).
@@ -60,48 +61,26 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - `groovy-reactor` / `groovy-rxjava` — `await` and `for await` over reactive `Mono`/`Flux`/`Observable` types.
 - <<junit6,`groovy-test-junit6`>> — Run JUnit Jupiter 6 tests as Groovy scripts.
 
-*_<<http-builder,New HTTP Client Module>> (incubating)_*
+*_Existing Module Improvements_*
 
-- `groovy-http-builder` offers both an imperative DSL and a declarative `@HttpBuilderClient` interface.
-- Built on the JDK's `java.net.http.HttpClient` with native async support.
-- Auto-parsed JSON, XML and HTML responses; typed return objects driven by interface signatures.
+- <<ginq,GINQ>> provides a cleaner `groupby ... into` which binds a group to a named variable with aggregate access, and gains SQL-style set operators: `union`, `intersect`, `minus`, `unionall`.
+- Consistent <<typed-parsing,typed parsing>> across JSON, CSV, TOML, YAML and XML modules.
 
 *_<<g6-extensions,Extension Method Additions>>_*
 
 - New methods including `groupByMany`, `waitForResult`, `findGroups`/`findAllGroups`, `isSorted`, and lazy `grepping`.
 - Asynchronous file I/O on `Path` (`textAsync`, `bytesAsync`, `writeAsync`) returning `CompletableFuture` — composes with `await`.
 - Streamlined process handling: `pipeline`, `onExit`, `toProcessBuilder`, named-parameter `execute(dir:, env:, ...)`.
-- Finer-grained <<g6-extension-disable,`groovy.extension.disable`>> — target single overloads by parameter signature.
 
-*_<<ginq,GINQ>> and Data Format Improvements_* (see also <<typed-parsing>>)
+*_Tooling Improvements_*
 
-- GINQ `groupby ... into` binds each group to a named variable with aggregate access.
-- SQL-style set operators in GINQ: `union`, `intersect`, `minus`, `unionall`.
-- Consistent typed parsing across JSON, CSV, TOML, YAML and XML modules.
+- <<groovydoc,GroovyDoc>> adds JEP 467 Markdown doc comments (`///`) and JEP 413 `{@snippet}` blocks for inline and external code samples. Also added is Prism.js syntax highlighting, class-hierarchy tree pages, `{@value}`/`{@inheritDoc}` support, and improved script documentation.
+- Light, dark, "follow system" and <<theming,custom themes>> for GroovyDoc, the GDK reference, and GroovyConsole.
 
-*_<<groovydoc,GroovyDoc>> and Tooling Improvements_* (see also <<theming>>)
+*_JDK/Java Integration Improvements_*
 
-- JEP 467 Markdown doc comments (`///`) and JEP 413 `{@snippet}` blocks for inline and external code samples.
-- Prism.js syntax highlighting, class-hierarchy tree pages, `{@value}`/`{@inheritDoc}` support, script documentation.
-- Light, dark, "follow system" and custom themes for GroovyDoc, the GDK reference, and GroovyConsole.
-- GroovyConsole gains a <<groovy-console-args,Set Script Arguments>> UI option.
-
-*_<<joint-compilation-stubs,Joint Compilation Stub Improvements>> (incubating)_*
-
-- AST-transform-generated members (`@Immutable`, `@Builder`, `@TupleConstructor`, `@Delegate`, ...) are now visible in generated stubs.
-- Java code in mixed-language projects can finally call constructors and methods contributed by transforms.
-
-*_Other Improvements_*
-
-- <<groovy-to-string,`groovyToString()`>> protocol for customising display in string interpolation, `println` and collection formatting.
-- <<platform-logging,Platform Logging>> API: Groovy diagnostics route through standard JVM logging (SLF4J, Log4j2, JUL, ...).
-- <<junit6,JUnit 6>> (Jupiter 6) support.
-- Improved <<annotation-validation,annotation target validation>> on import and loop statements.
-
-*_Broader JDK Support_* (see <<Groovy6.0-requirements>>)
-
-- Tested across JDK 17–26; JDK 17 is now the minimum supported runtime.
-- Security Manager support removed in line with JEP 411.
+- Tested across JDK 17–26; <<Groovy6.0-requirements,JDK 17>> is now the minimum supported runtime. Module import already mentioned.
+- <<joint-compilation-stubs,Joint Compilation Stub Improvements>>: AST-transform-generated members (`@Immutable`, `@Builder`, `@TupleConstructor`, `@Delegate`, ...) are now visible in generated stubs. Java code in mixed-language projects can finally call constructors and methods contributed by transforms.
 
 [[g6-new-modules]]
 == New Modules
