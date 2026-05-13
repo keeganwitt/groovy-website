@@ -7,13 +7,13 @@
 [horizontal,options="compact"]
 *Number*:: GEP-22
 *Title*:: Traits
-*Version*:: 1
+*Version*:: 2
 *Type*:: Feature
 *Status*:: Final
 *Comment*:: Delivered in Groovy 2.3 and refined in later versions; static-member support remains incubating
 *Leader*:: Cédric Champeau
 *Created*:: 2026-05-06
-*Last modification*:: 2026-05-06
+*Last modification*:: 2026-05-11
 ****
 
 == Abstract: Traits
@@ -65,6 +65,11 @@ role of a class while imposing deterministic composition rules. As Cédric
 Champeau put it when introducing them: traits *extend the benefit of
 interfaces to concrete classes* without producing inheritance pyramids,
 allowing new APIs to be layered onto existing classes without modification.
+
+A side-by-side comparison with Scala traits, Kotlin interfaces, and Java
+default methods is given in
+<<_comparison_with_related_constructs,Comparison with related constructs>>
+below.
 
 == Specification
 
@@ -291,6 +296,125 @@ declared by the implementing class. To pick up an overriding value,
 trait code should access state through accessors (`getX()`), not by
 direct field reference.
 
+== Comparison with related constructs
+
+Groovy traits occupy a design space shared with Scala traits, Kotlin
+interfaces (including their companion-object machinery), and Java default
+methods. Each construct trades expressiveness for simplicity in its own
+way. The table below cross-references the load-bearing features of Groovy
+traits against the closest analogue in each language.
+
+[cols="2,3,3,3,3",options="header"]
+|===
+| Feature
+| Groovy `trait`
+| Scala `trait`
+| Kotlin `interface`
+| Java `interface` (default methods)
+
+| Instance state (fields)
+| Yes. Woven into the implementing class via a field-helper class with name-mangled identifiers; no diamond-of-state risk.
+| Yes. First-class `val`/`var` members; conflicts resolved by linearization.
+| No backing fields. Only abstract or computed properties are permitted.
+| No state of any kind.
+
+| Static methods
+| Yes (incubating). Each implementing class receives its own copy; not exposed on the generated interface. See <<_static_members,Static members>>.
+| Indirect, via a companion `object`. Static-like state lives on a singleton, not per implementer.
+| Indirect, via a `companion object` declared inside the interface. Members are instance members of the companion; `@JvmStatic` promotes them to true JVM statics.
+| Yes (since Java 8). Resolved against the declaring interface; *not* inherited by sub-interfaces or implementing classes.
+
+| Static state (fields)
+| Yes (incubating). Stored in a per-implementer static-field-helper class.
+| Via the companion `object` — one copy per trait.
+| Via the companion `object` — one copy per interface.
+| Yes — one copy per interface.
+
+| Constructors / parameters
+| Not permitted.
+| Scala 3 supports trait parameters (e.g. `trait T(val name: String)`); Scala 2 does not.
+| Not permitted.
+| Not permitted.
+
+| Method visibility
+| `public` and `private` only (also `private static`); `protected` and package-private are rejected.
+| Full range, including `protected` and qualified `private[pkg]`.
+| `public` and `private`.
+| `public`, `public static`, and `private` (Java 9+).
+
+| Inherited-method conflict resolution
+| Last-wins by `implements`-clause order; override by re-declaring in the implementing class or via `T.super.m()`.
+| C3 linearization — deterministic right-to-left walk of the inheritance graph; `super[T].m()` selects a specific ancestor.
+| Diamond is a *compile error*. The implementing class must resolve it explicitly via `super<T>.foo()`.
+| Diamond is a *compile error*. The implementing class must resolve it explicitly via `T.super.foo()`.
+
+| Stackable `super`
+| Yes. Unqualified `super.m()` walks the trait chain in `implements` order; `T.super.m()` jumps directly to trait `T`.
+| Yes. `super.m()` follows the linearization order; `super[T].m()` is the explicit form.
+| No. `super` requires a type qualifier wherever it is ambiguous; there is no walked chain.
+| No. `T.super.m()` is the only stack form; there is no chain to walk.
+
+| Self-types
+| `@groovy.transform.SelfType(Foo.class)` annotation; statically checked.
+| First-class syntax `self: Foo \=>` inside the trait body.
+| Not supported; expressed via bounded generics where unavoidable.
+| Not supported.
+
+| Runtime application to existing instances
+| `subject as Trait` and `subject.withTraits(A, B)` produce a new proxy that implements the trait(s) and delegates to the original.
+| Only at construction: `new C with TraitA with TraitB`. No way to attach a trait to an existing instance.
+| Not supported.
+| Not supported.
+
+| SAM coercion from a closure / lambda
+| Yes, for a single-abstract-method trait. See GEP-12.
+| Yes, via SAM types and function literals.
+| Yes, for `fun interface` declarations.
+| Yes, for any functional interface.
+
+| Java-callable view of the construct
+| A plain interface — *no* default methods. State and behaviour live in helper classes.
+| A JVM interface containing `default` methods (since Scala 2.12).
+| A JVM interface; default-method generation is controlled by `-Xjvm-default`.
+| A JVM interface natively.
+|===
+
+A few qualitative observations follow from the table:
+
+* *State is the dividing line.* Only Groovy and Scala give traits true
+instance state; Kotlin and Java explicitly avoid it. Groovy's
+field-helper indirection is the price paid for keeping the Java-visible
+view of a trait as a *plain* interface (no default methods, no surprise
+multiple-inheritance behaviour for Java consumers).
+* *Conflict-resolution philosophies differ.* Groovy chooses a
+deterministic *default* (last-wins) so that conflicts compile without
+intervention. Scala chooses a deterministic *algorithm* (linearization)
+that the developer is expected to internalise. Kotlin and Java refuse to
+choose and require the developer to resolve every conflict explicitly.
+Each position is internally consistent; Groovy's optimises for
+ergonomics, Scala's for expressiveness, and Java/Kotlin's for safety
+against accidental composition.
+* *Stackable `super` is a Groovy/Scala feature.* It is what enables the
+mixin-style decorator composition that motivates traits in the first
+place. Kotlin and Java interfaces cannot express the same pattern
+without auxiliary delegation.
+* *Static members are the rough edge in every language.* Java and Kotlin
+treat them as per-interface (no inheritance, no overriding). Scala
+routes them through a separate companion object whose members live on
+a singleton rather than per implementer. Groovy is the only one of the
+four that gives each implementing class its own copy of static members;
+this is what enables patterns such as overriding static defaults from
+the implementing class (e.g. Grails' `Validateable`), but is also why
+static-method dispatch remains an open design point — see
+<<_non_goals_and_potential_future_extensions,Non-goals>>.
+* *Runtime trait application* (the `as` / `withTraits` form) is unique to
+Groovy. None of the other three constructs offers a way to attach a
+trait to an *existing* instance at runtime.
+* *Self-types* are first-class in Scala, an annotation in Groovy, and
+absent from Kotlin and Java. The Groovy and Scala forms enable
+statically checked traits whose bodies depend on members supplied by
+the implementing class without resorting to defensive casts.
+
 == Cross-version evolution
 
 [cols="1,1,5",options="header"]
@@ -423,3 +547,9 @@ trait field reference transform restructure.
 1 (2026-05-06) Initial draft. Retrospective specification capturing
 trait semantics as shipped in 2.3.0 and refined through 5.0, the
 four-class bytecode model, and the cross-version evolution table.
+
+2 (2026-05-11) Added _Comparison with related constructs_ section
+contrasting Groovy traits with Scala traits, Kotlin interfaces, and
+Java default methods across state, conflict resolution, stackable
+`super`, static members, self-types, runtime application, and the
+Java-callable view.
