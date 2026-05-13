@@ -76,6 +76,7 @@ Auto-parsed JSON, XML and HTML responses; typed return objects driven by interfa
 
 - <<groovydoc,GroovyDoc>> adds JEP 467 Markdown doc comments (`///`) and JEP 413 `{@snippet}` blocks for inline and external code samples. Also added is Prism.js syntax highlighting, class-hierarchy tree pages, `{@value}`/`{@inheritDoc}` support, and improved script documentation.
 - Light, dark, "follow system" and <<theming,custom themes>> for GroovyDoc, the GDK reference, and GroovyConsole.
+- <<groovysh,Groovysh>> gains an `/img` command for inline images and charts using JLine's terminal-graphics support, Markdown handling in `/slurp`.
 
 *_JDK/Java Integration Improvements_*
 
@@ -2088,6 +2089,27 @@ See the dochome:grape.html[Grape user guide]
 for the full per-engine specification, custom-engine registration steps,
 per-engine logging configuration, and detailed migration walkthrough.
 
+=== Coordinate shorthands for the `grape` CLI
+
+The `grape install` command line tool now accepts the same Maven and
+Ivy coordinate shorthands as `@Grab` and the
+gapi:groovy.grape.Grape[Grape] facade, in addition to its original
+positional form
+(https://issues.apache.org/jira/browse/GROOVY-12004[GROOVY-12004]):
+
+[source]
+----
+grape install com.example foo 1.2.3          # positional (as before)
+grape install com.example:foo:1.2.3          # Maven shorthand
+grape install com.example:foo:1.2.3:jdk15@zip # Maven shorthand with classifier and extension
+grape install com.example#foo;1.2.3          # Ivy shorthand
+----
+
+The static `Grape.grab(String)` Java API has been broadened along the
+same lines: in addition to its existing endorsed-module notation it
+now recognises both shorthand forms, dispatching to `grab(Map)` once
+the coordinate has been parsed.
+
 [[platform-logging]]
 == Platform Logging
 
@@ -2235,6 +2257,68 @@ GroovyConsole now supports setting script arguments directly from the UI
 Previously, users had to manually set `args` within their script
 as a workaround. A new _Set Script Arguments_ option in the _Script_ menu
 lets you specify space-separated arguments that are passed to the script.
+
+[[groovysh]]
+== Groovysh Enhancements
+
+=== Inline images and charts with `/img`
+
+The new `/img` command renders an image inline in the REPL using JLine's
+terminal-graphics support (Sixel, Kitty, or iTerm2 protocols, auto-detected)
+(https://issues.apache.org/jira/browse/GROOVY-12003[GROOVY-12003]).
+The argument can be a local file path, an `http(s)://` URL, or a Groovy
+variable reference using the standard `$` syntax:
+
+[source,jshell]
+--------------
+groovy> /img chart.png
+groovy> /img --width=80 https://example.com/diagram.png
+groovy> img = new java.awt.image.BufferedImage(200, 100, 1)
+groovy> /img $img
+--------------
+
+When the argument resolves to a Groovy value, `/img` accepts a
+`BufferedImage` or `RenderedImage` directly, anything with a
+`createBufferedImage(int, int)` or `toBufferedImage(int, int)` method
+(duck-typed -- no compile-time dependency), or a `javax.swing.JComponent`
+that is laid out and painted at the requested size. This means popular
+charting libraries can be rendered in the REPL without saving to a file
+first. JFreeChart matches the `createBufferedImage` shape, Smile's
+`Figure` matches `toBufferedImage`, Smile's `Canvas`/`MultiFigurePane`
+and Orson Charts' `Chart3DPanel` match the `JComponent` path, and
+XChart's `BitmapEncoder.getBufferedImage(chart)` returns a plain
+`BufferedImage`. For example, a JFreeChart bar chart:
+
+image:img/repl_img_jfreechart.png[Using /img with JFreeChart]
+
+Or feeding CSV through the existing `/slurp` command into an XChart
+line plot:
+
+image:img/repl_img_xchart.png[Using /img with XChart]
+
+The `--width` and `--height` options are in terminal character cells for
+raw-pixel inputs and in source-image pixels for inputs that generate the
+image at the requested size; aspect ratio is preserved by default. If
+the active terminal doesn't speak a supported graphics protocol (common
+cases: macOS Terminal.app, VS Code's built-in terminal, JetBrains
+terminals, plain Windows console), `/img` prints a `[image: WxH, label]`
+summary instead -- pass `--gui` to open a Swing window with the image
+regardless. The command requires the `java.desktop` module at runtime;
+on a JVM where that module is unavailable, `/img` is not registered.
+
+=== Markdown support for `/slurp`
+
+The `/slurp` command -- a shortcut for parsing files into shared
+variables using Groovy's various slurpers (JSON, XML, YAML, CSV, TOML,
+properties) -- now also handles Markdown
+(https://issues.apache.org/jira/browse/GROOVY-12002[GROOVY-12002]).
+Files with `.md` or `.markdown` extensions are routed through the new
+<<markdown,`MarkdownSlurper`>> from `groovy-markdown` (when it is on the
+classpath), yielding a `MarkdownDocument` that exposes structured
+elements -- headings, code blocks, links, tables -- via the iterator and
+convenience properties documented in that module. Combined with `/img`
+above, this enables short pipelines from Markdown reports into rendered
+charts directly in the REPL.
 
 [[theming]]
 == Theming Improvements
