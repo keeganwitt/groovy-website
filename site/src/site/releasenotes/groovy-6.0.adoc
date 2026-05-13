@@ -2196,6 +2196,9 @@ stubs, including `@AutoClone`, `@AutoImplement`, `@Bindable`, `@Builder`,
 
 See link:../wiki/GEP-21.html[GEP-21] for the full specification.
 
+In addition, native records now appear as native records in stubs
+(https://issues.apache.org/jira/browse/GROOVY-11974[GROOVY-11974]).
+
 [[junit6]]
 == JUnit 6 Support
 
@@ -2624,8 +2627,12 @@ feature set.
 [[annotation-validation]]
 == Improved Annotation Validation
 
-Groovy 6 closes gaps in annotation target validation
-(https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884]).
+Groovy 6 closes gaps in annotation target validation for Groovy-specific
+annotation targets
+(https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884]),
+and to now be fully compliant with JLS 9.6.4.1
+(https://issues.apache.org/jira/browse/GROOVY-11838[GROOVY-11838]) for normal Java targets.
+
 Previously, annotations could be placed on import statements and
 loop statements without validation -- for example:
 
