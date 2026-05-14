@@ -1369,6 +1369,17 @@ The full set of compound assignment operators and their corresponding
 
 See link:../wiki/GEP-15.html[GEP-15] for the full specification.
 
+[[sealed-types]]
+== Stabilised features
+
+* Sealed classes, interfaces and traits -- introduced as an incubating
+feature in Groovy 4.0 and stabilised through the 5.x line -- are
+*promoted out of incubation in Groovy 6.0*
+(https://issues.apache.org/jira/browse/GROOVY-12008[GROOVY-12008]).
+The full specification for sealed types is in
+link:../wiki/GEP-13.html[GEP-13: Sealed Types], which was revised
+alongside the 6.0 graduation.
+
 [[g6-extensions]]
 == Extension method additions and improvements
 
@@ -2149,11 +2160,16 @@ stubs, including `@AutoClone`, `@AutoImplement`, `@Bindable`, `@Builder`,
 
 See link:../wiki/GEP-21.html[GEP-21] for the full specification.
 
-In addition, native records now appear as native records in stubs
-(https://issues.apache.org/jira/browse/GROOVY-11974[GROOVY-11974]),
-and static methods declared in Groovy traits are now correctly
+In addition:
+
+* Native records now appear as native records in stubs
+(https://issues.apache.org/jira/browse/GROOVY-11974[GROOVY-11974])
+* Static methods declared in Groovy traits are now correctly
 visible from Java callers during joint compilation
-(https://issues.apache.org/jira/browse/GROOVY-11899[GROOVY-11899]).
+(https://issues.apache.org/jira/browse/GROOVY-11899[GROOVY-11899])
+* Groovy sealed types now carry the correct
+`sealed` / `permits` / `non-sealed` declarations in stubs
+(https://issues.apache.org/jira/browse/GROOVY-12008[GROOVY-12008])
 
 [[junit6]]
 == JUnit 6 Support
