@@ -87,9 +87,7 @@ extend or implement the sealed type. A permitted subtype must:
 
 If the `permits` clause is omitted (and `permittedSubclasses` is not
 set on `@Sealed`), the compiler infers permitted subtypes by collecting
-all direct subtypes declared in the same compilation unit. If no such
-subtypes exist, the declaration is treated as having an empty `permits`
-set, equivalent to `final`.
+all direct subtypes declared in the same compilation unit.
 
 Inference does not consult other compilation units.
 
