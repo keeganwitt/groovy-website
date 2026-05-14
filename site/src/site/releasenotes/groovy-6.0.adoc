@@ -1123,53 +1123,6 @@ methods have no side effects. Without that guarantee, annotations
 would be just comments -- claims you'd still need to verify by
 reading the code.
 
-[[module-imports]]
-== Module Import Declarations
-
-Groovy 6 supports Java's module import declarations
-(https://issues.apache.org/jira/browse/GROOVY-11896[GROOVY-11896]),
-giving scripts and classes a concise way to pull in every public
-type exported by a named module with a single statement:
-
-[source,groovy]
-----
-import module java.sql
-
-def conn = DriverManager.getConnection('jdbc:h2:mem:test')
-def stmt = conn.createStatement()
-----
-
-An `import module java.sql` is equivalent to a star import
-(`import pkg.*`) for every package the module exports, and also
-covers packages reached via `requires transitive`. For example,
-a single `import module java.sql` makes `Connection` and
-`DriverManager` directly available, along with types like
-`javax.xml.transform.Source` (from `java.xml`) and
-`java.util.logging.Logger` (from `java.logging`).
-
-Module imports work with system modules (JDK modules like
-`java.base`, `java.sql`, `java.desktop`), JPMS modules from modular
-JARs on the classpath, and automatic modules. Explicit single-type
-imports take priority, so naming conflicts can be resolved by
-adding a specific import:
-
-[source,groovy]
-----
-import module java.desktop
-import java.util.List
-
-// The explicit single-type import wins over
-// the module-expanded java.awt.List
-assert List.name == 'java.util.List'
-----
-
-The `module` keyword is context-sensitive -- it remains usable as
-a variable, method, or class name. Wildcard
-(`import module java.base.*`) and alias
-(`import module java.base as jb`) forms are not supported.
-See https://openjdk.org/jeps/511[JEP 511] for the corresponding
-Java language feature.
-
 [[val-keyword]]
 == `val` Keyword for Final Declarations
 
@@ -2197,7 +2150,10 @@ stubs, including `@AutoClone`, `@AutoImplement`, `@Bindable`, `@Builder`,
 See link:../wiki/GEP-21.html[GEP-21] for the full specification.
 
 In addition, native records now appear as native records in stubs
-(https://issues.apache.org/jira/browse/GROOVY-11974[GROOVY-11974]).
+(https://issues.apache.org/jira/browse/GROOVY-11974[GROOVY-11974]),
+and static methods declared in Groovy traits are now correctly
+visible from Java callers during joint compilation
+(https://issues.apache.org/jira/browse/GROOVY-11899[GROOVY-11899]).
 
 [[junit6]]
 == JUnit 6 Support
@@ -2663,6 +2619,80 @@ Annotations without the appropriate `@ExtendedTarget` declaration
 are now flagged as compile errors when applied to these constructs.
 This is a <<Groovy6.0-breaking,breaking change>> for code that
 previously relied on the lenient behavior.
+
+== Java Compatibility
+
+Groovy 6 narrows the gap with Java syntax in a few places, so that
+code copied from Java sources compiles without the previously required
+Groovy-specific rewrites.
+
+[[module-imports]]
+=== Module import declarations
+
+Groovy 6 supports Java's module import declarations
+(https://issues.apache.org/jira/browse/GROOVY-11896[GROOVY-11896]),
+giving scripts and classes a concise way to pull in every public
+type exported by a named module with a single statement:
+
+[source,groovy]
+----
+import module java.sql
+
+def conn = DriverManager.getConnection('jdbc:h2:mem:test')
+def stmt = conn.createStatement()
+----
+
+An `import module java.sql` is equivalent to a star import
+(`import pkg.*`) for every package the module exports, and also
+covers packages reached via `requires transitive`. For example,
+a single `import module java.sql` makes `Connection` and
+`DriverManager` directly available, along with types like
+`javax.xml.transform.Source` (from `java.xml`) and
+`java.util.logging.Logger` (from `java.logging`).
+
+Module imports work with system modules (JDK modules like
+`java.base`, `java.sql`, `java.desktop`), JPMS modules from modular
+JARs on the classpath, and automatic modules. Explicit single-type
+imports take priority, so naming conflicts can be resolved by
+adding a specific import:
+
+[source,groovy]
+----
+import module java.desktop
+import java.util.List
+
+// The explicit single-type import wins over
+// the module-expanded java.awt.List
+assert List.name == 'java.util.List'
+----
+
+The `module` keyword is context-sensitive -- it remains usable as
+a variable, method, or class name. Wildcard
+(`import module java.base.*`) and alias
+(`import module java.base as jb`) forms are not supported.
+See https://openjdk.org/jeps/511[JEP 511] for the corresponding
+Java language feature.
+
+=== Array initializers in annotations
+
+* Array initializer syntax (`{...}`) is now accepted in annotation
+attribute values, matching Java -- e.g. `@A(name={})` and
+`@A(name={""})` on a class. Previously these required explicit
+`new String[]{...}` syntax
+(https://issues.apache.org/jira/browse/GROOVY-11866[GROOVY-11866]).
+* Array initializer syntax is also accepted in annotation default
+values within `@interface` declarations -- e.g.
+`String[] value() default {}`
+(https://issues.apache.org/jira/browse/GROOVY-11845[GROOVY-11845]).
+
+=== Labeled break targeting non-loop blocks
+
+Labeled `break` targeting a labeled (non-loop) block now correctly
+exits that block, matching Java. Previously the `break` exited only
+the innermost enclosing loop, causing statements after the labeled
+block to re-execute
+(https://issues.apache.org/jira/browse/GROOVY-6844[GROOVY-6844],
+https://issues.apache.org/jira/browse/GROOVY-7463[GROOVY-7463]).
 
 == Other Core API Changes
 
