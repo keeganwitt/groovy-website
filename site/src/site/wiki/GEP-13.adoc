@@ -157,21 +157,16 @@ expression and identifier positions, taking on grammatical meaning
 only in type-declaration contexts. Existing code using these names as
 identifiers continues to compile.
 
-=== Anonymous classes, traits, and proxy paths
+=== Subtype-creating paths
 
 The set of types extending or implementing a sealed type is enumerated
-in `permits`; no other type may do so. Specifically prohibited:
-
-* anonymous inner classes targeting a sealed type that does not permit
-  the enclosing type;
-* traits not in the `permits` set;
-* coercion-generated proxies (`x as Bar` where `Bar` is sealed and the
-  source type is not permitted);
-* delegate-generated subclasses (`@Delegate` targeting a sealed type
-  from a non-permitted enclosing class).
-
-These extension paths are checked at compile time; runtime proxy
-generation paths perform the same check at proxy-construction time.
+in `permits`; no other type may do so. Any path that would otherwise
+produce a subtype of a sealed type must honour the `permits` contract
+— whether the path is an explicit declaration, anonymous-class
+generation, trait composition, `as` coercion, `@Delegate`, or runtime
+proxy construction. How each path complies (compile-time rejection,
+silent omission, runtime check) is left to the compiler and the
+relevant AST transform.
 
 === Bytecode representation
 
@@ -313,6 +308,14 @@ decision and is not constrained by this GEP.
 |Deferred
 |Same reasoning; cross-module sealed hierarchies are occasionally
  useful and a hard JPMS check would block them.
+
+|Synthesized subtypes in inferred `permits`
+|Deferred
+|When `permits` is inferred from the compilation unit, only
+ source-declared subtypes are currently considered. Whether to relax
+ this so that subtypes synthesized by AST transformations (e.g.
+ `@Delegate`) also contribute to the inferred set is a future
+ decision.
 |===
 
 Any future tightening of these constraints is opt-in. See
