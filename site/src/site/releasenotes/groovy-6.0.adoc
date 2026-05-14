@@ -38,7 +38,7 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - <<module-imports,Module imports>> (JEP 511): `import module java.sql` covers every exported package in one line even on JDK17.
 - Additional <<destructuring,destructuring>> e.g. with rest binders: `def (h, *t) = list`.
 - <<compound-assignment-overloading,Compound-assignment operator overloading>> (`plusAssign`, `minusAssign`, ...) for efficient in-place mutation, even on `final` fields.
-- <<intersection-cast,Intersection-type cast>> for lambdas, method references and closures — `(Runnable & Serializable) () -> ...` — with full `LambdaMetafactory` marker support and an `as (A & B)` coercion form.
+- <<intersection-cast,Intersection-type cast>> for lambdas, method references and closures — `(Runnable & Serializable) () -> ...`.
 - AST transforms now valid on <<loop-transforms,loop statements>> — `@Parallel` for-loops, `@Invariant`, `@Decreases`.
 - <<nested-copywith,Nested `copyWith`>> for `@Immutable`/`@RecordType` — dotted-path map keys and a transactional block form, with structural sharing preserved.
 
@@ -2908,6 +2908,44 @@ block to re-execute
 (https://issues.apache.org/jira/browse/GROOVY-6844[GROOVY-6844],
 https://issues.apache.org/jira/browse/GROOVY-7463[GROOVY-7463]).
 
+[[intersection-cast]]
+=== Intersection-type casts for lambdas, method references and closures
+
+Groovy 6 accepts Java's intersection-type cast syntax on lambdas,
+method references and closures, so that a single expression can be
+declared to satisfy several interface contracts at once
+(https://issues.apache.org/jira/browse/GROOVY-11998[GROOVY-11998]):
+
+[source,groovy]
+----
+Runnable r = (Runnable & Serializable) () -> println('hello')
+----
+
+The cast carries through static compilation: when one of the bounds
+is `Serializable`, the generated synthetic class implements
+`Serializable` and emits the required `$deserializeLambda$` plumbing,
+so the resulting lambda can be persisted, sent across JVMs, or used
+in frameworks that rely on serialised lambdas (such as JPA Criteria
+APIs and some distributed-computing libraries). The same applies to
+method references
+(https://issues.apache.org/jira/browse/GROOVY-11993[GROOVY-11993]) --
+a `(Supplier<String> & Serializable)`-typed `text::trim` survives a
+round-trip through `ObjectOutputStream`/`ObjectInputStream`.
+
+The non-functional bounds are passed through to
+`LambdaMetafactory` as marker interfaces, so reflective checks
+(`instanceof Serializable`, `instanceof Cloneable`, ...) on the
+resulting object behave as Java programmers expect.
+
+In addition to the Java-style cast, Groovy's `as` coercion accepts the
+same intersection form -- handy when coercing a closure rather than a
+lambda:
+
+[source,groovy]
+----
+def r = { println 'hello' } as (Runnable & Serializable)
+----
+
 == Other Core API Changes
 
 * `ASTTransformationCustomizer` now supports annotations whose
@@ -2917,15 +2955,6 @@ via a new `forAnnotation(...)` static factory that returns one customizer
 per resolved transform class
 (https://issues.apache.org/jira/browse/GROOVY-11973[GROOVY-11973]).
 For example: `config.addCompilationCustomizers(*ASTTransformationCustomizer.forAnnotation(Sealed))`.
-* Static compilation now supports *serializable method references* and
-serializable lambdas. When the target functional interface is a
-`Serializable` intersection type (e.g. `(Function & Serializable)`),
-the generated synthetic class implements `Serializable` and emits the
-required `$deserializeLambda$` plumbing, so the resulting reference
-or lambda can be persisted, sent across JVMs, or used in frameworks
-that rely on serialised lambdas (such as JPA Criteria APIs and some
-distributed-computing libraries)
-(https://issues.apache.org/jira/browse/GROOVY-11993[GROOVY-11993]).
 * The Groovy 5.0 change to `File`/`Path` truthiness -- whereby a
 non-existent file is _falsy_ -- can be reverted as a porting aid by
 setting `-Dgroovy.truth.file.exists.enabled=false`. With the flag set
