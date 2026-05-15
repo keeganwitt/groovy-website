@@ -26,7 +26,7 @@ footer(id: 'footer') {
                 p "Apache, Apache Groovy, Groovy, and the ASF logo are either registered trademarks or trademarks of The Apache Software Foundation."
             }
         }
-        div(class: 'clearfix', "&copy; 2003-${java.time.Year.now().value} the Apache Groovy project &mdash; " +
-                "Groovy is Open Source: ${$a(href: 'https://www.apache.org/licenses/LICENSE-2.0.html', alt: 'Apache 2 License', 'license')}, ${$a(href: 'https://privacy.apache.org/policies/privacy-policy-public.html', 'privacy policy')}.")
+        div(class: 'clearfix', "&copy; 2003-${java.time.Year.now().value} The Apache Software Foundation &mdash; " +
+                "Groovy is Open Source: ${$a(href: 'https://www.apache.org/licenses/LICENSE-2.0.html', 'Apache 2')} ${$a(href: 'https://www.apache.org/licenses/', 'License')}, ${$a(href: 'https://privacy.apache.org/policies/privacy-policy-public.html', 'privacy policy')}.")
     }
 }
