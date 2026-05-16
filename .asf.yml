@@ -1,10 +1,10 @@
 # see https://s.apache.org/asfyaml
 github:
   rulesets:
-    - name: "Default branch protection"
+    - name: "Default Branch Protection"
       type: branch
       branches:
         includes:
-          - "~DEFAULT_BRANCH"   # asf-site
+          - "~DEFAULT_BRANCH"
       restrict_deletion: true
       restrict_force_push: true
