@@ -48,6 +48,7 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - <<groovy-contracts,Loop invariants and termination measures>> via `@Invariant`/`@Decreases`.
 - Contracts (`@Requires`, `@Ensures`, `@Invariant`) now also work in scripts.
 - Each method becomes a self-contained specification — readable without descending into bodies.
+- Those verified declarations are machine-actionable — a foundation for AI skills and tooling, not just for reading.
 
 *_<<g6-new-modules,New Optional Modules>>_*
 
@@ -1122,6 +1123,19 @@ only modify declared fields, and `PurityChecker` verifies `@Pure`
 methods have no side effects. Without that guarantee, annotations
 would be just comments -- claims you'd still need to verify by
 reading the code.
+
+Reading and verification are two of the payoffs; a third is that the
+same declarations are _machine-actionable_. Because `@Pure`, `@Modifies`,
+`@Requires`/`@Ensures` and `@Invariant`/`@Decreases` are both
+machine-readable and compiler-enforced, tooling and AI skills can build
+on them rather than guess -- deriving tests and documentation, driving or
+validating refactorings and migrations, and treating each verified
+contract as a guardrail an agent must not cross. The compile-time
+guarantee is what makes this safe: a skill can rely on a `@Pure` method
+being pure because `PurityChecker` proved it, not because a comment
+claimed it. A Groovy 6 codebase is therefore not only easier for humans
+and AI to _read_ -- it is a verified specification they can reliably
+_build on_.
 
 [[val-keyword]]
 == `val` Keyword for Final Declarations
