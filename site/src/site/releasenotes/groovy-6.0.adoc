@@ -1394,6 +1394,12 @@ The full specification for sealed types is in
 link:../wiki/GEP-13.html[GEP-13: Sealed Types], which was revised
 alongside the 6.0 graduation.
 
+* The `groovy-toml` module -- introduced as an incubating module in
+Groovy 4.0 -- is *promoted out of incubation in Groovy 6.0*
+(https://issues.apache.org/jira/browse/GROOVY-12010[GROOVY-12010]).
+Its public API is now covenanted and subject to binary-compatibility
+checks.
+
 [[g6-extensions]]
 == Extension method additions and improvements
 
@@ -1792,11 +1798,26 @@ def config = new XmlParser().parseTextAs(ServerConfig, xml)
 | --
 |===
 
-NOTE: For CSV, TOML, YAML, and XML, the `parseTextAs`/`parseAs` methods use
+[NOTE]
+====
+For CSV, TOML, YAML, and XML, the `parseTextAs`/`parseAs` methods use
 Jackson databinding and support `@JsonProperty`, `@JsonFormat`, etc.
 For simple cases, Groovy's `as` coercion works without Jackson.
 For XML, `jackson-dataformat-xml` can be used directly for full
 Jackson XML annotation support.
+
+The typed parse/write paths for CSV, TOML and YAML support `java.time`
+types -- `LocalDate`, `LocalTime`, `LocalDateTime` and `OffsetDateTime`
+-- with `OffsetDateTime` retaining its original zone offset rather than
+being normalised to UTC
+(https://issues.apache.org/jira/browse/GROOVY-12010[GROOVY-12010],
+https://issues.apache.org/jira/browse/GROOVY-12011[GROOVY-12011],
+https://issues.apache.org/jira/browse/GROOVY-12012[GROOVY-12012]).
+Date and time values (including legacy `java.util.Date`/`Calendar`) are
+written as ISO-8601 strings, not numeric timestamps. The *untyped*
+slurper path (`parseText`/`parse`) returns temporal values as `String`;
+use the typed `parseAs`/`parseTextAs` API for `java.time` fidelity.
+====
 
 [[xml-processing]]
 == XML Processing Improvements
