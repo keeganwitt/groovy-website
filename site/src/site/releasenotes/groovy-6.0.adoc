@@ -45,6 +45,7 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 - New <<type-checking-extensions,`NullChecker`>> type checker with an optional flow-sensitive `strict` mode requiring no annotations.
 - `@Modifies` frame conditions and `@Pure` purity declarations, verified at compile time by `ModifiesChecker` and `PurityChecker`.
+- `CombinerChecker` verifies parallel-reduction combiners are associative, via new `@Associative`/`@Reducer` declarations.
 - <<groovy-contracts,Loop invariants and termination measures>> via `@Invariant`/`@Decreases`.
 - Contracts (`@Requires`, `@Ensures`, `@Invariant`) now also work in scripts.
 - Each method becomes a self-contained specification — readable without descending into bodies.
@@ -971,6 +972,56 @@ the `strict: true` argument is passed directly in the extension string.
 See also the https://groovy.apache.org/blog/groovy-null-checker[NullChecker blog post]
 for a detailed walkthrough.
 
+=== CombinerChecker
+
+The parallel `Collection` reductions (`sumParallel`, `injectParallel`) split,
+reorder, and recombine their input. That is only correct when the combining
+function is _associative_ -- `combine(a, combine(b, c))` must equal
+`combine(combine(a, b), c)` -- and, for the seeded `injectParallel`, when the
+seed is an _identity_. A non-associative combiner (subtraction, division)
+compiles and runs but produces a different, non-deterministic result depending
+on how the work was partitioned -- among the hardest bug classes to detect by
+testing alone.
+
+The gapi:groovy.typecheckers.CombinerChecker[CombinerChecker] extension
+(https://issues.apache.org/jira/browse/GROOVY-12013[GROOVY-12013])
+verifies at compile time that combiners reaching these methods carry the
+contract. A combiner _declares_ it with the new
+gapi:groovy.transform.Associative[@Associative] and
+gapi:groovy.transform.Reducer[@Reducer] annotations (`@Reducer` also names an
+identity element via `zero()`):
+
+[source,groovy]
+----
+import groovy.transform.Associative
+
+class Maths {
+    @Associative static int add(int a, int b) { a + b }
+}
+
+@TypeChecked(extensions = 'groovy.typecheckers.CombinerChecker')
+def reduce() {
+    [1, 2, 3].injectParallel(0, Maths.&add)        // ok: declared @Associative
+    [1, 2, 3].injectParallel(0) { a, b -> a + b }  // ok: lenient, associative
+    [1, 2, 3].injectParallel(0) { a, b -> a - b }  // compile error: non-associative
+}
+----
+
+The `default` (lenient) mode flags only high-confidence problems -- a
+non-associative operator (`-`, `/`, `%`, `**`) applied directly to the
+combiner parameters, or an `injectParallel` seed that contradicts a
+`@Reducer`'s declared `zero()`. The parameterized `strict` mode additionally
+requires the combiner to be a method reference to an annotated method. The
+checker also recognises `Monoid`/`Semigroup` carriers from external libraries,
+and covers `java.util.stream` `reduce` overloads. Since associativity is
+undecidable in general, this is a conservative, false-positive-averse safety
+net rather than a proof; the annotations assert the law and are intended to be
+backed by tests. Because the law is fully specified by the annotation itself,
+those tests are <<human-ai-reasoning,machine-actionable>> -- a property-based
+test asserting `combine(a, combine(b, c)) == combine(combine(a, b), c)` (plus
+the identity law for `@Reducer`) can be auto-derived by tooling or an AI agent
+directly from the declaration.
+
 === Feature summary
 
 [cols="1,3,1", options="header"]
@@ -1013,6 +1064,13 @@ have no side effects. Configurable `allows` parameter to permit
 `LOGGING`, `METRICS`, `IO`, or `NONDETERMINISM`.
 Also recognises `@SideEffectFree`, `@Contract(pure = true)`, and `@Memoized`.
 | https://issues.apache.org/jira/browse/GROOVY-11914[GROOVY-11914]
+
+| gapi:groovy.typecheckers.CombinerChecker[CombinerChecker]
+| Verifies combiners passed to `sumParallel`/`injectParallel` (and
+`java.util.stream` `reduce`) carry the associativity contract those methods
+require. Recognises `@Associative`/`@Reducer` declarations and
+`Monoid`/`Semigroup` carriers; configurable lenient/`strict` mode.
+| https://issues.apache.org/jira/browse/GROOVY-12013[GROOVY-12013]
 |===
 
 [[human-ai-reasoning]]
@@ -1126,11 +1184,17 @@ reading the code.
 
 Reading and verification are two of the payoffs; a third is that the
 same declarations are _machine-actionable_. Because `@Pure`, `@Modifies`,
-`@Requires`/`@Ensures` and `@Invariant`/`@Decreases` are both
+`@Requires`/`@Ensures`, `@Invariant`/`@Decreases` and the algebraic
+`@Associative`/`@Reducer` are both
 machine-readable and compiler-enforced, tooling and AI skills can build
 on them rather than guess -- deriving tests and documentation, driving or
 validating refactorings and migrations, and treating each verified
-contract as a guardrail an agent must not cross. The compile-time
+contract as a guardrail an agent must not cross. The algebraic annotations
+are an especially direct case: an `@Associative` method fully specifies a
+property -- `combine(a, combine(b, c)) == combine(combine(a, b), c)` --
+so an AI agent or skill can mechanically generate the property-based test
+that backs the assertion (and, for `@Reducer`, the matching identity law)
+rather than infer intent from the body. The compile-time
 guarantee is what makes this safe: a skill can rely on a `@Pure` method
 being pure because `PurityChecker` proved it, not because a comment
 claimed it. A Groovy 6 codebase is therefore not only easier for humans
