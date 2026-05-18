@@ -1484,6 +1484,29 @@ def b = Path.of('data.csv').textAsync
 def (config, data) = await(a, b)
 ----
 
+=== Regex group extraction
+
+Capturing regex groups was always possible via `Matcher` (`m[0][1]` and
+friends), but the common case -- pull a few named pieces out of a string --
+meant juggling group indices and guarding against a non-match. `findGroups`
+returns the full match followed by each capture group as a `List`, so it
+pairs naturally with multi-assignment. This isn't new capability; it just
+removes the `Matcher` boilerplate from one very common case
+(https://issues.apache.org/jira/browse/GROOVY-11958[GROOVY-11958]):
+
+[source,groovy]
+----
+def semver = /(\d+)\.(\d+)\.(\d+)(?:-(.+))?/
+
+def (_, major, minor, patch, qualifier) = '6.0.0-beta-2'.findGroups(semver)
+assert [major, minor, patch, qualifier] == ['6', '0', '0', 'beta-2']
+
+// optional qualifier absent: multi-assignment pads with null,
+// so the same destructuring works whether or not it matched
+def (_all, ma, mi, pa, q) = '4.0.28'.findGroups(semver)
+assert [ma, mi, pa, q] == ['4', '0', '28', null]
+----
+
 === Other new extension methods
 
 [cols="2,3,1", options="header"]
@@ -1532,13 +1555,6 @@ for Groovy-truth filtering. Rounds out the `-ing` family alongside
 `collecting`, `findingAll`, and `findingResults`.
 | https://issues.apache.org/jira/browse/GROOVY-11596[GROOVY-11596],
 https://issues.apache.org/jira/browse/GROOVY-11957[GROOVY-11957]
-
-| `findGroups(regex)` / `findGroups(pattern)`
-| Find the first occurrence of a regex within a `CharSequence` and return
-the full match followed by each capture group as a `List` (empty if no
-match). Multi-assignment pads missing elements with `null`, so the same
-destructuring works whether or not the regex matches.
-| https://issues.apache.org/jira/browse/GROOVY-11958[GROOVY-11958]
 
 | `findAllGroups(regex)` / `findAllGroups(pattern)`
 | Return a list of all matches of a regex within a `CharSequence`, with
