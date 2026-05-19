@@ -40,6 +40,7 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - <<compound-assignment-overloading,Compound-assignment operator overloading>> (`plusAssign`, `minusAssign`, ...) for efficient in-place mutation, even on `final` fields.
 - <<intersection-cast,Intersection-type cast>> for lambdas, method references and closures — `(Runnable & Serializable) () -> ...` — with full `LambdaMetafactory` marker support and an `as (A & B)` coercion form.
 - AST transforms now valid on <<loop-transforms,loop statements>> — `@Parallel` for-loops, `@Invariant`, `@Decreases`.
+- <<nested-copywith,Nested `copyWith`>> for `@Immutable`/`@RecordType` — dotted-path map keys and a transactional block form, with structural sharing preserved.
 
 *_<<human-ai-reasoning,Designed for Human and AI Reasoning>>_*
 
@@ -70,7 +71,7 @@ Auto-parsed JSON, XML and HTML responses; typed return objects driven by interfa
 
 *_<<g6-extensions,Extension Method Additions>>_*
 
-- New methods including `groupByMany`, `waitForResult`, `findGroups`/`findAllGroups`, `isSorted`, and lazy `grepping`.
+- New methods including `groupByMany`, `waitForResult`, `findGroups`/`findAllGroups`, `isSorted`, `zipWithNext`/`groupConsecutive`, and lazy `grepping`.
 - Asynchronous file I/O on `Path` (`textAsync`, `bytesAsync`, `writeAsync`) returning `CompletableFuture` — composes with `await`.
 - Streamlined process handling: `pipeline`, `onExit`, `toProcessBuilder`, named-parameter `execute(dir:, env:, ...)`.
 
@@ -1447,6 +1448,56 @@ The full set of compound assignment operators and their corresponding
 
 See link:../wiki/GEP-15.html[GEP-15] for the full specification.
 
+[[nested-copywith]]
+== Nested `copyWith` for `@Immutable` and Records
+
+gapi:groovy.transform.Immutable[@Immutable] and
+gapi:groovy.transform.RecordType[@RecordType] have long offered an opt-in
+`copyWith` (`copyWith=true`) that returns a new instance with selected
+properties replaced. Groovy 6 extends it to _nested_ updates across an
+immutable object graph
+(https://issues.apache.org/jira/browse/GROOVY-12015[GROOVY-12015]).
+
+A map key may now be a dotted _nested path_. Untouched branches are reused
+rather than rebuilt, so structural sharing (and `is` identity) is preserved
+transitively:
+
+[source,groovy]
+----
+@Immutable(copyWith = true) class Address { String city, zip }
+@Immutable(copyWith = true) class Person  { String name; Address address }
+
+def p = new Person('Alice', new Address('NYC', '10001'))
+def q = p.copyWith('address.city': 'Boston')
+
+assert q.address.city == 'Boston'
+assert q.address.zip  == '10001'   // carried over unchanged
+assert q.name == 'Alice'
+----
+
+Every node on the path must itself provide `copyWith(Map)` (i.e. be declared
+with `copyWith=true`); otherwise a clear error is raised.
+
+A _transactional block form_ is also generated as sugar over the map form.
+Inside the block, `old` is the original (pre-state) object -- aligning with
+`old` in `@Ensures`/`@Contract` -- so new values can be derived from it, and
+`prop.modify { }` is shorthand for the transform-this-same-field case
+(e.g. `loginCount.modify { it + 1 }`):
+
+[source,groovy]
+----
+def r = p.copyWith {
+    name = 'Bob'                                // plain set
+    address.city = old.address.city.reverse()   // derive from pre-state
+}
+assert r.name == 'Bob'
+assert r.address.city == 'NYC'.reverse()
+assert p.copyWith { }.is(p)                     // empty block: identity
+----
+
+The same nested map and block forms work for record-in-record graphs and
+mixed `@Immutable`/`@RecordType` hierarchies.
+
 [[sealed-types]]
 == Stabilised features
 
@@ -1570,6 +1621,38 @@ assert [major, minor, patch, qualifier] == ['6', '0', '0', 'beta-2']
 def (_all, ma, mi, pa, q) = '4.0.28'.findGroups(semver)
 assert [ma, mi, pa, q] == ['4', '0', '28', null]
 ----
+
+=== Sliding pairs and consecutive runs
+
+Two new GDK methods cover common "look at neighbours" list operations that
+previously needed index juggling or a manual fold
+(https://issues.apache.org/jira/browse/GROOVY-12016[GROOVY-12016]).
+
+`zipWithNext` pairs each element with its successor, optionally combining
+each pair -- handy for deltas, ratios, or detecting transitions:
+
+[source,groovy]
+----
+assert [1, 2, 3, 4].zipWithNext() == [[1, 2], [2, 3], [3, 4]]
+
+// successive deltas via the combiner form
+assert [10, 13, 12, 18].zipWithNext { a, b -> b - a } == [3, -1, 6]
+----
+
+`groupConsecutive` splits an iterable into maximal runs -- by equality, by a
+key function, or by an adjacency predicate (note: only _consecutive_ equal
+keys group together, unlike `groupBy`):
+
+[source,groovy]
+----
+assert [1, 1, 2, 2, 2, 3, 1].groupConsecutive() == [[1, 1], [2, 2, 2], [3], [1]]
+
+assert ['apple', 'avocado', 'banana', 'cherry', 'citrus', 'date']
+    .groupConsecutive { it[0] } == [['apple', 'avocado'], ['banana'], ['cherry', 'citrus'], ['date']]
+----
+
+Both have lazy `Iterator` variants and array overloads, so they compose with
+other sequence operations without materialising intermediates.
 
 === Other new extension methods
 
