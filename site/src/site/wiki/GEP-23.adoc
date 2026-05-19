@@ -1,0 +1,470 @@
+= GEP-23: Monadic comprehensions
+
+:icons: font
+
+.Metadata
+****
+[horizontal,options="compact"]
+*Number*:: GEP-23
+*Title*:: Monadic comprehensions
+*Version*:: 1
+*Type*:: Feature
+*Status*:: Final
+*Comment*:: Delivered in Groovy 6.0 via the `DO` macro; the feature is incubating and subject to change
+*Leader*:: (to be assigned)
+*Created*:: 2026-05-19
+*Last modification*:: 2026-05-19
+****
+
+== Abstract: Monadic comprehensions
+
+`DO` is a comprehension macro that rewrites a sequence of name-binding
+generators followed by a body into a chain of bind operations on a
+participating *carrier* type. It provides Scala-style for-comprehension and
+Haskell-style do-notation ergonomics for any type with monadic shape —
+`Optional`, `Stream`, `CompletableFuture`, Groovy's `Awaitable` and
+`DataflowVariable`, common Functional Java types, and user-defined carriers
+that opt in.
+
+Three artefacts are introduced:
+
+* the `DO` macro in the macro library, performing a purely syntactic tree
+rewrite at compile time;
+* the `@groovy.transform.Monadic` annotation, by which a user type opts in
+and may declare non-conventional bind/map method names;
+* a type-checking extension that enforces the monadic shape under
+`@CompileStatic`/`@TypeChecked` and supplies the static types that flow
+through the rewritten chain.
+
+The proposal is deliberately narrow. It does not introduce higher-kinded
+types, a `Functor`/`Applicative`/`Monad` interface hierarchy, monad
+transformers, or automatic `pure`/`unit` lifting. It generalises a
+composition pattern Groovy already commits to for `Awaitable` so that the
+same notation is available to any carrier with the same shape.
+
+This GEP specifies the language semantics. Worked, tutorial-style examples
+live in the language specification chapter on monadic comprehensions; this
+document is intentionally terse and prescriptive.
+
+=== Motivation
+
+Composing values that live inside a carrier — an `Optional` that may be
+absent, an `Awaitable` that will complete later, a validation result that
+may have failed — is normally expressed either as hand-written
+`flatMap`/`then` chains, which nest deeply and obscure data flow as the
+number of participants grows, or, for the asynchronous case, as imperative
+`async { ... await x; await y; ... }`, which reads well but does not extend
+to non-async carriers.
+
+Other languages addressed this with notation that lives one level above the
+underlying carrier: Scala's `for`-comprehensions, Haskell's `do`-notation,
+F#'s computation expressions. Each desugars a sequence of name-binding
+generators into a chain of bind operations; the notation is uniform across
+carriers and the carrier-specific behaviour is delivered entirely by the
+methods of the carrier itself.
+
+Groovy already has the facilities to deliver this outcome without inventing
+an abstraction hierarchy: compile-time macros for the syntactic rewrite, and
+type-checking extensions (GEP-8) for teaching static compilation new
+structural rules without altering the type system. `DO` combines the two.
+
+A side-by-side comparison with Scala `for`, Haskell `do`, Kotlin
+coroutine-based composition, and F# computation expressions is given in
+<<_comparison_with_related_constructs,Comparison with related constructs>>
+below.
+
+== Specification
+
+=== Surface syntax
+
+`DO` takes a comma-separated list of *generators* followed by a closure
+body:
+
+[source,groovy]
+----
+def result = DO(x in m1,
+                y in f(x),
+                z in g(x, y)) {
+    body(x, y, z)
+}
+----
+
+Each generator has the form `name in expression`. The bound name is in
+scope in the source expression of every subsequent generator and in the
+body. Every generator's source expression, and the body, must evaluate to a
+value of the same carrier type.
+
+The all-uppercase name follows the convention of the existing macro-library
+entries (`SV`, `NV`, and friends). The uppercase form signals to readers
+that the call is rewritten at compile time and is not an ordinary method
+invocation. `DO` is a contextual name and remains usable as an ordinary
+identifier elsewhere.
+
+=== Desugaring
+
+Every generator becomes a bind; the body is the innermost closure body. The
+rewrite is:
+
+[cols="1,1",options="header"]
+|===
+| Source | Expansion
+
+| `DO(x in m1) { body }`
+| `m1` bound with `{ x \-> body }`
+
+| `DO(x in m1, y in f(x)) { body }`
+| `m1` bound with `{ x \-> f(x)` bound with `{ y \-> body } }`
+
+| `DO(x in m1, y in f(x), z in g(x, y)) { body }`
+| `m1` bound with `{ x \-> f(x)` bound with `{ y \-> g(x, y)` bound with `{ z \-> body } } }`
+|===
+
+Because the macro expands before type information is available, it does not
+emit a carrier-specific method name directly; it emits calls to a bind
+dispatcher (see <<_runtime_model,Runtime model>>). The body must itself
+yield a value of the carrier type — there is no implicit lifting of a plain
+value back into the carrier in this version (see
+<<_non_goals_and_potential_future_extensions,Non-goals>>).
+
+Short-circuiting is delivered by the carrier, not by the macro: an empty or
+failed carrier propagates through the chain and the body is never
+evaluated.
+
+=== The monadic shape
+
+A type _M_ qualifies as a carrier when it exposes a bind operation of the
+shape `<B> M<B> bind(fn)` where `fn` maps the element type to `M<B>`, and,
+for the map role, an analogous `<B> M<B> map(fn)`. The structural check is
+generous about the surface and strict about the algebra: the function
+argument may be declared as `java.util.function.Function`, a `Closure`, or
+any other single-abstract-method interface; the generator closure is
+adapted to whichever the carrier declares.
+
+The monad laws (left identity, right identity, associativity) are not
+enforced by the compiler. This matches the treatment of
+`@groovy.transform.Reducer`/`@groovy.transform.Associative`: structural
+participation, algebraic-law obligation on the implementer, intended to be
+backed by tests.
+
+=== Participating carriers
+
+Participation is resolved in the following order, the first match winning:
+
+. *Standard allow-list.* A fixed table covers stdlib and Groovy-core
+carriers whose method names diverge from the structural convention, matched
+by type:
++
+[cols="2,1,1,1",options="header"]
+|===
+| Carrier | Source | bind | map
+
+| `java.util.Optional` | JDK | `flatMap` | `map`
+| `java.util.stream.Stream` | JDK | `flatMap` | `map`
+| `java.util.concurrent.CompletableFuture` | JDK | `thenCompose` | `thenApply`
+| `java.util.concurrent.CompletionStage` | JDK | `thenCompose` | `thenApply`
+| `groovy.concurrent.Awaitable` | Groovy 6 | `thenCompose` | `then`
+| `groovy.concurrent.DataflowVariable` | Groovy 6 | `thenCompose` | `then`
+|===
++
+NOTE: `Awaitable` and `DataflowVariable` bind via `thenCompose`; their
+`then` method is the _map_ operation, not bind.
+
+. *Standard allow-list (by name).* Common Functional Java carriers —
+`fj.data.Option`, `fj.data.List`, `fj.data.Stream`, `fj.data.Validation`
+and `fj.P1` — are recognised by fully-qualified name using that library's
+`bind`/`map` convention. Groovy takes no dependency on Functional Java; the
+names are matched reflectively and the generator closure is adapted to
+`fj.F`. `fj.data.Either` is not directly monadic in Functional Java (bind
+lives on its `.right()`/`.left()` projections) and is not a carrier.
+
+. *Structural match.* A type offering a single-argument `flatMap` (and, for
+the map role, `map`) qualifies without further declaration. This covers
+third-party libraries and user types that follow the convention.
+
+. *`@Monadic` opt-in.* A type annotated `@groovy.transform.Monadic`
+participates even where its methods diverge from the structural convention.
+The annotation may declare alternative names:
++
+[source,groovy]
+----
+@Monadic(bind = 'chain', map = 'transform')
+class Result<A> {
+    <B> Result<B> chain(Function<A, Result<B>> f) { ... }
+    <B> Result<B> transform(Function<A, B> f) { ... }
+}
+----
++
+When both attributes are omitted the annotation merely opts the type in and
+the structural defaults (`flatMap`, `map`) apply. The annotation is matched
+by simple name, in the manner of `@Reducer`/`@Associative`.
+
+=== Behaviour under `@CompileStatic`
+
+Under dynamic Groovy, the rewritten code is ordinary method dispatch; a
+value that does not respond to the resolved bind method fails at runtime
+with the usual `MissingMethodException`.
+
+Under `@CompileStatic`/`@TypeChecked`, the `groovy.typecheckers.MonadicChecker`
+type-checking extension (GEP-8) is activated via the `extensions` member:
+
+[source,groovy]
+----
+@CompileStatic(extensions = 'groovy.typecheckers.MonadicChecker')
+----
+
+The extension:
+
+* rejects, at compile time, any `DO` whose carrier fails all participation
+tests, with an error naming the offending type and the missing method
+shape;
+* types each generator's bound name as the carrier's element type, so the
+body type-checks;
+* restores the comprehension's result type, so chained and nested use
+type-checks rather than degrading to `Object`.
+
+Dependent generators (a later generator whose source expression uses an
+earlier bound name) and nested comprehensions are supported under static
+compilation.
+
+=== Scoping, `return`, `break`, `continue`
+
+The desugared form turns the body into a chain of closure bodies. The
+consequences are the same as for any closure-bodied rewrite, and the same
+as the `@Parallel` for-loop transform documents:
+
+* `break` and `continue` are not supported inside the body and produce a
+compile error. The corresponding monadic notion — short-circuiting — is
+delivered by the carrier and propagates naturally through the chain.
+* `return` inside a generator source expression or the body returns from
+the enclosing closure, following the standard Groovy closure rule.
+* Names bound by earlier generators are visible to later generators and to
+the body by closure capture.
+* The body closure must not declare parameters; generator names are already
+in scope.
+
+=== Error semantics
+
+An exception thrown inside a generator source expression or inside the body
+propagates through the bind chain according to the carrier's own rules; the
+macro introduces no `try`/`catch`. For `Awaitable` and `CompletableFuture`
+the exception is captured into the resulting carrier and surfaces on
+`await`/`join`. For `Optional` and `Stream` the JDK semantics apply. For
+`@Monadic` user types the exception path is whatever the type implements.
+
+=== Runtime model
+
+The macro emits calls to a bind/map dispatcher rather than to a
+carrier-specific method, because at the point of expansion the carrier type
+is unknown. The dispatcher resolves the bind/map method per the
+participation rules and invokes it, adapting the generator closure to the
+declared functional-interface or `Closure` parameter.
+
+The macro and the type-checking extension are *compile-time only*: the
+macro expands and vanishes, and the extension runs only during static
+compilation. The dispatcher is runtime support and resides in the core
+runtime, so a program compiled with `DO` requires only the core `groovy`
+jar at run time. The macro library and the type-checkers module are
+compile-time dependencies.
+
+== Relationship to the concurrency primitives
+
+`DO` is a value-composition notation; it complements rather than competes
+with Groovy's concurrency surface.
+
+* *`Awaitable` / `DataflowVariable`* are primary motivating carriers.
+Imperative `async`/`await` is the right tool when code reads as a sequence
+of dependent steps to run now; `DO` is the right tool when the composed
+`Awaitable` is the deliverable and will be combined further (raced,
+gathered, scheduled) before being awaited.
+* *Parallel collections and `@Parallel`* are deliberately *not* `DO`
+participants. `collectParallel`/`collectManyParallel` are `map`/`flatMap`
+with parallel semantics; emitting them from a comprehension would silently
+change the execution model. Collection participation, where offered, is
+sequential.
+* *Generators, `for await`, channels, actors and agents* are stream or
+message-passing tools, orthogonal to `DO`. A composed `Awaitable` produced
+by `DO` may of course be consumed by an outer `async`/`await`.
+
+The language specification's tool-selection matrix carries a row for `DO`.
+
+== Comparison with related constructs
+
+Monadic comprehensions occupy a design space shared with Scala's `for`,
+Haskell's `do`, F#'s computation expressions, and Kotlin's coroutine-based
+composition. The table cross-references the load-bearing features of `DO`
+against the closest analogue in each.
+
+[cols="2,3,3,3,3",options="header"]
+|===
+| Feature
+| Groovy `DO`
+| Scala `for`
+| Haskell `do`
+| F# computation expr.
+
+| Underlying abstraction
+| Allow-list (by type and by name) + structural duck typing + `@Monadic`; no abstraction hierarchy.
+| Name-based desugaring to `flatMap`/`map`/`withFilter`/`foreach`; no type-class.
+| The `Monad` type class, backed by higher-kinded types.
+| Builder methods (`Bind`, `Return`, …) on a user-supplied builder type.
+
+| Implicit `pure`/`return`
+| No. The body must yield a carrier value.
+| Inferred via the trailing `yield` form.
+| Yes; `return` is a type-class member.
+| Yes; `Return` on the builder.
+
+| Guards / filtering
+| No.
+| Yes; `if` guards desugar to `withFilter`.
+| Yes; via `MonadPlus`.
+| Yes; via builder methods.
+
+| Mixed-carrier composition
+| No; one carrier per `DO`. Nest for more.
+| No; transformers/libraries fill the gap.
+| No; transformers fill the gap.
+| Yes, via `Bind` overloads on the builder.
+
+| Carrier-shape enforcement
+| `@CompileStatic` via a type-checking extension; runtime `MissingMethodException` otherwise.
+| Compile-time via name resolution.
+| Compile-time via the type class.
+| Compile-time via builder-method resolution.
+
+| Carrier-method-name conventions
+| Structural (`flatMap`/`map`) + allow-list + `@Monadic` override.
+| Fixed names (`flatMap`/`map`/`withFilter`/`foreach`).
+| Fixed type-class operations.
+| Fixed builder-method names.
+|===
+
+A few qualitative observations follow:
+
+* *Abstraction commitment is the dividing line.* Haskell and Scala invest
+in language-level abstraction so a single `do`/`for` form works
+generically. Groovy aligns most closely with Scala — no type-class, name-
+based desugaring, structural participation — the differences being the
+allow-list (for stdlib/third-party carriers with non-conventional names)
+and the `@Monadic` opt-in (for user types).
+* *Implicit `pure` is an inference problem, not a design one.* Scala and
+F# synthesise `pure` because they have target-typed inference; Groovy
+declines the inference in this version and requires the body to produce a
+carrier value explicitly.
+* *`@Monadic` has no exact analogue.* Scala does not need it because the
+conventional method names are universal in its ecosystem; F# does not need
+it because the builder is the opt-in. Groovy needs it because the
+conventional names are not universally followed across the JVM ecosystem,
+and structural matching alone is too narrow.
+
+== Cross-version evolution
+
+[cols="1,1,5",options="header"]
+|===
+| Version | Year | Change
+
+| 6.0 | 2026
+| Initial release (incubating). The `DO` macro; the bind/map dispatcher and
+carrier registry in the core runtime; `@groovy.transform.Monadic`; the
+`groovy.typecheckers.MonadicChecker` type-checking extension; the standard
+allow-list (`Optional`, `Stream`, `CompletableFuture`, `CompletionStage`,
+`Awaitable`, `DataflowVariable`) and the by-name recognition of common
+Functional Java carriers; general single-abstract-method coercion of the
+generator closure.
+
+| 7.0 | TBD
+| Candidate: user-configurable carrier registration, symmetric across the
+type checker and the runtime dispatcher. No other spec-level changes
+planned at the time of writing. This GEP is the canonical location to
+record future changes.
+|===
+
+== Non-goals and potential future extensions
+
+The following are deliberately out of scope. Any of them would warrant a
+follow-up revision of this document or a successor GEP.
+
+* *Higher-kinded types.* No language-level support for abstracting over
+type constructors.
+* *Implicit `pure`/`unit` lifting in the body.* This version requires the
+body to produce a carrier value. A future revision may add it when
+target-type inference can be made to flow reliably through the rewritten
+chain.
+* *Guard clauses* (`if` filters inside `DO`). Not all carriers support
+filtering; adding guards would restrict the participant set or require
+carrier-specific filter desugaring.
+* *Mixed-carrier comprehensions.* Each `DO` works over a single carrier;
+nesting is the workaround.
+* *Parallel desugaring.* A form emitting `collectParallel`/
+`collectManyParallel` would change the execution model and is not offered.
+* *Synthesis of `flatMap`/`map` from a single user-supplied bind* via the
+`@Monadic` annotation, in the spirit of generated boilerplate.
+* *A `Functor`/`Applicative`/`Monad` interface hierarchy* in `groovy.lang`.
+Structural participation plus `@Monadic` covers the same ground without
+committing the language to a hierarchy that is awkward without
+higher-kinded types.
+* *User-configurable carrier registration.* The built-in allow-list ships
+now; a configuration channel symmetric across the checker and the runtime
+dispatcher is candidate future work (see Cross-version evolution).
+
+== References and useful links
+
+* https://groovy.apache.org/wiki/GEP-8.html[GEP-8: type-checking
+extensions] — the mechanism the `@CompileStatic` rules rely on.
+* https://groovy.apache.org/wiki/GEP-22.html[GEP-22: Traits] — referenced
+for the structural-participation pattern and the spec-style format adopted
+here.
+* The language specification chapter on monadic comprehensions contains
+worked tutorial examples that complement this spec-only document.
+* The Groovy specification chapters on async/await, dataflow, and parallel
+collections — the concurrency carriers and the tool-selection matrix that
+`DO` extends.
+* Scala `for`-comprehensions and Haskell `do`-notation — the closest
+analogue notations.
+* Yallop & White, _Lightweight Higher-Kinded Polymorphism_ — the formal
+basis for the higher-kinded-type simulations this proposal makes
+unnecessary for the common case.
+
+=== Reference implementation
+
+* `org.apache.groovy.macrolib.MacroLibGroovyMethods` — hosts the `DO`
+macro method, registered alongside the other macro-library entries; parses
+the generator list, validates the `name in expression` shape, and emits the
+nested bind chain. Compile-time only.
+* `org.apache.groovy.runtime.Comprehensions` — the runtime bind/map
+dispatcher; resolves participation and invokes the carrier method, adapting
+the generator closure to the declared parameter type. Core runtime support.
+* `org.apache.groovy.runtime.MonadicCarrierRegistry` — the standard
+allow-list, both type-keyed and name-keyed; shared by the dispatcher and
+the type checker.
+* `groovy.transform.Monadic` — the opt-in annotation; a pure marker with
+optional `bind`/`map` string attributes and no AST transformation.
+* `groovy.typecheckers.MonadicChecker` — the type-checking extension that
+enforces the monadic shape and supplies static types under `@CompileStatic`.
+
+Public API:
+
+* `groovy.transform.Monadic` (since 6.0.0)
+* the `DO` macro, in the `groovy-macro-library` module (since 6.0.0)
+* `groovy.typecheckers.MonadicChecker`, in the `groovy-typecheckers`
+module (since 6.0.0)
+
+=== Representative JIRA issues
+
+* GROOVY-XXXX: introduce the `DO` monadic-comprehension macro.
+* GROOVY-XXXX: bind/map dispatcher and carrier registry in the core
+runtime.
+* GROOVY-XXXX: `@groovy.transform.Monadic` annotation.
+* GROOVY-XXXX: `groovy.typecheckers.MonadicChecker` type-checking
+extension.
+* GROOVY-XXXX: language-specification chapter with inline-tested examples
+and the tool-selection matrix row.
+
+== Update history
+
+1 (2026-05-19) Initial draft. Specifies the `DO` macro, the `@Monadic`
+annotation, the type-checking extension, the standard carrier allow-list
+(including by-name recognition of Functional Java), the runtime model and
+its dependency footprint, the relationship to the Groovy concurrency
+primitives, the comparison with Scala `for`, Haskell `do`, Kotlin
+coroutines and F# computation expressions, and the deliberate non-goals.
