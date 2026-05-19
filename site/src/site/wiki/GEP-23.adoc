@@ -451,14 +451,7 @@ module (since 6.0.0)
 
 === Representative JIRA issues
 
-* GROOVY-XXXX: introduce the `DO` monadic-comprehension macro.
-* GROOVY-XXXX: bind/map dispatcher and carrier registry in the core
-runtime.
-* GROOVY-XXXX: `@groovy.transform.Monadic` annotation.
-* GROOVY-XXXX: `groovy.typecheckers.MonadicChecker` type-checking
-extension.
-* GROOVY-XXXX: language-specification chapter with inline-tested examples
-and the tool-selection matrix row.
+* GROOVY-12021: Initial implementation of the `DO` monadic-comprehension macro and related type checkers.
 
 == Update history
 
