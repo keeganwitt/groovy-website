@@ -102,22 +102,35 @@ import groovy.transform.Associative
 import groovy.transform.Reducer
 
 class Sum {
-    @Associative @Reducer(zero = '0')
+    @Reducer(zero = '0')
     static int add(int a, int b) { a + b }
 }
 
 class Concat {
-    @Associative @Reducer(zero = '""')
+    @Reducer(zero = '""')
     static String join(String a, String b) { a + b }
 }
 
 class Tally {
-    @Associative @Reducer(zero = '[:]')
+    @Reducer(zero = '[:]')
     static Map<String, Integer> merge(Map<String, Integer> a, Map<String, Integer> b) {
         var out = new LinkedHashMap(a)
         b.each { k, v -> out.merge(k, v) { x, y -> x + y } }
         out
     }
+}
+----
+
+`@Reducer` is the monoid form: associative plus a named identity. Use
+`@Associative` alone when the operation is associative but has no
+natural identity in the problem domain — a semigroup, usable with
+unseeded reductions only:
+
+[source,groovy]
+----
+class Largest {
+    @Associative
+    static int max(int a, int b) { a >= b ? a : b }
 }
 ----
 
@@ -130,6 +143,7 @@ extension behind them:
 def reductions() {
     assert (1..100).toList().injectParallel(0, Sum.&add) == 5050
     assert ['a', 'b', 'c'].sumParallel(Concat.&join) == 'abc'
+    assert [3, 1, 4, 1, 5, 9, 2, 6].sumParallel(Largest.&max) == 9
 
     // REJECTED at compile time — subtraction is not associative:
     // [1, 2, 3].injectParallel(0) { a, b -> a - b }
@@ -161,7 +175,7 @@ declarations, no lift / unlift:
 
 [source,groovy]
 ----
-@TypeChecked(extensions = ['groovy.typecheckers.PurityChecker',
+@TypeChecked(extensions = ['groovy.typecheckers.PurityChecker(allows: "LOGGING")',
                            'groovy.typecheckers.ModifiesChecker'])
 class Calculator {
     BigDecimal total = 0
@@ -180,7 +194,7 @@ class Calculator {
         ledger << "+$amount"
     }
 
-    @Pure(allows = Pure.Effect.LOGGING)
+    @Pure
     BigDecimal balance() {
         log.fine "balance read"
         total
@@ -199,10 +213,11 @@ and `ModifiesChecker` errors. This is the `State` monad's job
 * `@Requires`/`@Ensures` are the Hoare-logic dual of `State`'s
 state-transition function — pre- and post-conditions, with `old.`
 referring to pre-state.
-* `balance` is pure _modulo logging_. The `allows` set is a small
-effect lattice (`LOGGING`, `METRICS`, `IO`, `NONDETERMINISM`) —
-graded effects, in the cats-effect sense, but the verification work
-is in the checker rather than the type.
+* `balance` is pure _modulo logging_. The checker's `allows` option
+declares a small effect lattice (`LOGGING`, `METRICS`, `IO`,
+`NONDETERMINISM`) and tolerates calls in those categories from any
+`@Pure` method in scope — graded effects, in the cats-effect sense,
+but the verification work is in the checker rather than the type.
 
 For an FP audience the unfamiliar half is that none of these methods
 return a wrapped value. The familiar half is that the compiler knows
