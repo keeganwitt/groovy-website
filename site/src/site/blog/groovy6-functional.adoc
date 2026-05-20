@@ -13,7 +13,7 @@ in the compiler. Its starting point is Java's — a JVM language with
 closures, immutable collections and `java.util.stream.Stream`.
 
 What Groovy 6 _does_ do is close a handful of the gaps that send
-functional programmers reaching for FunctionalJava or highj when they
+functional programmers reaching for FunctionalJava or HighJ when they
 work on the JVM. The new pieces fit together:
 
 * `@Associative`/`@Reducer` annotations that put a *monoid* contract
@@ -93,8 +93,9 @@ class Semigroup a => Monoid a where mempty :: a
 ----
 
 In FunctionalJava you build a `Monoid<A>` by passing a combiner closure
-and a zero. In highj you import the typeclass instance for `Monoid<µ>`.
-In Groovy 6 the algebra moves _onto the method_:
+and a zero. In HighJ you import the typeclass instance for `Monoid<µ>`.
+While you can also use those libraries from Groovy as is,
+you now also have the option of moving the algebra _onto the method_:
 
 [source,groovy]
 ----
@@ -161,7 +162,7 @@ gives you the same guarantee a typeclass constraint gives Scala or
 Haskell, but without lifting `add` into a wrapper and unlifting the
 result.
 
-The `Monoid`/`Semigroup` types from FunctionalJava and highj are also
+The `Monoid`/`Semigroup` types from FunctionalJava and HighJ are also
 recognised, which means existing FJ-shaped combiners flow through
 `sumParallel` without rewriting.
 
@@ -191,7 +192,7 @@ class Calculator {
     @TypeChecked(extensions = 'groovy.typecheckers.ModifiesChecker')
     void post(BigDecimal amount) {
         total += amount
-        ledger << "+$amount"
+        ledger << "+$amount".toString()
     }
 
     @Pure
@@ -277,8 +278,8 @@ Validation<String, Integer> add(String a, String b) {
         Validation.success(x + y)
     }
 }
-assert add('2', '3').successE() == 5
-assert add('hi', '3').failE()   == 'not numeric: hi'
+assert add('2', '3').success() == 5
+assert add('hi', '3').fail()   == 'not numeric: hi'
 ----
 
 What `DO` does *not* do: it does not introduce higher-kinded types, it
@@ -488,11 +489,11 @@ spec, not as a comment.
 == How it stacks up
 
 For a JVM-resident FP audience, the comparison set is FunctionalJava,
-highj, and the language alternatives Scala and Kotlin.
+HighJ, and the language alternatives Scala and Kotlin.
 
 [cols="2,1,1,1,1,1",options="header"]
 |===
-| Concept | Groovy 6 | FunctionalJava | highj | Scala | Haskell
+| Concept | Groovy 6 | FunctionalJava | HighJ | Scala | Haskell
 
 | Closures and composition
 | native (`>>`, `<<`, curry)
@@ -584,8 +585,8 @@ to libraries.
 
 For new code on the JVM, the takeaway is that `@Pure`, `@Modifies`,
 `@Associative` and `@Reducer` cover most of what teams used
-FunctionalJava and highj for — and they do it on your own types,
-without inheritance and without lift/unlift. FunctionalJava and highj
+FunctionalJava and HighJ for — and they do it on your own types,
+without inheritance and without lift/unlift. FunctionalJava and HighJ
 remain useful when you want the libraries' richer value-level
 combinators (notably `Validation` for applicative-style error
 accumulation, which Groovy 6 happily embeds in `DO`).
