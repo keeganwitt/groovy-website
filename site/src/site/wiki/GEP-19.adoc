@@ -29,14 +29,13 @@ We welcome feedback and discussion, but please keep in mind that the details are
 == Abstract
 
 This GEP extends Groovy's `switch` expression with structural pattern
-matching for lists, maps, and types, building on the record patterns
-introduced in 5.0 and aligning with Java's pattern-matching trajectory
-(JEPs 440, 441, 456, 507).
+matching for lists, maps, records, and types, aligning with Java's
+pattern-matching trajectory (JEPs 440, 441, 456, 507).
 
 The proposal adds list patterns (`[var h, var... t]`), map patterns
-(`[name: var n, var... rest]`), type patterns with binding (`String s`),
-guard clauses (`when`), and a unified wildcard form (`_` inside record
-patterns; `var _` elsewhere). The same pattern grammar is also accepted
+(`[name: var n, var... rest]`), record patterns (`Type(var x, var y)`),
+type patterns with binding (`String s`), guard clauses (`when`), and a
+unified wildcard form (`_` inside record patterns; `var _` elsewhere). The same pattern grammar is also accepted
 in `def [...] = ...` bracket-form declarations, providing a consistent
 destructuring grammar between switch case labels and assignment for
 users who want it. The everyday parens form (`def (...) = ...`) is
@@ -51,9 +50,11 @@ markers that distinguish a structural pattern from a legacy case label.
 
 Groovy's `switch` already exceeds Java's classic switch through the
 `isCase` protocol — case labels can be classes, ranges, regex patterns,
-collections, and closures. Groovy 5.0 added record patterns aligned with
-Java 21's JEP 440. What remains absent is structural decomposition of
-the most common data shapes: lists, maps, and arrays.
+collections, and closures. What remains absent is structural
+decomposition: type-narrowing bindings, record deconstruction, and the
+destructuring of the most common data shapes (lists and maps). This
+proposal adds all four together, aligned with Java's pattern-matching
+trajectory (JEPs 440, 441, 456, 507).
 
 Languages that have shipped this — Scala, Rust, Swift, Kotlin (limited),
 JavaScript (via destructuring), Python (via PEP 634), and Jactl — show
@@ -139,14 +140,13 @@ switch (obj) {
 
 The bound name is narrowed to the declared type within the case body
 and any `when` guard. `@CompileStatic` and `@TypeChecked` see the
-narrowed type via the same flow analysis already used for record
-patterns.
+narrowed type within the binding's scope.
 
 === Record patterns
 
-Record patterns (introduced in Groovy 5.0) deconstruct record-typed
-values positionally. Component positions accept nested patterns,
-including the unnamed pattern `_`:
+Record patterns deconstruct record-typed values positionally.
+Component positions accept nested patterns, including the unnamed
+pattern `_`:
 
 [source,groovy]
 ----
@@ -486,8 +486,10 @@ strategy that performs:
   key-set difference for rest),
 * binding assignment.
 
-Record patterns reuse the lowering already present in 5.0. When Java's
-deconstructor JEP ships, surface forms like
+Record patterns lower via the same `Deconstructable` strategy: a type
+check on the record class, component extraction via the record's
+accessor methods, and recursive lowering for nested component patterns.
+When Java's deconstructor JEP ships, surface forms like
 `case List.of(var h, var... t) \->` and
 `case Map.of("name", var n) \->` are accepted as additional spellings
 that lower to the same `Deconstructable` calls — no re-architecture.
@@ -515,11 +517,11 @@ Implementation considerations:
 
 |Pattern matching for `instanceof` (JEP 394, 16)
 |Shipped
-|Type and record patterns valid in `instanceof`
+|Type and record patterns in `instanceof` added in this proposal
 
 |Record patterns (JEP 440, 21)
 |Shipped
-|Already in Groovy 5.0; extended in this proposal
+|Added in this proposal
 
 |Pattern matching for `switch` (JEP 441, 21)
 |Shipped
@@ -622,7 +624,7 @@ triggered only by syntactic forms that currently fail to parse:
 |`case [def h, def... t] ->`               |No — new (Groovy-native equivalent)
 |`case [... t] ->` / `case [...] ->`       |No — new (`...` shortcut / flipper)
 |`case [Integer h, var... t] ->`           |No — new
-|`case String s ->`                        |No — new (5.0 supported only `Type(...)`)
+|`case String s ->`                        |No — new
 |`def [var h, var... t] = list`            |No — new (bracket form)
 |`def [name: var n, age: var a] = person`  |No — new (bracket form)
 |`def (h, *t) = list`                      |Yes — covered by GEP-20 in Groovy 6.x
