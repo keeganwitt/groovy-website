@@ -9,9 +9,9 @@
 *Title*:: Monadic comprehensions
 *Version*:: 2
 *Type*:: Feature
-*Status*:: Final
-*Comment*:: Delivered in Groovy 6.0 via the `DO` macro; the feature is incubating and subject to change
-*Leader*:: (to be assigned)
+*Status*:: Draft
+*Comment*:: Targeted for Groovy 6.0 via the `DO` macro; the feature is incubating and subject to change
+*Leader*:: Paul King
 *Created*:: 2026-05-19
 *Last modification*:: 2026-05-20
 ****
