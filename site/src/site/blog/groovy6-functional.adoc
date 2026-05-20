@@ -175,13 +175,12 @@ declarations, no lift / unlift:
 
 [source,groovy]
 ----
-@TypeChecked(extensions = ['groovy.typecheckers.PurityChecker(allows: "LOGGING")',
-                           'groovy.typecheckers.ModifiesChecker'])
 class Calculator {
     BigDecimal total = 0
     List<String> ledger = []
 
     @Pure
+    @TypeChecked(extensions = 'groovy.typecheckers.PurityChecker')
     static BigDecimal vat(BigDecimal net, BigDecimal rate) {
         net * (1 + rate)
     }
@@ -189,12 +188,14 @@ class Calculator {
     @Requires({ amount > 0 })
     @Ensures ({ total == old.total + amount })
     @Modifies({ [this.total, this.ledger] })
+    @TypeChecked(extensions = 'groovy.typecheckers.ModifiesChecker')
     void post(BigDecimal amount) {
         total += amount
         ledger << "+$amount"
     }
 
     @Pure
+    @TypeChecked(extensions = 'groovy.typecheckers.PurityChecker(allows: "LOGGING")')
     BigDecimal balance() {
         log.fine "balance read"
         total
@@ -213,11 +214,11 @@ and `ModifiesChecker` errors. This is the `State` monad's job
 * `@Requires`/`@Ensures` are the Hoare-logic dual of `State`'s
 state-transition function — pre- and post-conditions, with `old.`
 referring to pre-state.
-* `balance` is pure _modulo logging_. The checker's `allows` option
-declares a small effect lattice (`LOGGING`, `METRICS`, `IO`,
-`NONDETERMINISM`) and tolerates calls in those categories from any
-`@Pure` method in scope — graded effects, in the cats-effect sense,
-but the verification work is in the checker rather than the type.
+* `balance` is pure _modulo logging_. Its `@TypeChecked` extension
+configures `PurityChecker(allows: "LOGGING")`; the `allows` option
+draws from a small effect lattice (`LOGGING`, `METRICS`, `IO`,
+`NONDETERMINISM`) — graded effects, in the cats-effect sense, but
+the verification work is in the checker rather than the type.
 
 For an FP audience the unfamiliar half is that none of these methods
 return a wrapped value. The familiar half is that the compiler knows
