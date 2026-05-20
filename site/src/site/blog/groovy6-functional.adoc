@@ -1,9 +1,8 @@
 = Groovy 6 features for Functional Programmers
 Paul King <paulk-asert|PMC_Member>
-:revdate: 2026-05-20T08:00:00+00:00
-:updated: 2026-05-20T08:00:00+00:00
+:revdate: 2026-05-19T08:00:00+00:00
 :draft: true
-:keywords: functional programming, monoid, semigroup, monad, purity, type checker, property-based testing
+:keywords: functional programming, monoid, semigroup, monad, purity, type checker, property-based testing, null checker, immutability, invariants
 :description: Groovy's functional programming stance: like Java, but with checked algebra, verified purity, monadic comprehensions, and machine-actionable annotations.
 
 == Introduction
