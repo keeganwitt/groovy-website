@@ -4,7 +4,7 @@ Paul King <paulk-asert|PMC_Member>
 :updated: 2026-05-20T08:00:00+00:00
 :draft: true
 :keywords: functional programming, monoid, semigroup, monad, purity, type checker, property-based testing
-:description: Groovy 6's stance on functional programming — same starting point as Java, but with checked algebra (Monoid/Semigroup), verified purity, monadic comprehensions, and machine-actionable annotations.
+:description: Groovy's functional programming stance: like Java, but with checked algebra, verified purity, monadic comprehensions, and machine-actionable annotations.
 
 == Introduction
 
