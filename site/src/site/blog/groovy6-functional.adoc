@@ -7,14 +7,35 @@ Paul King <paulk-asert|PMC_Member>
 
 == Introduction
 
-Groovy is not Haskell. It is not Scala. It does not have higher-kinded
-types, a `Functor`/`Applicative`/`Monad` hierarchy, or a totality checker
-in the compiler. Its starting point is Java's — a JVM language with
-closures, immutable collections and `java.util.stream.Stream`.
+What's the best way to do functional programming on the JVM?
 
-What Groovy 6 _does_ do is close a handful of the gaps that send
-functional programmers reaching for FunctionalJava, HighJ or Vavr when
-they work on the JVM. The new pieces fit together:
+Groovy starts by inheriting Java's answer in full. `Optional`, `Stream`,
+`CompletableFuture`, `Function`, records, immutable collections,
+virtual threads — every JDK carrier and combinator is available, with
+the usual Groovy sugar on top (closures, GINQ, parallel collections,
+`Awaitable`, async/await). For a lot of workaday code, that is already
+enough.
+
+When you want more discipline than the JDK ships with — applicative
+validation, persistent collections, an effect monad, a `Try` for
+errors-as-values — your favourite existing library still works.
+FunctionalJava, HighJ, and Vavr compose in Groovy unchanged; the `DO`
+macro recognises their control carriers by name, no glue code required.
+
+Groovy 6 adds a third option, complementary to both. Keep the plain
+values, keep `try`/`catch`, keep the carriers Java already gave you —
+and shift the discipline onto *declarations the compiler verifies*.
+Purity is `@Pure` enforced by `PurityChecker`. Monoid is
+`@Reducer`/`@Associative` enforced by `CombinerChecker`. Absence is
+`@Nullable` enforced by `NullChecker` (with a strict mode that needs
+no annotations at all). The discipline the wrapper-heavy path gives
+you, without the cost of lifting every call boundary into a carrier —
+the simplicity of the pragmatic path with the guarantees of the
+elaborate one.
+
+The new pieces close a handful of the gaps that send functional
+programmers reaching for FunctionalJava, HighJ or Vavr when they work
+on the JVM, and they fit together:
 
 * `@Associative`/`@Reducer` annotations that put a *monoid* contract
 on a binary method, verified at compile time by `CombinerChecker`.
@@ -33,8 +54,10 @@ otherwise need a lens library.
 measures and loop invariants of the kind a totality checker would
 require.
 
-None of that turns Groovy into a pure-functional language. It does mean
-the parts of the FP toolkit that pay their way on a real JVM project —
+None of that turns Groovy into a pure-functional language: there are
+still no higher-kinded types, no `Functor`/`Applicative`/`Monad`
+hierarchy, and no totality checker in the compiler. It does mean the
+parts of the FP toolkit that pay their way on a real JVM project —
 algebraic laws on combiners, declared purity, monadic value
 composition, exhaustive null handling, immutable updates — are now
 first-class.
