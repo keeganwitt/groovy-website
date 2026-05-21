@@ -352,9 +352,22 @@ participants. `collectParallel`/`collectManyParallel` are `map`/`flatMap`
 with parallel semantics; emitting them from a comprehension would silently
 change the execution model. Collection participation, where offered, is
 sequential.
-* *Generators, `for await`, channels, actors and agents* are stream or
-message-passing tools, orthogonal to `DO`. A composed `Awaitable` produced
-by `DO` may of course be consumed by an outer `async`/`await`.
+* *`for await`* deserves a specific note because of the naming
+overlap. `DO` and `for await` operate at different layers: `DO`
+composes _one_ result from a chain of dependent monadic steps and
+produces a single carrier value; `for await` consumes a stream-shaped
+source (a `Flow.Publisher`, an `AsyncChannel`, a generator) item by
+item. The two compose cleanly — a `DO` chain can live inside the body
+of a `for await` loop when each pulled item is itself worth composing
+further, and an `Awaitable` produced by `DO` can be one element of an
+upstream publisher consumed by `for await` — but neither is a
+substitute for the other. Pick `DO` when the question is "three
+dependent steps produce one answer"; pick `for await` when the
+question is "a stream of events to process as they arrive".
+* *Generators, channels, actors and agents* are stream or
+message-passing tools, orthogonal to `DO`. A composed `Awaitable`
+produced by `DO` may of course be consumed by an outer `async`/`await`,
+or yielded into a channel for downstream consumers.
 
 The language specification's tool-selection matrix carries a row for `DO`.
 

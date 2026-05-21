@@ -290,6 +290,18 @@ Awaitable<String> greetByKey(String key) {
 }
 ----
 
+`DO` and `for await` (the other "await"-shaped new Groovy 6 construct)
+operate at different layers and are easy to confuse. `DO` composes
+*one* result from a chain of dependent monadic steps; `for await`
+iterates over *many* values pulled from a stream-shaped source
+(`Flow.Publisher`, `AsyncChannel`, a generator). If the problem is
+"three dependent calls produce a single answer", reach for `DO`. If it
+is "a stream of events to process as they arrive", reach for
+`for await`. The two compose at different layers — a `DO` chain can
+sit inside the body of a `for await` loop, and an `Awaitable` produced
+by `DO` can be one element of an upstream publisher consumed by
+`for await` — but neither replaces the other.
+
 And over FunctionalJava's `Validation` — no annotation, no wrapper, no
 Groovy dependency on FunctionalJava, because `fj.data.Validation` is
 recognised by name in `DO`'s standard allow-list:
