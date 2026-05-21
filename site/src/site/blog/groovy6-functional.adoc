@@ -13,8 +13,8 @@ in the compiler. Its starting point is Java's — a JVM language with
 closures, immutable collections and `java.util.stream.Stream`.
 
 What Groovy 6 _does_ do is close a handful of the gaps that send
-functional programmers reaching for FunctionalJava or HighJ when they
-work on the JVM. The new pieces fit together:
+functional programmers reaching for FunctionalJava, HighJ or Vavr when
+they work on the JVM. The new pieces fit together:
 
 * `@Associative`/`@Reducer` annotations that put a *monoid* contract
 on a binary method, verified at compile time by `CombinerChecker`.
@@ -94,8 +94,10 @@ class Semigroup a => Monoid a where mempty :: a
 
 In FunctionalJava you build a `Monoid<A>` by passing a combiner closure
 and a zero. In HighJ you import the typeclass instance for `Monoid<µ>`.
-While you can also use those libraries from Groovy as is,
-you now also have the option of moving the algebra _onto the method_:
+Vavr stops short of a `Monoid` abstraction and reduces via
+`Foldable.reduce` instead. While you can also use those libraries from
+Groovy as is, you now also have the option of moving the algebra _onto
+the method_:
 
 [source,groovy]
 ----
@@ -281,6 +283,34 @@ Validation<String, Integer> add(String a, String b) {
 assert add('2', '3').success() == 5
 assert add('hi', '3').fail()   == 'not numeric: hi'
 ----
+
+The same allow-list also recognises Vavr's control carriers
+(`io.vavr.control.Option`, `io.vavr.control.Try`, `io.vavr.control.Either`,
+`io.vavr.control.Validation`) by name, so existing Vavr-shaped code composes
+through `DO` without rewriting and without Groovy taking a dependency on
+Vavr:
+
+[source,groovy]
+----
+import io.vavr.control.Try
+import static org.apache.groovy.macrolib.MacroLibGroovyMethods.DO
+
+@TypeChecked(extensions = 'groovy.typecheckers.MonadicChecker')
+Try<Integer> divide(String a, String b) {
+    DO(x in Try.of { Integer.parseInt(a) },
+       y in Try.of { Integer.parseInt(b) }) {
+        Try.success(x.intdiv(y))
+    }
+}
+assert divide('20', '5').get()      == 4
+assert divide('hi', '5').isFailure()        // short-circuits at x
+assert divide('20', '0').isFailure()        // short-circuits at the body
+----
+
+Vavr ships its own `For(...).yield(...)` form ("For-Comprehension") that
+serves the same purpose in straight Java; `DO` reads as the Groovy-native
+analogue, and a codebase that already uses Vavr-shaped control types in Java
+gets the comprehension for free.
 
 What `DO` does *not* do: it does not introduce higher-kinded types, it
 does not mix carriers in one comprehension (nest for that), and it does
@@ -486,18 +516,71 @@ This is the Groovy 6 design pitch in one sentence: declarations whose
 compile-time guarantee makes them safe for an agent to read as a
 spec, not as a comment.
 
+== Who writes the annotations?
+
+A reader skimming this post might infer that turning these features on
+means scattering `@Pure`, `@Modifies`, `@Associative`, `@Reducer`,
+`@Monadic`, `@Nullable` and friends throughout application code. That is
+not the intent.
+
+Declarations are a *producer-side* property; checkers are a
+*consumer-side* property. The natural division of labour:
+
+* *Libraries* — Groovy stdlib, the JDK, FP-style libraries, and domain
+frameworks — declare annotations on the APIs they own. A repository
+library marks its lookup methods `@Nullable User findById(Long id)`; a
+monetary library carries `@Associative @Reducer(zero = '0')` on its
+`add`; a domain service marks its mutating methods with
+`@Modifies({…})` and its read methods with `@Pure`; a monadic carrier
+carries `@Monadic` (or its conventional method names match the
+structural rule and no annotation is needed at all). JSpecify,
+JSR-305, JetBrains and SpotBugs `@Nullable`/`@NonNull` annotations —
+matched by simple name from any package — already feed `NullChecker`
+without anyone changing the library.
+* *User code* consumes those declarations. Calling `repository.findById(id)`
+under `@TypeChecked(extensions = 'NullChecker(strict: true)')` is enough
+to surface a "may dereference null" diagnostic — the library has already
+declared the contract. Calling `sumParallel(money.&add)` under
+`CombinerChecker` validates against the library's `@Associative`.
+Calling `service.update(x)` under `ModifiesChecker` validates against
+the library's frame condition. No annotation on the user's side.
+* *Registries* fill the gap when the library is owned elsewhere and not
+yet annotated. Vavr's control types compose through `DO` because the
+core allow-list names them, not because Vavr was modified or because
+the user wrote `@Monadic` on a wrapper.
+
+User code acquires annotations of its own only at *system boundaries* —
+public APIs the user owns, framework handlers, code that needs to
+propagate a contract to its own callers, or local logic the user wants
+the compiler to double-check against an `@Ensures` postcondition. For
+everyday application code that just calls libraries, the checkers do
+their work against the libraries' declarations and the application
+stays annotation-free.
+
+This matters for every checker in the post. The
+"compile-time `Maybe` without the wrapper" pitch reaches full strength
+exactly when the libraries you depend on already carry `@Nullable` /
+`@NonNull` (or were compiled with JSpecify) — `NullChecker` then
+delivers the static guarantee on the consumer file with no local
+ceremony. The same property holds for `CombinerChecker`,
+`PurityChecker`, `ModifiesChecker`, `MonadicChecker` and the contract
+annotations. The annotations are an investment the library author
+makes once; every downstream codebase running the matching checker
+recovers the value of it on every build.
+
 == How it stacks up
 
 For a JVM-resident FP audience, the comparison set is FunctionalJava,
-HighJ, and the language alternatives Scala and Kotlin.
+Vavr, HighJ, and the language alternatives Scala and Kotlin.
 
-[cols="2,1,1,1,1,1",options="header"]
+[cols="2,1,1,1,1,1,1",options="header"]
 |===
-| Concept | Groovy 6 | FunctionalJava | HighJ | Scala | Haskell
+| Concept | Groovy 6 | FunctionalJava | Vavr | HighJ | Scala | Haskell
 
 | Closures and composition
 | native (`>>`, `<<`, curry)
 | `fj.F`, `.o()`, curry on `F2..F8`
+| `Function0..Function8`, `andThen`/`compose`/`curried`/`memoized`
 | `Functions` combinators
 | native (`andThen`, `compose`)
 | native
@@ -505,6 +588,7 @@ HighJ, and the language alternatives Scala and Kotlin.
 | Monoid / Semigroup
 | `@Associative`/`@Reducer` + `CombinerChecker`
 | `Monoid<A>`, `Semigroup<A>` values
+| n/a (uses `Foldable.reduce`)
 | `Monoid<µ>` typeclass instance
 | `cats.Monoid` typeclass
 | `Monoid` class
@@ -512,6 +596,7 @@ HighJ, and the language alternatives Scala and Kotlin.
 | Purity & effects
 | `@Pure(allows = ...)` + `PurityChecker`
 | n/a (convention only)
+| `Try` lifts effects to a value
 | `IO<µ>` simulation
 | `cats.effect.IO`
 | `IO`, `State`, etc.
@@ -520,12 +605,14 @@ HighJ, and the language alternatives Scala and Kotlin.
 | `@Modifies` + `ModifiesChecker`
 | n/a
 | n/a
+| n/a
 | n/a (libraries)
 | n/a
 
 | Monadic comprehension
 | `DO` (GEP-23, no HKT)
 | n/a (hand-written `.bind`)
+| `For(...).yield(fn)` ("For-Comprehension")
 | simulated, with µ tags
 | `for { ... } yield`
 | `do { ... }`
@@ -533,19 +620,30 @@ HighJ, and the language alternatives Scala and Kotlin.
 | Null / absence
 | `NullChecker` (strict)
 | `fj.data.Option`
+| `Option`
 | `Maybe<µ>`
 | `Option`
 | `Maybe`
 
 | Validation / errors
-| `fj.data.Validation` in `DO`
+| `fj.data.Validation` and `io.vavr.control.{Try, Either, Validation}` in `DO`
 | `Validation<E, A>`
+| `Try`, `Either`, `Validation`
 | `Either<µ, µ>`
 | `Either`, `Validated`
 | `Either`, `Validation`
 
+| Persistent collections
+| `.asImmutable()` (view); `@Immutable` (deep-frozen)
+| `fj.data.List`, `fj.data.Stream`
+| `io.vavr.collection.{List, Vector, HashMap, ...}` (HAMT-based, structural sharing)
+| n/a
+| `scala.collection.immutable.*` (persistent)
+| native (persistent everywhere)
+
 | Termination
 | `@Decreases` (Hoare)
+| n/a
 | n/a
 | n/a
 | n/a (libraries)
@@ -553,6 +651,7 @@ HighJ, and the language alternatives Scala and Kotlin.
 
 | Higher-kinded abstraction
 | no
+| no (encoded by hand)
 | no (encoded by hand)
 | simulated HKT
 | native
@@ -576,7 +675,8 @@ type — verified by `CombinerChecker`.
 into a self-contained spec — a different shape from `IO`/`State`, the
 same reasoning payoff.
 * `DO` gives you the `for`/`do` notation across `Optional`, `Stream`,
-`CompletableFuture`, `Awaitable`, the FunctionalJava carriers and any
+`CompletableFuture`, `Awaitable`, the FunctionalJava and Vavr control
+carriers (`io.vavr.control.{Option, Try, Either, Validation}`), and any
 user type with the right shape, without committing the language to
 higher-kinded types.
 * `NullChecker`, nested `copyWith`, destructuring, `val`,
@@ -586,10 +686,14 @@ to libraries.
 For new code on the JVM, the takeaway is that `@Pure`, `@Modifies`,
 `@Associative` and `@Reducer` cover most of what teams used
 FunctionalJava and HighJ for — and they do it on your own types,
-without inheritance and without lift/unlift. FunctionalJava and HighJ
-remain useful when you want the libraries' richer value-level
-combinators (notably `Validation` for applicative-style error
-accumulation, which Groovy 6 happily embeds in `DO`).
+without inheritance and without lift/unlift. FunctionalJava, HighJ, and
+Vavr remain useful when you want the libraries' richer value-level
+combinators: FunctionalJava and Vavr for applicative-style error
+accumulation via `Validation` (which Groovy 6 happily embeds in `DO`);
+Vavr additionally for `Try`/`Either` as runtime-composable carriers
+where _failure-as-a-value_ is the requirement, and for persistent
+collections with structural sharing — both gaps not yet filled in
+Groovy core.
 
 == References
 
@@ -602,6 +706,7 @@ accumulation, which Groovy 6 happily embeds in `DO`).
 * https://groovy.apache.org/blog/groovy-null-checker[NullChecker walkthrough]
 * https://www.functionaljava.org/[FunctionalJava]
 * https://github.com/highj/highj[highj — lightweight HKT for Java]
+* https://vavr.io/[Vavr] — Java FP library with `Try`/`Either`/`Validation`/`Option` control carriers, persistent collections, tuples, and the `For(...).yield(...)` For-Comprehension form. The control carriers are in `DO`'s standard allow-list (Groovy 6).
 * https://github.com/paulk-asert/groovy6-functional[Companion code for this post]
 
 .Update history
