@@ -43,7 +43,7 @@ annotations?>> below.
 
 The new pieces close a handful of the gaps that send functional
 programmers reaching for FunctionalJava, HighJ or Vavr when they work
-on the JVM, and they fit together:
+on the JVM:
 
 * `@Associative`/`@Reducer` annotations that put a *monoid* contract
 on a binary method, verified at compile time by `CombinerChecker`.
@@ -51,7 +51,8 @@ on a binary method, verified at compile time by `CombinerChecker`.
 method has no side effects (or only the ones you allow) — a
 specification-driven alternative to lifting effects into an `IO` monad.
 * A `DO` macro (GEP-23) giving Scala-`for` / Haskell-`do` notation
-across `Optional`, `Stream`, `CompletableFuture`, Groovy's `Awaitable`,
+across `Optional`, `Stream`, `CompletableFuture`, Groovy's `Awaitable`
+and `DataflowVariable`, recognised FunctionalJava and Vavr carriers,
 and any user type that opts in.
 * `NullChecker` — including a flow-sensitive `strict` mode requiring
 no annotations — for compile-time `Maybe` without the wrapper.
@@ -298,7 +299,7 @@ Awaitable<String> greetByKey(String key) {
 }
 ----
 
-`DO` and `for await` (the other "await"-shaped new Groovy 6 construct)
+`DO` and `for await` (Groovy 6's other "await"-shaped construct)
 operate at different layers and are easy to confuse. `DO` composes
 *one* result from a chain of dependent monadic steps; `for await`
 iterates over *many* values pulled from a stream-shaped source
@@ -310,9 +311,9 @@ sit inside the body of a `for await` loop, and an `Awaitable` produced
 by `DO` can be one element of an upstream publisher consumed by
 `for await` — but neither replaces the other.
 
-And over FunctionalJava's `Validation` — no annotation, no wrapper, no
-Groovy dependency on FunctionalJava, because `fj.data.Validation` is
-recognised by name in `DO`'s standard allow-list:
+`DO` also composes over FunctionalJava's `Validation` — no annotation,
+no wrapper, no Groovy dependency on FunctionalJava, because
+`fj.data.Validation` is recognised by name in the standard allow-list:
 
 [source,groovy]
 ----
@@ -327,11 +328,11 @@ assert add('2', '3').success() == 5
 assert add('hi', '3').fail()   == 'not numeric: hi'
 ----
 
-The same allow-list also recognises Vavr's control carriers
+The same allow-list recognises Vavr's control carriers
 (`io.vavr.control.Option`, `io.vavr.control.Try`, `io.vavr.control.Either`,
-`io.vavr.control.Validation`) by name, so existing Vavr-shaped code composes
-through `DO` without rewriting and without Groovy taking a dependency on
-Vavr:
+`io.vavr.control.Validation`) by name, so existing Vavr-shaped code
+composes through `DO` without rewriting and without Groovy taking a
+dependency on Vavr:
 
 [source,groovy]
 ----
@@ -543,7 +544,7 @@ The agent never reads the body of `add` or `merge`. The compile-time
 `CombinerChecker` is the guarantee that the annotation is trustworthy
 enough to treat as a specification.
 
-The same idea applies more broadly:
+The same idea applies elsewhere:
 
 [cols="2,3",options="header"]
 |===
@@ -777,5 +778,10 @@ following the same two-layer pattern used elsewhere in this post.
 
 .Update history
 ****
+*22/May/2026*: Vavr added to comparison set
+and `DO` allow-list; producer-side / consumer-side framing for
+declaration-driven features; `for await` vs `DO` distinction; GEP-24
+forward-reference for the `Try` / errors-as-values gap.
+
 *20/May/2026*: Initial version.
 ****
