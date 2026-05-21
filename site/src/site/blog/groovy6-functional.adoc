@@ -568,6 +568,14 @@ annotations. The annotations are an investment the library author
 makes once; every downstream codebase running the matching checker
 recovers the value of it on every build.
 
+link:../wiki/GEP-24.html[GEP-24] is the natural extension of this
+story to errors: a candidate for Groovy 7 sketching library-side
+`@Raises` plus consumer-side `ExceptionChecker` for the declaration
+path, and an opt-in `Result<T>` carrier (with an `attempt { }` macro
+and an `@AsResult` AST transform) recognised by `DO` for the
+runtime-composition path — all following the same producer-side /
+consumer-side split.
+
 == How it stacks up
 
 For a JVM-resident FP audience, the comparison set is FunctionalJava,
@@ -693,11 +701,15 @@ accumulation via `Validation` (which Groovy 6 happily embeds in `DO`);
 Vavr additionally for `Try`/`Either` as runtime-composable carriers
 where _failure-as-a-value_ is the requirement, and for persistent
 collections with structural sharing — both gaps not yet filled in
-Groovy core.
+Groovy core. The `Try`/`Either` gap is the subject of
+link:../wiki/GEP-24.html[GEP-24], a Groovy 7 candidate that proposes
+spec-side `@Raises` + `ExceptionChecker` and carrier-side `Result<T>`
+following the same two-layer pattern used elsewhere in this post.
 
 == References
 
 * link:../wiki/GEP-23.html[GEP-23 — Monadic comprehensions]
+* link:../wiki/GEP-24.html[GEP-24 — Errors as values: compile-time `Try` without the wrapper] (Groovy 7 candidate)
 * link:../releasenotes/groovy-6.0.html#type-checking-extensions[Groovy 6 release notes — type checking extensions]
 * link:../releasenotes/groovy-6.0.html#human-ai-reasoning[Groovy 6 release notes — Designed for Human and AI Reasoning]
 * link:../wiki/GEP-16.html[GEP-16 — `val` keyword]
