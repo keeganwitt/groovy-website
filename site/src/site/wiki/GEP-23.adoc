@@ -7,13 +7,13 @@
 [horizontal,options="compact"]
 *Number*:: GEP-23
 *Title*:: Monadic comprehensions
-*Version*:: 3
+*Version*:: 4
 *Type*:: Feature
-*Status*:: Draft
-*Comment*:: Targeted for Groovy 6.0 via the `DO` macro; the feature is incubating and subject to change
+*Status*:: Final
+*Comment*:: Delivered in Groovy 6.0 as an incubating feature via the `DO` macro; subject to refinement during the 6.x line
 *Leader*:: Paul King
 *Created*:: 2026-05-19
-*Last modification*:: 2026-05-21
+*Last modification*:: 2026-05-22
 ****
 
 == Abstract: Monadic comprehensions
@@ -559,6 +559,15 @@ module (since 6.0.0)
 * GROOVY-12021: Initial implementation of the `DO` monadic-comprehension macro and related type checkers.
 
 == Update history
+
+4 (2026-05-22) Status moved from Draft to Final on merge of
+https://github.com/apache/groovy/pull/2545[PR #2545] (GROOVY-12021).
+The `DO` macro, the bind/map dispatcher, the `@Monadic` annotation, the
+standard carrier registry (including the Functional Java and Vavr
+by-name entries), `MonadicChecker` and `MonadicShapeChecker` all ship
+in Groovy 6.0 as incubating. No spec-level changes from version 3;
+the user-configurable carrier registration channel remains deferred to
+Groovy 7.0.
 
 3 (2026-05-21) Extends the standard by-name allow-list to recognise the
 Vavr control carriers (`io.vavr.control.Option`, `io.vavr.control.Try`,

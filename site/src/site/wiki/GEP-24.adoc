@@ -767,10 +767,12 @@ indicate programmer error, not domain failure).
 
 == Status of related work
 
-This GEP composes with several other in-flight features:
+This GEP composes with several existing or in-flight Groovy features:
 
-* <<gep-23,GEP-23>> (DO and `MonadicChecker`) — `Result<T>` is a new entry
-in the same registry; depends on GEP-23 landing first.
+* <<gep-23,GEP-23>> (DO and `MonadicChecker`) — landed in Groovy 6.0
+(incubating); `Result<T>` would be a new entry in the same standard
+carrier registry, alongside the Functional Java and Vavr entries
+shipped in 6.0.
 * `Awaitable.exceptionally` (Groovy 6) — provides the asynchronous sibling
 of `Result.recover`; `Result.toAwaitable()` is the bridge.
 * `NullChecker` (Groovy 6) — provides the template `ExceptionChecker`

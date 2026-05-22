@@ -47,6 +47,7 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - New <<type-checking-extensions,`NullChecker`>> type checker with an optional flow-sensitive `strict` mode requiring no annotations.
 - `@Modifies` frame conditions and `@Pure` purity declarations, verified at compile time by `ModifiesChecker` and `PurityChecker`.
 - `CombinerChecker` verifies parallel-reduction combiners are associative, via new `@Associative`/`@Reducer` declarations.
+- <<monadic-comprehensions,`DO` macro>> for `for`/`do`-style monadic comprehensions across the standard JVM carriers, FunctionalJava and Vavr control types, and user `@Monadic` types — with `MonadicChecker` and `MonadicShapeChecker` enforcing the carrier shape at compile time.
 - <<groovy-contracts,Loop invariants and termination measures>> via `@Invariant`/`@Decreases`.
 - Contracts (`@Requires`, `@Ensures`, `@Invariant`) now also work in scripts.
 - Each method becomes a self-contained specification — readable without descending into bodies.
@@ -903,6 +904,146 @@ Targets: `CONSTRUCTOR`, `METHOD` (both `@Modifies` and `@Pure`).
 statements as a class-level invariant for the script.
 | https://issues.apache.org/jira/browse/GROOVY-11885[GROOVY-11885]
 |===
+
+[[monadic-comprehensions]]
+== Monadic Comprehensions (incubating)
+
+Groovy 6 introduces `DO` — a comprehension macro that gives Scala
+`for`-comprehension and Haskell `do`-notation ergonomics to any type
+with monadic shape. See link:../wiki/GEP-23.html[GEP-23: Monadic
+comprehensions]
+(https://issues.apache.org/jira/browse/GROOVY-12021[GROOVY-12021]) for
+the full specification.
+
+A `DO` block rewrites at compile time to a chain of bind operations on
+a participating *carrier* type. The notation reads top-to-bottom;
+short-circuiting (empty `Optional`, failed `Try`, failed `Awaitable`)
+is delivered by the carrier rather than by the macro.
+
+[source,groovy]
+----
+import static org.apache.groovy.macrolib.MacroLibGroovyMethods.DO
+
+@TypeChecked(extensions = 'groovy.typecheckers.MonadicChecker')
+Optional<String> greet(Map<String, String> users, String userId) {
+    DO(user in Optional.ofNullable(users[userId]),
+       name in Optional.ofNullable(user.split(/\|/)[0])) {
+        Optional.of("Hello, $name!".toString())
+    }
+}
+
+assert greet([u42: 'Alice|admin'], 'u42').get() == 'Hello, Alice!'
+assert greet([u42: 'Alice|admin'], 'u99') == Optional.empty()
+----
+
+The same shape works over `Stream`, `CompletableFuture`,
+gapi:groovy.concurrent.Awaitable[Awaitable] and
+gapi:groovy.concurrent.DataflowVariable[DataflowVariable], and over
+FunctionalJava and Vavr control carriers (recognised by name, no
+Groovy dependency on the library).
+
+=== Carrier participation
+
+A type participates as a carrier via one of four routes:
+
+. *Standard allow-list (by type).* Stdlib and Groovy-core carriers
+recognised by `Class`: `Optional`, `Stream`, `CompletionStage`
+(covering `CompletableFuture`), and `Awaitable` (covering
+`DataflowVariable`).
+. *Standard allow-list (by name).* Common third-party carriers
+recognised by fully-qualified name, with no Groovy dependency on the
+library:
++
+[cols="2,1,1",options="header"]
+|===
+| Carrier | bind | map
+| `fj.data.Option`             | `bind`    | `map`
+| `fj.data.List`               | `bind`    | `map`
+| `fj.data.Stream`             | `bind`    | `map`
+| `fj.data.Validation`         | `bind`    | `map`
+| `fj.P1`                      | `bind`    | `map`
+| `io.vavr.control.Option`     | `flatMap` | `map`
+| `io.vavr.control.Try`        | `flatMap` | `map`
+| `io.vavr.control.Either`     | `flatMap` | `map`
+| `io.vavr.control.Validation` | `flatMap` | `map`
+|===
+. *Structural match.* A type that exposes a single-argument `flatMap`
+(and, for the map role, `map`) qualifies without further declaration.
+. *gapi:groovy.transform.Monadic[@Monadic] opt-in.* A user type that
+declares the annotation participates even when its method names diverge
+from the structural convention. The annotation may name alternative
+`bind` / `map` methods.
+
+=== `MonadicChecker` and `MonadicShapeChecker`
+
+Under `@CompileStatic`/`@TypeChecked`,
+gapi:groovy.typecheckers.MonadicChecker[MonadicChecker] enforces
+carrier participation, asserts the closure-return shape of `DO` chains
+(catching bare-value and cross-carrier bodies), and restores the
+comprehension's static result type through the rewritten chain. It is
+activated the same way as every other type-checking extension —
+`@TypeChecked(extensions = 'groovy.typecheckers.MonadicChecker')`,
+already shown in the example above.
+
+gapi:groovy.typecheckers.MonadicShapeChecker[MonadicShapeChecker] is a
+sibling extension that lints hand-written
+`flatMap`/`map`/`thenCompose`/`thenApply` chains over the same carrier
+set, independent of `DO`. It catches three high-confidence problems:
+`flatMap` returning a non-carrier, `flatMap` returning a different
+carrier, and `map` returning the same carrier (the `M<M<T>>`
+foot-gun). The first two would be compile errors in Java, but Groovy's
+single-abstract-method coercion of closures normally lets them
+through; the checker restores the Java guarantee. The third compiles
+cleanly in both Java and Groovy — an `Optional<Optional<Integer>>` is
+a well-typed value, just (almost certainly) not the one the author
+intended.
+
+The two extensions are complementary but independent: `MonadicChecker`
+covers `DO`-macro rewrites, `MonadicShapeChecker` covers native chains.
+Code that mixes both forms may opt into both.
+
+=== Feature summary
+
+[cols="1,3,1", options="header"]
+|===
+| Feature | Description | Ticket
+
+| `DO` macro
+| Compile-time rewrite of generator/body comprehensions into a chain
+of bind operations on a participating carrier. Recognises stdlib and
+Groovy-core carriers by type; FunctionalJava and Vavr control carriers
+by fully-qualified name; structural and `@Monadic`-keyed user
+carriers.
+| https://issues.apache.org/jira/browse/GROOVY-12021[GROOVY-12021]
+
+| gapi:groovy.transform.Monadic[@Monadic]
+| Opt-in marker for user types whose bind/map methods diverge from the
+structural convention. Optional `bind` / `map` attributes name the
+methods.
+| https://issues.apache.org/jira/browse/GROOVY-12021[GROOVY-12021]
+
+| gapi:groovy.typecheckers.MonadicChecker[MonadicChecker]
+| Type-checking extension that enforces carrier participation, the
+closure-return shape of `DO` chains, and the comprehension's result
+type under `@CompileStatic`/`@TypeChecked`.
+| https://issues.apache.org/jira/browse/GROOVY-12021[GROOVY-12021]
+
+| gapi:groovy.typecheckers.MonadicShapeChecker[MonadicShapeChecker]
+| Sibling extension that lints hand-written
+`flatMap`/`map`/`thenCompose`/`thenApply` chains over the same carrier
+set, independent of `DO`.
+| https://issues.apache.org/jira/browse/GROOVY-12021[GROOVY-12021]
+
+| Carrier registry
+| Standard allow-list shared by the runtime bind/map dispatcher and
+the type-checking extensions; covers stdlib carriers by type and
+FunctionalJava / Vavr carriers by name.
+| https://issues.apache.org/jira/browse/GROOVY-12021[GROOVY-12021]
+|===
+
+See link:../wiki/GEP-23.html[GEP-23] for the full specification, the
+desugaring rules, the carrier-shape requirements, and the relationship
+to `for await` / parallel collections / actors and agents.
 
 [[type-checking-extensions]]
 == Type Checking Extensions
