@@ -30,7 +30,9 @@ import model.Page
 import model.Section
 import model.SectionItem
 import model.SiteMap
+import org.asciidoctor.Attributes
 import org.asciidoctor.Options
+import org.asciidoctor.SafeMode
 import org.asciidoctor.ast.Document
 
 import java.nio.file.FileSystems
@@ -272,12 +274,10 @@ class SiteGenerator {
         Map<String, Document> blogList = [:]
         Map<String, String> contents = [:]
         Map<String, String> baseDirs = [:]
-        def options = Options.builder().build()
+        Map<String, String> imageDirs = [:]
         blogDir.eachFileRecurse { f ->
             if (f.name.endsWith('.adoc')) {
                 def bn = f.name.substring(0, f.name.lastIndexOf('.adoc'))
-                def doc = asciidoctor.loadFile(f, options)
-                println "Rendering $bn"
                 def relativePath = []
                 def p = f.parentFile
                 while (p != blogDir) {
@@ -285,9 +285,35 @@ class SiteGenerator {
                     p = p.parentFile
                 }
                 String baseDir = relativePath ? "blog${File.separator}${relativePath.join(File.separator)}" : 'blog'
+                // asciidoctor-diagram extensions fire during loadFile
+                // (parse) as well as during the later convert() call.
+                // Without imagesoutdir set here, generated images and
+                // their .cache sidecars land next to the .adoc source
+                // file. Setting it on the loadFile options keeps the
+                // source tree clean; the convert() call below also
+                // sets it (via the blog.groovy template) so the actual
+                // <img> reference resolves at output time.
+                def blogImgDir = new File(outputDir, baseDir + File.separator + 'img')
+                blogImgDir.mkdirs()
+                def attrs = Attributes.builder()
+                        .attribute('imagesoutdir', blogImgDir.absolutePath)
+                        .attribute('imagesdir', 'img')
+                        .build()
+                // SafeMode.UNSAFE lets asciidoctor-diagram write to
+                // imagesoutdir even though it's outside the source-file
+                // jail. Without this, safe mode rejects the absolute
+                // path and recovers by writing the image + .cache file
+                // next to the .adoc source — polluting the source tree.
+                def options = Options.builder()
+                        .safe(SafeMode.UNSAFE)
+                        .attributes(attrs)
+                        .build()
+                def doc = asciidoctor.loadFile(f, options)
+                println "Rendering $bn"
                 blogList[bn] = doc
                 contents[bn] = f.getText('utf-8')
                 baseDirs[bn] = baseDir
+                imageDirs[bn] = blogImgDir.absolutePath
             }
         }
         Map<String, Set> keywords = [:]
@@ -307,7 +333,12 @@ class SiteGenerator {
         }
         blogList.keySet().each { bn ->
             def sorted = related[bn].findAll { it.value as int > 1 }.sort { it.value }.keySet().toList().reverse()
-            render 'blog', bn, [notes: contents[bn], doc: blogList[bn], related: sorted.collectEntries { [it, blogList[it].structuredDoctitle.combined] }], baseDirs[bn]
+            render 'blog', bn, [
+                    notes: contents[bn],
+                    doc: blogList[bn],
+                    related: sorted.collectEntries { [it, blogList[it].structuredDoctitle.combined] },
+                    imagesoutdir: imageDirs[bn]
+            ], baseDirs[bn]
         }
         render 'blogs', "index", [list: blogList], 'blog'
         renderBlogFeed blogList, 'blog'

@@ -41,6 +41,10 @@ dependencies {
         //exclude(group: 'org.jruby', module: 'jruby-complete')
     }
     implementation "org.asciidoctor:asciidoctorj-diagram:$asciidoctorDiagram"
+    // asciidoctorj-diagram brings asciidoctorj-diagram-plantuml in at
+    // runtime scope (versioned per PlantUML release, e.g. 1.2023.13 for
+    // diagram 2.2.17), so [plantuml,…] blocks render without depending
+    // on an external plantuml CLI being installed on the build machine.
     //compile "org.jruby:jruby-complete:9.1.17.0"
 }
 

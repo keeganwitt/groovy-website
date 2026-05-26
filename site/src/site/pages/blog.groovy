@@ -6,6 +6,7 @@ modelTypes = {
     String title
     String notes
     Map<String, String> related
+    String imagesoutdir
 }
 
 title = doc.structuredDoctitle.combined
@@ -26,7 +27,15 @@ layout 'layouts/main.groovy', true,
             script { yieldUnescaped "document.addEventListener('DOMContentLoaded',prettyPrint)" }
         },
         mainContent: contents {
-            Map options = [attributes:[DOCS_BASEURL:DocUtils.DOCS_BASEURL]]
+            // imagesoutdir + imagesdir let asciidoctor-diagram write
+            // generated images (e.g. from [plantuml,…] blocks) into
+            // blog/img/ and emit relative `img/…` references that
+            // match the convention used for pre-rendered blog images.
+            Map options = [attributes:[
+                    DOCS_BASEURL: DocUtils.DOCS_BASEURL,
+                    imagesoutdir: imagesoutdir,
+                    imagesdir   : 'img'
+            ]]
             def notesAsHTML = asciidocText(notes,options)
             def matcher = notesAsHTML =~ /<h2 id="(.+?)">(.+?)<\/h2>/
             def sections = [:]
