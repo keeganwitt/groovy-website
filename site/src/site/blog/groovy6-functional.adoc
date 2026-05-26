@@ -678,8 +678,6 @@ visual sugar:
 
 [source,groovy]
 ----
-import static groovy.wire.macro.WireMacroMethods.WIRE
-
 def wc = WIRE(WordCountPrimitives, 'WordCount', ['path']) {
     text  << loadText(path)
     words << countWords(text)
