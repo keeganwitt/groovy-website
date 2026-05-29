@@ -27,14 +27,18 @@ layout 'layouts/main.groovy', true,
             script { yieldUnescaped "document.addEventListener('DOMContentLoaded',prettyPrint)" }
         },
         mainContent: contents {
-            // imagesoutdir + imagesdir let asciidoctor-diagram write
-            // generated images (e.g. from [plantuml,…] blocks) into
-            // blog/img/ and emit relative `img/…` references that
-            // match the convention used for pre-rendered blog images.
+            // imagesoutdir tells asciidoctor-diagram where to write
+            // generated images (e.g. from [plantuml,…] blocks) — it
+            // points at blog/img/. imagesdir is '.' so it is not
+            // prepended to image targets: pre-rendered blog images
+            // already carry the `img/` prefix in their macros, and
+            // diagram blocks supply it via their target (e.g.
+            // [plantuml,img/WordCount,svg]). Anything other than '.'
+            // here double-prefixes the pre-rendered images (img/img/…).
             Map options = [attributes:[
                     DOCS_BASEURL: DocUtils.DOCS_BASEURL,
                     imagesoutdir: imagesoutdir,
-                    imagesdir   : 'img'
+                    imagesdir   : '.'
             ]]
             def notesAsHTML = asciidocText(notes,options)
             def matcher = notesAsHTML =~ /<h2 id="(.+?)">(.+?)<\/h2>/

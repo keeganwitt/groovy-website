@@ -297,7 +297,7 @@ class SiteGenerator {
                 blogImgDir.mkdirs()
                 def attrs = Attributes.builder()
                         .attribute('imagesoutdir', blogImgDir.absolutePath)
-                        .attribute('imagesdir', 'img')
+                        .attribute('imagesdir', '.')
                         .build()
                 // SafeMode.UNSAFE lets asciidoctor-diagram write to
                 // imagesoutdir even though it's outside the source-file

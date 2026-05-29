@@ -746,7 +746,7 @@ you'd rather skip the metadata altogether.
 same compile-time pass that emitted the executor — not hand-drawn,
 not maintained separately, regenerated on every build:
 
-[plantuml,WordCount,svg]
+[plantuml,img/WordCount,svg]
 ----
 @startuml WordCount
 left to right direction
