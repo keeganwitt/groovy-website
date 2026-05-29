@@ -293,10 +293,20 @@ class SiteGenerator {
                 // source tree clean; the convert() call below also
                 // sets it (via the blog.groovy template) so the actual
                 // <img> reference resolves at output time.
-                def blogImgDir = new File(outputDir, baseDir + File.separator + 'img')
+                //
+                // imagesoutdir is the blog *page* output dir and imagesdir
+                // is '.', so neither is prepended to an image target: both
+                // hand-authored macros (image:img/foo.png) and diagram
+                // blocks ([plantuml,img/Foo,svg]) carry the 'img/' prefix
+                // themselves. That keeps the written file and the emitted
+                // <img> reference in agreement at blog/img/… — setting
+                // imagesoutdir at blog/img/ instead would write diagrams to
+                // blog/img/img/… while the reference still points at blog/img/.
+                def blogPageDir = new File(outputDir, baseDir)
+                def blogImgDir = new File(blogPageDir, 'img')
                 blogImgDir.mkdirs()
                 def attrs = Attributes.builder()
-                        .attribute('imagesoutdir', blogImgDir.absolutePath)
+                        .attribute('imagesoutdir', blogPageDir.absolutePath)
                         .attribute('imagesdir', '.')
                         .build()
                 // SafeMode.UNSAFE lets asciidoctor-diagram write to
@@ -313,7 +323,7 @@ class SiteGenerator {
                 blogList[bn] = doc
                 contents[bn] = f.getText('utf-8')
                 baseDirs[bn] = baseDir
-                imageDirs[bn] = blogImgDir.absolutePath
+                imageDirs[bn] = blogPageDir.absolutePath
             }
         }
         Map<String, Set> keywords = [:]

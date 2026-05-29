@@ -29,12 +29,16 @@ layout 'layouts/main.groovy', true,
         mainContent: contents {
             // imagesoutdir tells asciidoctor-diagram where to write
             // generated images (e.g. from [plantuml,…] blocks) — it
-            // points at blog/img/. imagesdir is '.' so it is not
-            // prepended to image targets: pre-rendered blog images
-            // already carry the `img/` prefix in their macros, and
+            // points at the blog *page* dir (blog/…). imagesdir is '.'
+            // so it is not prepended to image targets: pre-rendered blog
+            // images already carry the `img/` prefix in their macros, and
             // diagram blocks supply it via their target (e.g.
-            // [plantuml,img/WordCount,svg]). Anything other than '.'
-            // here double-prefixes the pre-rendered images (img/img/…).
+            // [plantuml,img/WordCount,svg]). Both the written file and the
+            // emitted <img> reference therefore resolve at blog/img/….
+            // Anything other than '.' here double-prefixes the pre-rendered
+            // images (img/img/…); pointing imagesoutdir at blog/img/ instead
+            // writes diagrams to blog/img/img/… while the reference still
+            // points at blog/img/ — see generator's SiteGenerator.groovy.
             Map options = [attributes:[
                     DOCS_BASEURL: DocUtils.DOCS_BASEURL,
                     imagesoutdir: imagesoutdir,
