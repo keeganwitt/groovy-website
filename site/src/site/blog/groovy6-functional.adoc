@@ -1141,7 +1141,12 @@ in-tree checkers are open to library authors: a `WIRE { name <<
 call(args) }` proc-notation macro that compiles to literal
 `async { df.X = … }` Groovy 6 dataflow code, with bound-name,
 existence and arity checks at expansion time, ports the
-WireCat cartesian-categories idea on the same SPI surface.
+WireCat cartesian-categories idea on the same SPI surface. The
+same surface reaches further still — a type-checking extension
+that runs an SMT solver during compilation turns a contract-grade
+`@Requires` proof-grade for a linear-integer fragment, emitting
+Dafny-style counterexamples: a theorem prover hosted in `groovyc`,
+no compiler change required.
 
 For new code on the JVM, the takeaway is that `@Pure`, `@Modifies`,
 `@Associative` and `@Reducer` cover most of what teams used
