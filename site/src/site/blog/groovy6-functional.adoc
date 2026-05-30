@@ -846,7 +846,7 @@ No compiler change, no GEP. The pattern this post has been describing
 — transfers cleanly to library authors using only the SPI hooks the
 Groovy team uses to build the in-tree checkers.
 
-== From contract-grade to proof-grade: an SMT-backed precondition checker
+== From contract-grade to proof-grade: an SMT-backed precondition and postcondition checker
 
 The previous demo wrote a *structural* checker — names, arity, field
 flow. This one writes a *semantic* one, and it is worth dwelling on
@@ -868,11 +868,13 @@ the call site. Dafny and OpenJML close that gap with an SMT solver.
 
 Here is the part that might be surprising: for a tractable fragment, you can
 close it in Groovy *today* — no compiler change, no GEP — by putting a
-solver behind a type-checking extension. The spike below scopes itself
-to exactly one check (preconditions) over one fragment (linear integer
-arithmetic, comparisons, and booleans). Anything outside that fragment
-is reported as a loud "skipped", never a silent pass — OpenJML's
-ESC-mode discipline, kept honest.
+solver behind a type-checking extension. The spike below covers two of
+those checks (preconditions and postconditions) over one fragment
+(linear integer arithmetic, comparisons, and booleans). Anything
+outside that fragment is reported as a loud "skipped", never a silent
+pass — OpenJML's ESC-mode discipline, kept honest.
+
+Let's start by exploring preconditions.
 
 === Producer side
 
@@ -966,18 +968,50 @@ And the rejections all arrive with a refuting model: the bare literal
 `isqrt(-1)` (`x = -1`), the unguarded `isqrt(n)` (`n = -1`), and the
 contradictory `if (n < 0) isqrt(n)` (`n = -1`).
 
+=== Postconditions, too
+
+The same machinery checks `@Ensures` postconditions — proving what a
+method *returns*, not just what its callers pass. The one structural
+difference is that a postcondition is verified against the method's own
+body, so the class declaring it is itself `@TypeChecked`. A wrong
+result is refuted just like a precondition, with the values that break
+it:
+
+[source,groovy]
+----
+@Ensures({ result >= a && result >= b })
+static int max(int a, int b) {
+    if (a > b) b else a   // returns the wrong branch
+}
+----
+
+[source]
+----
+[Static type checking] - Cannot prove postcondition of max holds on this return path
+    ensured: ((result >= a) && (result >= b))
+    counterexample: a = 0, b = 1
+----
+
+Swap the branches back to `if (a > b) a else b` and it verifies. The
+checker walks every execution path of the body — straight-line code,
+`if`/`else`, single-assignment locals — and discharges the obligation
+on each; the companion repo's `MinMax`/`BadEnsures` carry the worked
+examples.
+
 === What's checked, what isn't
 
-Same honesty as the wire demo. The checker reasons about the *argument
-expression* and the *enclosing `if` guards*, and nothing else. It does
-not symbolically execute the method body, so an intermediate local —
-`int sq = k * 1; isqrt(sq)` — is outside scope: `sq` is an
-unconstrained variable as far as the call site is concerned. Anything
-beyond the linear-integer fragment (division, method calls, arrays,
-quantifiers) is reported as skipped, loudly, rather than waved through.
-That is the same trade made throughout this post: flow-sensitive work
-lives outside the type system, declarations carry the contract, and
-the type stays simple while the checker does the work.
+Same honesty as the wire demo, and the scope differs by mode. At a
+*call site*, the precondition check reasons about the argument
+expression and the enclosing `if` guards only — it does not track local
+assignments there, so `int sq = k * 1; isqrt(sq)` is outside scope
+(`sq` is unconstrained at the call). For a *postcondition*, the body
+walker does follow each execution path through straight-line code,
+`if`/`else` and single-assignment locals. Either way the edges of the
+fragment — loops, re-assignment, method calls, division, arrays,
+quantifiers — are reported as skipped, loudly, rather than waved
+through. That is the same trade made throughout this post:
+flow-sensitive work lives outside the type system, declarations carry
+the contract, and the type stays simple while the checker does the work.
 
 One engineering detail is worth surfacing because it reframes what a
 type-checking extension *is*. This extension does not merely reference
@@ -989,15 +1023,13 @@ perfectly fine thing for it to do.
 === Where it could go
 
 The scaffold generalises along the lines OpenJML's taxonomy suggests,
-each a new obligation site on the same solver pipeline: array-bounds
-and division-by-zero as *implicit* preconditions (`0 <= i && i <
+each a new obligation site on the same solver pipeline. Postconditions
+already work (above); the natural next steps are array-bounds and
+division-by-zero as *implicit* preconditions (`0 <= i && i <
 arr.size()`, `divisor != 0`) fired automatically at each index or
-division; then `@Ensures` postconditions, which need symbolic
-execution of the body — the jump from per-call to per-method
-reasoning; then `@Invariant`/`@Decreases` as the classical inductive
-loop proof. Each is strictly smaller than a GEP, and none needs a
-compiler change. The spike deliberately ships one check done well
-rather than five done shakily.
+division, and then `@Invariant`/`@Decreases` as the classical
+inductive loop proof. Each is strictly smaller than a GEP, and none
+needs a compiler change.
 
 === Where the code lives
 
@@ -1005,14 +1037,16 @@ Two subprojects under
 https://github.com/paulk-asert/groovy6-functional[`groovy6-functional`]:
 
 * https://github.com/paulk-asert/groovy6-functional/tree/main/verification[`verification/`]
-— a sibling `@Requires` annotation and its text-capturing transformation,
-the path-condition collector, the Groovy-to-SMT encoder, the
-`VerifyChecker` type-checking extension, and the Z3 backend.
+— sibling `@Requires`/`@Ensures` annotations and their text-capturing
+transformations, the path-condition collector and body-path walker,
+the Groovy-to-SMT encoder, the `VerifyChecker` type-checking extension,
+and the Z3 backend.
 Tweaking Groovy's existing `@Requires` wasn't pursued here but would be a natural next step if taking this further.
 * https://github.com/paulk-asert/groovy6-functional/tree/main/verification-demo[`verification-demo/`]
 — the `ISqrt` producer, a `GoodCalls` consumer that compiles only
-because every call is proven safe, and a `BadCalls` runner that
-prints the diagnostics for the wrong calls.
+because every call is proven safe, a `BadCalls` runner that prints the
+diagnostics for the wrong calls, and `MinMax`/`BadEnsures` doing the
+same for `@Ensures` postconditions.
 
 This is a spike, not a product — in the same spirit as WireCat, it
 demonstrates *reach*, not a finished tool. But the reach is the
@@ -1191,10 +1225,11 @@ builder and builder-with-checker variants, and the `verification`
 ****
 *30/May/2026*: Added "From contract-grade to proof-grade" section — a
 spike that puts a Z3 solver behind a `@TypeChecked` extension to
-discharge `@Requires` preconditions at compile time, with Dafny-style
-counterexamples, for a linear-integer fragment. Notes that Groovy's
-contract annotations echo Dafny's keywords and OpenJML's taxonomy.
-Two new companion subprojects, `verification` and `verification-demo`.
+discharge `@Requires` preconditions and `@Ensures` postconditions at
+compile time, with Dafny-style counterexamples, for a linear-integer
+fragment. Notes that Groovy's contract annotations echo Dafny's
+keywords and OpenJML's taxonomy. Two new companion subprojects,
+`verification` and `verification-demo`.
 
 *26/May/2026*: Added "Building your own checked DSL" section
 demonstrating the producer/consumer split transferred to library
