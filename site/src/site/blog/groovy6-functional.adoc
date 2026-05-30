@@ -246,7 +246,7 @@ There are four FP-flavoured facts the compiler now knows about
 * `post` may only modify `total` and `ledger`. Touch any other field
 and `ModifiesChecker` errors. This is the `State` monad's job
 (_what_ state can change) without the bind boilerplate.
-* `@Requires`/`@Ensures` are the Hoare-logic dual of `State`'s
+* `@Requires`/`@Ensures` are the Hoare-logic dual of the `State` monad's
 state-transition function — pre- and post-conditions, with `old.`
 referring to pre-state.
 * `balance` is pure _modulo logging_. Its `@TypeChecked` extension
