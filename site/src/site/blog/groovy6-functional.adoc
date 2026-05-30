@@ -846,6 +846,182 @@ No compiler change, no GEP. The pattern this post has been describing
 — transfers cleanly to library authors using only the SPI hooks the
 Groovy team uses to build the in-tree checkers.
 
+== From contract-grade to proof-grade: an SMT-backed precondition checker
+
+The previous demo wrote a *structural* checker — names, arity, field
+flow. This one writes a *semantic* one, and it is worth dwelling on
+how far the same SPI reaches.
+
+Look back at the `@Requires`/`@Ensures`/`@Invariant`/`@Decreases`
+surface from earlier. Those names were not invented for Groovy. They
+are, almost verbatim, the keywords of
+https://dafny.org[Dafny] — `requires`, `ensures`, `invariant`,
+`decreases` — and the diagnostic taxonomy (precondition, postcondition,
+loop invariant, negative index, division by zero, null dereference)
+is lifted from https://www.openjml.org[OpenJML]. The design-by-contract
+lineage runs back through Eiffel; Groovy's contribution is wearing it
+as annotations a type-checking extension can read. But as noted when
+they first appeared, the in-tree checkers are *contract-grade, not
+proof-grade*: the annotation states the obligation, and structural
+checks fire, but nothing discharges the verification condition against
+the call site. Dafny and OpenJML close that gap with an SMT solver.
+
+Here is the part that might be surprising: for a tractable fragment, you can
+close it in Groovy *today* — no compiler change, no GEP — by putting a
+solver behind a type-checking extension. The spike below scopes itself
+to exactly one check (preconditions) over one fragment (linear integer
+arithmetic, comparisons, and booleans). Anything outside that fragment
+is reported as a loud "skipped", never a silent pass — OpenJML's
+ESC-mode discipline, kept honest.
+
+=== Producer side
+
+The classic Dafny example, an integer square root that requires a
+non-negative input:
+
+[source,groovy]
+----
+class ISqrt {
+    @Requires({ x >= 0 })
+    static int isqrt(int x) {
+        (int) Math.sqrt((double) x)
+    }
+}
+----
+
+=== Consumer side
+
+Turn the checker on with `@TypeChecked(extensions = '…')` — no
+`@CompileStatic`, which suppresses extension-hook dispatch — and write
+ordinary code. Here is a call that *looks* guarded:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'verification.VerifyChecker')
+static int go(int n) {
+    if (n != 0) {
+        return ISqrt.isqrt(n)   // looks safe — but n could be -1
+    }
+    0
+}
+----
+
+The guard `n != 0` is the off-by-one a tired developer writes when
+they meant "not negative". The build does not let it through. As the
+type checker walks the body, the extension harvests the path condition
+from the enclosing `if`, asserts it together with the *negation* of
+the precondition, and asks Z3 whether that is satisfiable. It is — and
+the model is the counterexample:
+
+[source]
+----
+[Static type checking] - Cannot prove precondition of isqrt at this call site
+    required: (x >= 0)
+    counterexample: n = -1, x = -1
+----
+
+That last line is the whole point. The diagnostic does not say
+"constraint not satisfied"; it says *with `n = -1` it fails*, the way
+Dafny does — and here it is the default, not a `--counterexample`
+flag. Tighten the guard and the obligation discharges; the same code
+now compiles clean:
+
+[source,groovy]
+----
+if (n >= 0) {
+    return ISqrt.isqrt(n)   // verified: n >= 0 ⇒ x >= 0
+}
+----
+
+The almost-correct version, the message that names the bad value, the
+one-character fix, the green build — that loop is the experience a
+proof assistant gives you, running inside `groovyc`.
+
+=== What it proves
+
+The checker is reasoning, not pattern-matching. Each of these call
+shapes compiles because Z3 discharges `x >= 0`:
+
+[cols="2,3",options="header"]
+|===
+| Call shape | Why it verifies
+
+| `isqrt(5)`
+| Literal — `¬(5 >= 0)` is unsatisfiable.
+
+| `if (n >= 0) isqrt(n)`
+| Path condition matches the precondition exactly.
+
+| `if (n > 0) isqrt(n)`
+| `n > 0` strictly implies `n >= 0`; Z3 chains the inference.
+
+| `if (n < 0) … else isqrt(n)`
+| The `else` branch carries the negated guard, i.e. `n >= 0`.
+
+| `if (k > 0) isqrt(k * 1)`
+| Linear arithmetic over a literal multiplier, under `k > 0`.
+|===
+
+And the rejections all arrive with a refuting model: the bare literal
+`isqrt(-1)` (`x = -1`), the unguarded `isqrt(n)` (`n = -1`), and the
+contradictory `if (n < 0) isqrt(n)` (`n = -1`).
+
+=== What's checked, what isn't
+
+Same honesty as the wire demo. The checker reasons about the *argument
+expression* and the *enclosing `if` guards*, and nothing else. It does
+not symbolically execute the method body, so an intermediate local —
+`int sq = k * 1; isqrt(sq)` — is outside scope: `sq` is an
+unconstrained variable as far as the call site is concerned. Anything
+beyond the linear-integer fragment (division, method calls, arrays,
+quantifiers) is reported as skipped, loudly, rather than waved through.
+That is the same trade made throughout this post: flow-sensitive work
+lives outside the type system, declarations carry the contract, and
+the type stays simple while the checker does the work.
+
+One engineering detail is worth surfacing because it reframes what a
+type-checking extension *is*. This extension does not merely reference
+Z3 — it *runs* Z3 while the consumer compiles. A type-checking
+extension is just code on the compiler's classpath, free to call out
+to anything on the JVM; "runs a theorem prover during `groovyc`" is a
+perfectly fine thing for it to do.
+
+=== Where it could go
+
+The scaffold generalises along the lines OpenJML's taxonomy suggests,
+each a new obligation site on the same solver pipeline: array-bounds
+and division-by-zero as *implicit* preconditions (`0 <= i && i <
+arr.size()`, `divisor != 0`) fired automatically at each index or
+division; then `@Ensures` postconditions, which need symbolic
+execution of the body — the jump from per-call to per-method
+reasoning; then `@Invariant`/`@Decreases` as the classical inductive
+loop proof. Each is strictly smaller than a GEP, and none needs a
+compiler change. The spike deliberately ships one check done well
+rather than five done shakily.
+
+=== Where the code lives
+
+Two subprojects under
+https://github.com/paulk-asert/groovy6-functional[`groovy6-functional`]:
+
+* https://github.com/paulk-asert/groovy6-functional/tree/main/verification[`verification/`]
+— a sibling `@Requires` annotation and its text-capturing transformation,
+the path-condition collector, the Groovy-to-SMT encoder, the
+`VerifyChecker` type-checking extension, and the Z3 backend.
+Tweaking Groovy's existing `@Requires` wasn't pursued here but would be a natural next step if taking this further.
+* https://github.com/paulk-asert/groovy6-functional/tree/main/verification-demo[`verification-demo/`]
+— the `ISqrt` producer, a `GoodCalls` consumer that compiles only
+because every call is proven safe, and a `BadCalls` runner that
+prints the diagnostics for the wrong calls.
+
+This is a spike, not a product — in the same spirit as WireCat, it
+demonstrates *reach*, not a finished tool. But the reach is the
+message: the very SPI the Groovy team uses for its in-tree checkers
+is enough to host a real SMT solver and turn a contract-grade
+annotation proof-grade, for a fragment, with counterexamples, today.
+A hat-tip to Dafny for setting the counterexample-UX bar and to
+OpenJML for the loud-unknown discipline this spike borrows wholesale.
+
 == How it stacks up
 
 For a JVM-resident FP audience, the comparison set is FunctionalJava,
@@ -996,12 +1172,25 @@ following the same two-layer pattern used elsewhere in this post.
 * https://github.com/highj/highj[highj — lightweight HKT for Java]
 * https://vavr.io/[Vavr] — Java FP library with `Try`/`Either`/`Validation`/`Option` control carriers, persistent collections, tuples, and the `For(...).yield(...)` For-Comprehension form. The control carriers are in `DO`'s standard allow-list (Groovy 6).
 * https://guaraqe.com/posts/2026-05-24-why-cartesian-categories.html[WireCat: Visual Programming with Cartesian Categories] — the Haskell post that the `wire` demo is modelled on
-* https://github.com/paulk-asert/groovy6-functional[Companion code for this post] — six `wire-*`
+* https://dafny.org[Dafny] — the verification-aware language whose
+`requires`/`ensures`/`invariant`/`decreases` keywords and
+counterexample UX the contract annotations and the SMT spike echo
+* https://www.openjml.org[OpenJML] — JML + SMT for Java; source of the
+diagnostic taxonomy and the loud-"unknown"-over-silent-pass discipline
+* https://github.com/paulk-asert/groovy6-functional[Companion code for this post] — the `wire-*`
 subprojects covering the macro form (shown above) plus the
-builder and builder-with-checker variants
+builder and builder-with-checker variants, and the `verification`
+/ `verification-demo` subprojects for the SMT-backed precondition spike
 
 .Update history
 ****
+*30/May/2026*: Added "From contract-grade to proof-grade" section — a
+spike that puts a Z3 solver behind a `@TypeChecked` extension to
+discharge `@Requires` preconditions at compile time, with Dafny-style
+counterexamples, for a linear-integer fragment. Notes that Groovy's
+contract annotations echo Dafny's keywords and OpenJML's taxonomy.
+Two new companion subprojects, `verification` and `verification-demo`.
+
 *26/May/2026*: Added "Building your own checked DSL" section
 demonstrating the producer/consumer split transferred to library
 authors. The headline form is a `WIRE` macro using `<<` (the
