@@ -846,7 +846,7 @@ No compiler change, no GEP. The pattern this post has been describing
 — transfers cleanly to library authors using only the SPI hooks the
 Groovy team uses to build the in-tree checkers.
 
-== From contract-grade to proof-grade: an SMT-backed precondition and postcondition checker
+== From contract-grade to proof-grade: an SMT-backed precondition, postcondition, and loop checker
 
 The previous demo wrote a *structural* checker — names, arity, field
 flow. This one writes a *semantic* one, and it is worth dwelling on
@@ -868,8 +868,9 @@ the call site. Dafny and OpenJML close that gap with an SMT solver.
 
 Here is the part that might be surprising: for a tractable fragment, you can
 close it in Groovy *today* — no compiler change, no GEP — by putting a
-solver behind a type-checking extension. The spike below covers two of
-those checks (preconditions and postconditions) over one fragment
+solver behind a type-checking extension. The spike below covers
+preconditions, postconditions, and loops (`@Invariant` plus a
+`@Decreases` termination measure) over one fragment
 (linear integer arithmetic, comparisons, and booleans). Anything
 outside that fragment is reported as a loud "skipped", never a silent
 pass — OpenJML's ESC-mode discipline, kept honest.
@@ -923,10 +924,9 @@ the model is the counterexample:
 ----
 
 That last line is the whole point. The diagnostic does not say
-"constraint not satisfied"; it says *with `n = -1` it fails*, the way
-Dafny does — and here it is the default, not a `--counterexample`
-flag. Tighten the guard and the obligation discharges; the same code
-now compiles clean:
+"constraint not satisfied"; it says *with `n = -1` it fails*, as Dafny
+does if you ask it (via `--counterexample`). Tighten the guard and the
+obligation discharges; the same code now compiles clean:
 
 [source,groovy]
 ----
@@ -998,24 +998,64 @@ checker walks every execution path of the body — straight-line code,
 on each; the companion repo's `MinMax`/`BadEnsures` carry the worked
 examples.
 
+=== Loops, too
+
+Loops are the classical inductive case, and the same solver handles them
+straight from the *stock* `@groovy.contracts.Invariant`/`@Decreases`
+that groovy-contracts already runtime-checks. Each annotated `while`
+raises four obligations (establishment,
+preservation, use, and — from `@Decreases` — termination), and a broken
+one is named, with a counterexample:
+
+[source,groovy]
+----
+@Requires({ n >= 0 })
+@Ensures({ result == n })
+static int countUp(int n) {
+    int i = 0
+    @Invariant({ 0 <= i && i <= n })
+    @Decreases({ n - i })
+    while (i < n) {
+        i = i + 2   // overshoots n — the invariant is not preserved
+    }
+    return i
+}
+----
+
+[source]
+----
+[Static type checking] - Cannot prove loop invariant is preserved by the loop body in countUp
+    invariant: ((0 <= i) && (i <= n))
+    counterexample: i = 0, n = 1
+----
+
+Restore `i = i + 1` and all four obligations discharge; weaken the
+invariant or break the measure and the diagnostic points at exactly
+which one fails. Because the annotations are the stock ones, the same
+loop also keeps its groovy-contracts runtime check — proof-grade at
+compile time, contract-grade at run time, from one declaration. The
+companion repo's `Loops`/`BadLoops` carry one mutant per obligation.
+
 === What's checked, what isn't
 
-Same honesty as the wire demo, and the scope differs by mode. At a
+The scope differs by mode. At a
 *call site*, the precondition check reasons about the argument
 expression and the enclosing `if` guards only — it does not track local
 assignments there, so `int sq = k * 1; isqrt(sq)` is outside scope
 (`sq` is unconstrained at the call). For a *postcondition*, the body
-walker does follow each execution path through straight-line code,
-`if`/`else` and single-assignment locals. Either way the edges of the
-fragment — loops, re-assignment, method calls, division, arrays,
-quantifiers — are reported as skipped, loudly, rather than waved
-through. That is the same trade made throughout this post:
+walker follows each execution path through straight-line code,
+`if`/`else` and single-assignment locals; a `while` carrying an
+`@Invariant` is discharged inductively (its body may re-assign). The
+remaining edges of the fragment — un-annotated loops, method calls,
+division, arrays, quantifiers, non-linear arithmetic — are reported as
+skipped, loudly, rather than waved through. That is the same trade made
+throughout this post:
 flow-sensitive work lives outside the type system, declarations carry
 the contract, and the type stays simple while the checker does the work.
 
-One engineering detail is worth surfacing because it reframes what a
-type-checking extension *is*. This extension does not merely reference
-Z3 — it *runs* Z3 while the consumer compiles. A type-checking
+One engineering detail reframes what a type-checking extension *is*:
+this extension does not merely reference Z3 — it *runs* Z3 while the
+consumer compiles. A type-checking
 extension is just code on the compiler's classpath, free to call out
 to anything on the JVM; "runs a theorem prover during `groovyc`" is a
 perfectly fine thing for it to do.
@@ -1024,12 +1064,12 @@ perfectly fine thing for it to do.
 
 The scaffold generalises along the lines OpenJML's taxonomy suggests,
 each a new obligation site on the same solver pipeline. Postconditions
-already work (above); the natural next steps are array-bounds and
-division-by-zero as *implicit* preconditions (`0 <= i && i <
+and loops already work (above); the natural next steps are array-bounds
+and division-by-zero as *implicit* preconditions (`0 <= i && i <
 arr.size()`, `divisor != 0`) fired automatically at each index or
-division, and then `@Invariant`/`@Decreases` as the classical
-inductive loop proof. Each is strictly smaller than a GEP, and none
-needs a compiler change.
+division, and then bounded quantifiers for sortedness and
+"every element satisfies P" facts. Each is strictly smaller than a GEP,
+and none needs a compiler change.
 
 === Where the code lives
 
@@ -1037,16 +1077,18 @@ Two subprojects under
 https://github.com/paulk-asert/groovy6-functional[`groovy6-functional`]:
 
 * https://github.com/paulk-asert/groovy6-functional/tree/main/verification[`verification/`]
-— sibling `@Requires`/`@Ensures` annotations and their text-capturing
-transformations, the path-condition collector and body-path walker,
-the Groovy-to-SMT encoder, the `VerifyChecker` type-checking extension,
-and the Z3 backend.
-Tweaking Groovy's existing `@Requires` wasn't pursued here but would be a natural next step if taking this further.
+— a `CONVERSION`-phase transform that captures each stock
+`@groovy.contracts` contract's source text into a `@ContractSource` the
+checker can read back (the built-in annotation keeps only a generated
+closure class, so the text would otherwise be gone), the path-condition
+collector, the body-path walker and loop verifier, the Groovy-to-SMT
+encoder, the `VerifyChecker` type-checking extension, and the Z3 backend.
 * https://github.com/paulk-asert/groovy6-functional/tree/main/verification-demo[`verification-demo/`]
 — the `ISqrt` producer, a `GoodCalls` consumer that compiles only
 because every call is proven safe, a `BadCalls` runner that prints the
-diagnostics for the wrong calls, and `MinMax`/`BadEnsures` doing the
-same for `@Ensures` postconditions.
+diagnostics for the wrong calls, `MinMax`/`BadEnsures` doing the same
+for `@Ensures` postconditions, and `Loops`/`BadLoops` for
+`@Invariant`/`@Decreases` loop proofs.
 
 This is a spike, not a product — in the same spirit as WireCat, it
 demonstrates *reach*, not a finished tool. But the reach is the
