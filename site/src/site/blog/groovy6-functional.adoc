@@ -1267,11 +1267,12 @@ builder and builder-with-checker variants, and the `verification`
 ****
 *30/May/2026*: Added "From contract-grade to proof-grade" section — a
 spike that puts a Z3 solver behind a `@TypeChecked` extension to
-discharge `@Requires` preconditions and `@Ensures` postconditions at
-compile time, with Dafny-style counterexamples, for a linear-integer
-fragment. Notes that Groovy's contract annotations echo Dafny's
-keywords and OpenJML's taxonomy. Two new companion subprojects,
-`verification` and `verification-demo`.
+discharge `@Requires` preconditions, `@Ensures` postconditions, and
+`@Invariant`/`@Decreases` loops at compile time, with Dafny-style
+counterexamples, for a linear-integer fragment. It reads Groovy's
+built-in `@groovy.contracts` annotations directly, and notes how their
+names echo Dafny's keywords and OpenJML's taxonomy. Two new companion
+subprojects, `verification` and `verification-demo`.
 
 *26/May/2026*: Added "Building your own checked DSL" section
 demonstrating the producer/consumer split transferred to library
