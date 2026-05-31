@@ -10,11 +10,13 @@ Paul King <paulk-asert|PMC_Member>
 What's the best way to do functional programming on the JVM?
 
 Groovy starts by inheriting Java's answer in full. `Optional`, `Stream`,
-`CompletableFuture`, `Function`, records, immutable collections,
+`CompletableFuture`, `Function`, records, immutable collections, sealed types,
 virtual threads — every JDK carrier and combinator is available, with
 the usual Groovy sugar on top (closures, GINQ, parallel collections,
-`Awaitable`, async/await). For a lot of workaday code, that is already
-enough.
+`Awaitable`, async/await). Groovy brings along most of Java's
+pattern/decomposition story with some enhancements and minor gaps
+being addressed in GEP-20 targeted for Groovy 7.
+For a lot of workaday code, that is already enough.
 
 When you want more discipline than the JDK ships with — applicative
 validation, persistent collections, an effect monad, a `Try` for
@@ -55,7 +57,7 @@ across `Optional`, `Stream`, `CompletableFuture`, Groovy's `Awaitable`
 and `DataflowVariable`, recognised FunctionalJava and Vavr carriers,
 and any user type that opts in.
 * `NullChecker` — including a flow-sensitive `strict` mode requiring
-no annotations — for compile-time `Maybe` without the wrapper.
+no annotations — for Maybe-style null-safety without the wrapper.
 * `val`, nested `copyWith` and richer destructuring on top of records
 and `@Immutable`, for the everyday immutable-update shapes that
 otherwise need a lens library.
@@ -74,6 +76,16 @@ first-class.
 A companion project at
 https://github.com/paulk-asert/groovy6-functional[`groovy6-functional`]
 holds runnable versions of every example in this post.
+
+One framing note before we start. Most of what
+follows is *core Groovy 6* — shipped or stabilising features like
+`NullChecker`, `DO`, `val` and the contract annotations. A few pieces
+are *incubating* and may still shift before release. And the final two
+sections — the `WIRE` DSL and the SMT-backed checker — are *companion
+prototypes*: spikes built on the same public extension SPI the Groovy
+team uses for the in-tree checkers, included here to show how far that
+SPI reaches, not as Groovy 6 features. Each is flagged again where it
+appears.
 
 == What Groovy already gave you
 
@@ -97,8 +109,9 @@ assert composed(' foo bar ') == 49
 `closure.memoize()`, `memoizeAtMost(n)`, and `Closure.trampoline()`
 turn naive recursive definitions into something fit for production.
 
-. *Records, `@Immutable`, deep-immutable lists/maps via `.asImmutable()`.*
-Value semantics without ceremony.
+. *Records, sealed types, `@Immutable`, deep-immutable lists/maps via `.asImmutable()`.*
+Value semantics without ceremony. The JVM-side
+building blocks for algebraic data types.
 
 . *Tail-recursive methods* via `@TailRecursive` — the
 transform rewrites the body to a loop. No stack growth for `factorial`,
@@ -107,6 +120,11 @@ transform rewrites the body to a loop. No stack growth for `factorial`,
 . *Lazy streams and GINQ.* `Stream`, lazy iterators, and GINQ
 (a comprehension over collections and SQL-like sources) cover the
 lazy/declarative end of the lane.
+
+Alongside these, the GDK keeps accreting FP-friendly collection
+operators — `groupByMany`, `zipWithNext`,
+`collectMany`, `inject` and friends — the practical-FP-on-the-JVM
+vocabulary that lets workaday collection code read declaratively.
 
 That toolkit was good for the workaday side of FP. It said little about
 the parts that distinguish FP-with-checking from FP-with-conventions:
@@ -192,9 +210,9 @@ encoding the structure as a `Monoid<A>` value. A non-associative
 combiner like the subtraction example is a _semantic_ error: it
 compiles cleanly in Java and in Groovy without the checker, and
 surfaces as a non-deterministic wrong answer at runtime. The checker
-gives you the same guarantee a typeclass constraint gives Scala or
-Haskell, but without lifting `add` into a wrapper and unlifting the
-result.
+catches the same class of misuse a typeclass constraint rules out in
+Scala or Haskell — occupying a similar ergonomic role — but without
+lifting `add` into a wrapper and unlifting the result.
 
 The `Monoid`/`Semigroup` types from FunctionalJava and HighJ are also
 recognised, which means existing FJ-shaped combiners flow through
@@ -311,6 +329,12 @@ sit inside the body of a `for await` loop, and an `Awaitable` produced
 by `DO` can be one element of an upstream publisher consumed by
 `for await` — but neither replaces the other.
 
+That stream-shaped source is often a *generator*. A Groovy 6 generator
+method `yield`s values lazily and is pulled on demand, giving the
+pull-based lazy-sequence end of the FP toolbox without an explicitly
+built `Stream` — naturally consumed by `for await`, or mapped and
+filtered downstream like any lazy pipeline.
+
 `DO` also composes over FunctionalJava's `Validation` — no annotation,
 no wrapper, no Groovy dependency on FunctionalJava, because
 `fj.data.Validation` is recognised by name in the standard allow-list:
@@ -384,14 +408,16 @@ the checker restores the Java guarantee. The third compiles cleanly in
 well-typed value, just (almost certainly) not the one you intended. That
 is the `flatMap`/`map` mix-up the checker catches for everyone.
 
-== Compile-time `Maybe` without the wrapper
+== Maybe-style null-safety without the wrapper
 
 In Haskell, `Maybe a` is a discipline you adopt: every value that
 might be absent is wrapped, the compiler tracks it, you handle the
 `Nothing` case at the leaf.
 
 In Groovy 6, `NullChecker` is the equivalent discipline _without_ the
-wrapper. You can drive it with `@Nullable`/`@NonNull` if you like:
+wrapper. To be precise, this is flow analysis over nullable references,
+not an algebraic sum type — the discipline of `Maybe`, not its
+representation. You can drive it with `@Nullable`/`@NonNull` if you like:
 
 [source,groovy]
 ----
@@ -473,8 +499,8 @@ def (h, *t) = [1, 2, 3, 4]
 `val` is the immutable-binding companion to `var`. Nested `copyWith`
 gives you lens-style updates without a lens library — structural
 sharing is preserved transitively, so `is`-identity holds on untouched
-branches. The destructuring extension reaches the "match the parts you
-care about" cases pattern matching is normally used for.
+branches. The destructuring extension covers the lightweight
+data-extraction cases that often motivate pattern matching.
 
 == Termination and loop invariants
 
@@ -825,21 +851,13 @@ Strictly smaller than a GEP, narrower than a language change.
 
 === Where the code lives
 
-Six small subprojects under
+The code lives in six small subprojects under
 https://github.com/paulk-asert/groovy6-functional[`groovy6-functional`]:
-
-* https://github.com/paulk-asert/groovy6-functional/tree/main/wire[`wire/`]
-— annotations (`@Wirable`, `@WireSource`, `@WireDiagram`), builder DSL,
-dataflow runtime, PlantUML renderer.
-* https://github.com/paulk-asert/groovy6-functional/tree/main/wire-checker[`wire-checker/`]
-— the `WireChecker` type-checking extension.
-* https://github.com/paulk-asert/groovy6-functional/tree/main/wire-macro[`wire-macro/`]
-— the `WIRE` `@Macro` method plus its DGM extension descriptor.
-* https://github.com/paulk-asert/groovy6-functional/tree/main/wire-demo[`wire-demo/`],
-https://github.com/paulk-asert/groovy6-functional/tree/main/wire-demo-checked[`wire-demo-checked/`],
-https://github.com/paulk-asert/groovy6-functional/tree/main/wire-demo-macro[`wire-demo-macro/`]
-— consumer demos for the builder, builder-with-checker, and macro
-forms respectively.
+`wire/` (annotations, builder DSL, dataflow runtime, PlantUML renderer),
+`wire-checker/` (the `WireChecker` extension), `wire-macro/` (the `WIRE`
+`@Macro` method), and three consumer demos for the builder,
+builder-with-checker and macro forms. See the repo for the full
+breakdown.
 
 No compiler change, no GEP. The pattern this post has been describing
 — declared contracts, compiler-enforced spec, producer/consumer split
@@ -936,8 +954,9 @@ if (n >= 0) {
 ----
 
 The almost-correct version, the message that names the bad value, the
-one-character fix, the green build — that loop is the experience a
-proof assistant gives you, running inside `groovyc`.
+one-character fix, the green build — for the linear-integer fragment it
+covers, that loop is the experience a proof assistant gives you,
+running inside `groovyc`.
 
 === What it proves
 
@@ -1073,22 +1092,15 @@ and none needs a compiler change.
 
 === Where the code lives
 
-Two subprojects under
+The code lives in two subprojects under
 https://github.com/paulk-asert/groovy6-functional[`groovy6-functional`]:
-
-* https://github.com/paulk-asert/groovy6-functional/tree/main/verification[`verification/`]
-— a `CONVERSION`-phase transform that captures each stock
-`@groovy.contracts` contract's source text into a `@ContractSource` the
-checker can read back (the built-in annotation keeps only a generated
-closure class, so the text would otherwise be gone), the path-condition
-collector, the body-path walker and loop verifier, the Groovy-to-SMT
-encoder, the `VerifyChecker` type-checking extension, and the Z3 backend.
-* https://github.com/paulk-asert/groovy6-functional/tree/main/verification-demo[`verification-demo/`]
-— the `ISqrt` producer, a `GoodCalls` consumer that compiles only
-because every call is proven safe, a `BadCalls` runner that prints the
-diagnostics for the wrong calls, `MinMax`/`BadEnsures` doing the same
-for `@Ensures` postconditions, and `Loops`/`BadLoops` for
-`@Invariant`/`@Decreases` loop proofs.
+`verification/` (the Groovy-to-SMT encoder, the `VerifyChecker`
+extension, the Z3 backend, and a `CONVERSION`-phase transform that
+captures each stock `@groovy.contracts` contract's source text — the
+built-in annotation keeps only a generated closure class, so the text
+would otherwise be gone) and `verification-demo/` (the `ISqrt`,
+`MinMax`/`BadEnsures` and `Loops`/`BadLoops` worked examples). See the
+repo for the full breakdown.
 
 This is a spike, not a product — in the same spirit as WireCat, it
 demonstrates *reach*, not a finished tool. But the reach is the
@@ -1101,11 +1113,14 @@ OpenJML for the loud-unknown discipline this spike borrows wholesale.
 == How it stacks up
 
 For a JVM-resident FP audience, the comparison set is FunctionalJava,
-Vavr, HighJ, and the language alternatives Scala and Kotlin.
+Vavr, HighJ, and the language alternatives Scala and Kotlin, with
+Haskell kept as the reference point. The Scala column is really
+Scala+Cats where it names `cats.*` types; Kotlin's FP rows lean on
+the Arrow library similarly.
 
-[cols="2,1,1,1,1,1,1",options="header"]
+[cols="2,1,1,1,1,1,1,1",options="header"]
 |===
-| Concept | Groovy 6 | FunctionalJava | Vavr | HighJ | Scala | Haskell
+| Concept | Groovy 6 | FunctionalJava | Vavr | HighJ | Scala | Kotlin | Haskell
 
 | Closures and composition
 | native (`>>`, `<<`, curry)
@@ -1113,6 +1128,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | `Function0..Function8`, `andThen`/`compose`/`curried`/`memoized`
 | `Functions` combinators
 | native (`andThen`, `compose`)
+| native (lambdas, `::`, `andThen`/`compose` in stdlib)
 | native
 
 | Monoid / Semigroup
@@ -1121,6 +1137,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | n/a (uses `Foldable.reduce`)
 | `Monoid<µ>` typeclass instance
 | `cats.Monoid` typeclass
+| `arrow.typeclasses.Monoid`
 | `Monoid` class
 
 | Purity & effects
@@ -1129,6 +1146,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | `Try` lifts effects to a value
 | `IO<µ>` simulation
 | `cats.effect.IO`
+| `suspend` + `arrow` effects
 | `IO`, `State`, etc.
 
 | Frame conditions
@@ -1138,6 +1156,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | n/a
 | n/a (libraries)
 | n/a
+| n/a
 
 | Monadic comprehension
 | `DO` (GEP-23, no HKT)
@@ -1145,6 +1164,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | `For(...).yield(fn)` ("For-Comprehension")
 | simulated, with µ tags
 | `for { ... } yield`
+| `arrow` `either { }`/`nullable { }` bind blocks
 | `do { ... }`
 
 | Null / absence
@@ -1153,6 +1173,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | `Option`
 | `Maybe<µ>`
 | `Option`
+| native nullable types (`T?`)
 | `Maybe`
 
 | Validation / errors
@@ -1161,6 +1182,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | `Try`, `Either`, `Validation`
 | `Either<µ, µ>`
 | `Either`, `Validated`
+| `arrow.core.{Either, Validated}`
 | `Either`, `Validation`
 
 | Persistent collections
@@ -1169,6 +1191,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | `io.vavr.collection.{List, Vector, HashMap, ...}` (HAMT-based, structural sharing)
 | n/a
 | `scala.collection.immutable.*` (persistent)
+| `kotlinx.collections.immutable` (persistent)
 | native (persistent everywhere)
 
 | Termination
@@ -1177,6 +1200,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | n/a
 | n/a
 | n/a (libraries)
+| n/a
 | totality checker (extensions)
 
 | Higher-kinded abstraction
@@ -1185,6 +1209,7 @@ Vavr, HighJ, and the language alternatives Scala and Kotlin.
 | no (encoded by hand)
 | simulated HKT
 | native
+| no (Arrow dropped HKT encoding)
 | native
 |===
 
@@ -1221,8 +1246,8 @@ WireCat cartesian-categories idea on the same SPI surface. The
 same surface reaches further still — a type-checking extension
 that runs an SMT solver during compilation turns a contract-grade
 `@Requires` proof-grade for a linear-integer fragment, emitting
-Dafny-style counterexamples: a theorem prover hosted in `groovyc`,
-no compiler change required.
+Dafny-style counterexamples: a theorem prover, albeit for a targeted fragment,
+hosted in `groovyc`, no compiler change required.
 
 For new code on the JVM, the takeaway is that `@Pure`, `@Modifies`,
 `@Associative` and `@Reducer` cover most of what teams used
@@ -1230,7 +1255,7 @@ FunctionalJava and HighJ for — and they do it on your own types,
 without inheritance and without lift/unlift. FunctionalJava, HighJ, and
 Vavr remain useful when you want the libraries' richer value-level
 combinators: FunctionalJava and Vavr for applicative-style error
-accumulation via `Validation` (which Groovy 6 happily embeds in `DO`);
+accumulation via `Validation`;
 Vavr additionally for `Try`/`Either` as runtime-composable carriers
 where _failure-as-a-value_ is the requirement, and for persistent
 collections with structural sharing — both gaps not yet filled in
