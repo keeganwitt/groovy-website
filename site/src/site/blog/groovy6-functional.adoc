@@ -1338,6 +1338,7 @@ builder and builder-with-checker variants, and the `verification`
 .Update history
 ****
 *01/Jun/2026*: Added `pbt-fj` and `pbt-vavr` subprojects to the companion repo, which generate the same property-based tests as the main `pbt` subproject but using the `functionaljava-quickcheck` and `vavr-test` libraries respectively.
+
 *30/May/2026*: Added "From contract-grade to proof-grade" section — a
 spike that puts a Z3 solver behind a `@TypeChecked` extension to
 discharge `@Requires` preconditions, `@Ensures` postconditions, and
