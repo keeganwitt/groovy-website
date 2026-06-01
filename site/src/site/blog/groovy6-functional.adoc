@@ -586,6 +586,15 @@ This is the Groovy 6 design pitch in one sentence: declarations whose
 compile-time guarantee makes them safe for an agent to read as a
 spec, not as a comment.
 
+*Update*: The companion repo locks the jqwik version at 1.9.3.
+Read about the
+link:https://arstechnica.com/security/2026/05/fed-up-with-vibe-coders-dev-sneaks-data-nuking-prompt-injection-into-their-code/[recent]
+link:https://kenkousen.substack.com/p/tales-from-the-jar-side-jqwik-prompt[controversy]
+around 1.10.x before upgrading to that version (or NOT).
+You might like to also check out the `pbt-fj` and `pbt-vavr` subprojects
+in the companion repo which do the same generated property-based
+tests using the `functionaljava-quickcheck` and `vavr-test` libraries.
+
 [[who-writes-annotations]]
 == Who writes the annotations?
 
@@ -1290,6 +1299,7 @@ builder and builder-with-checker variants, and the `verification`
 
 .Update history
 ****
+*01/Jun/2026*: Added `pbt-fj` and `pbt-vavr` subprojects to the companion repo, which generate the same property-based tests as the main `pbt` subproject but using the `functionaljava-quickcheck` and `vavr-test` libraries respectively.
 *30/May/2026*: Added "From contract-grade to proof-grade" section — a
 spike that puts a Z3 solver behind a `@TypeChecked` extension to
 discharge `@Requires` preconditions, `@Ensures` postconditions, and
