@@ -1125,45 +1125,36 @@ For a JVM-resident FP audience, the comparison set is FunctionalJava,
 Vavr, HighJ, and the language alternatives Scala and Kotlin, with
 Haskell kept as the reference point. The Scala column is really
 Scala+Cats where it names `cats.*` types; Kotlin's FP rows lean on
-the Arrow library similarly.
+the Arrow library similarly. It splits across two tables that share
+the Concept and Groovy 6 columns — first against the JVM FP libraries,
+then against the languages.
 
-[cols="2,1,1,1,1,1,1,1",options="header"]
+.Versus the JVM FP libraries
+[cols="2,1,1,1,1",options="header"]
 |===
-| Concept | Groovy 6 | FunctionalJava | Vavr | HighJ | Scala | Kotlin | Haskell
+| Concept | Groovy 6 | FunctionalJava | Vavr | HighJ
 
 | Closures and composition
 | native (`>>`, `<<`, curry)
 | `fj.F`, `.o()`, curry on `F2..F8`
 | `Function0..Function8`, `andThen`/`compose`/`curried`/`memoized`
 | `Functions` combinators
-| native (`andThen`, `compose`)
-| native (lambdas, `::`, `andThen`/`compose` in stdlib)
-| native
 
 | Monoid / Semigroup
 | `@Associative`/`@Reducer` + `CombinerChecker`
 | `Monoid<A>`, `Semigroup<A>` values
 | n/a (uses `Foldable.reduce`)
 | `Monoid<µ>` typeclass instance
-| `cats.Monoid` typeclass
-| `arrow.typeclasses.Monoid`
-| `Monoid` class
 
 | Purity & effects
 | `@Pure(allows = ...)` + `PurityChecker`
 | n/a (convention only)
 | `Try` lifts effects to a value
 | `IO<µ>` simulation
-| `cats.effect.IO`
-| `suspend` + `arrow` effects
-| `IO`, `State`, etc.
 
 | Frame conditions
 | `@Modifies` + `ModifiesChecker`
 | n/a
-| n/a
-| n/a
-| n/a (libraries)
 | n/a
 | n/a
 
@@ -1172,51 +1163,99 @@ the Arrow library similarly.
 | n/a (hand-written `.bind`)
 | `For(...).yield(fn)` ("For-Comprehension")
 | simulated, with µ tags
-| `for { ... } yield`
-| `arrow` `either { }`/`nullable { }` bind blocks
-| `do { ... }`
 
 | Null / absence
 | `NullChecker` (strict)
 | `fj.data.Option`
 | `Option`
 | `Maybe<µ>`
-| `Option`
-| native nullable types (`T?`)
-| `Maybe`
 
 | Validation / errors
 | `fj.data.Validation` and `io.vavr.control.{Try, Either, Validation}` in `DO`
 | `Validation<E, A>`
 | `Try`, `Either`, `Validation`
 | `Either<µ, µ>`
-| `Either`, `Validated`
-| `arrow.core.{Either, Validated}`
-| `Either`, `Validation`
 
 | Persistent collections
 | `.asImmutable()` (view); `@Immutable` (deep-frozen)
 | `fj.data.List`, `fj.data.Stream`
 | `io.vavr.collection.{List, Vector, HashMap, ...}` (HAMT-based, structural sharing)
 | n/a
-| `scala.collection.immutable.*` (persistent)
-| `kotlinx.collections.immutable` (persistent)
-| native (persistent everywhere)
 
 | Termination
 | `@Decreases` (Hoare)
 | n/a
 | n/a
 | n/a
-| n/a (libraries)
-| n/a
-| totality checker (extensions)
 
 | Higher-kinded abstraction
 | no
 | no (encoded by hand)
 | no (encoded by hand)
 | simulated HKT
+|===
+
+.Versus the languages (Scala+Cats, Kotlin+Arrow; Haskell for reference)
+[cols="2,1,1,1,1",options="header"]
+|===
+| Concept | Groovy 6 | Scala | Kotlin | Haskell
+
+| Closures and composition
+| native (`>>`, `<<`, curry)
+| native (`andThen`, `compose`)
+| native (lambdas, `::`, `andThen`/`compose` in stdlib)
+| native
+
+| Monoid / Semigroup
+| `@Associative`/`@Reducer` + `CombinerChecker`
+| `cats.Monoid` typeclass
+| `arrow.typeclasses.Monoid`
+| `Monoid` class
+
+| Purity & effects
+| `@Pure(allows = ...)` + `PurityChecker`
+| `cats.effect.IO`
+| `suspend` + `arrow` effects
+| `IO`, `State`, etc.
+
+| Frame conditions
+| `@Modifies` + `ModifiesChecker`
+| n/a (libraries)
+| n/a
+| n/a
+
+| Monadic comprehension
+| `DO` (GEP-23, no HKT)
+| `for { ... } yield`
+| `arrow` `either { }`/`nullable { }` bind blocks
+| `do { ... }`
+
+| Null / absence
+| `NullChecker` (strict)
+| `Option`
+| native nullable types (`T?`)
+| `Maybe`
+
+| Validation / errors
+| `fj.data.Validation` and `io.vavr.control.{Try, Either, Validation}` in `DO`
+| `Either`, `Validated`
+| `arrow.core.{Either, Validated}`
+| `Either`, `Validation`
+
+| Persistent collections
+| `.asImmutable()` (view); `@Immutable` (deep-frozen)
+| `scala.collection.immutable.*` (persistent)
+| `kotlinx.collections.immutable` (persistent)
+| native (persistent everywhere)
+
+| Termination
+| `@Decreases` (Hoare)
+| n/a (libraries)
+| n/a
+| totality checker (extensions)
+
+| Higher-kinded abstraction
+| no
 | native
 | no (Arrow dropped HKT encoding)
 | native
