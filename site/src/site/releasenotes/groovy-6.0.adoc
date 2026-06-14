@@ -805,11 +805,15 @@ contract as class/method/field-level transforms. See
 validation rules.
 
 [[groovy-contracts]]
-== Groovy-Contracts Enhancements (incubating)
+== Groovy-Contracts Enhancements
 
 The `groovy-contracts` module receives several enhancements in Groovy 6,
 including support for contracts in scripts, loop annotations,
-and frame conditions.
+and frame conditions. The module itself graduates from incubating to
+stable in 6.0 (see <<g6-stabilised>>); the newest of these enhancements --
+loop-level annotations and `@Modifies` frame conditions, which build on
+the still-incubating loop AST-transform support -- remain incubating for
+this release.
 
 === Contracts in scripts
 
@@ -903,6 +907,14 @@ Targets: `CONSTRUCTOR`, `METHOD` (both `@Modifies` and `@Pure`).
 | `@Requires`, `@Ensures` on script methods; `@Invariant` on import
 statements as a class-level invariant for the script.
 | https://issues.apache.org/jira/browse/GROOVY-11885[GROOVY-11885]
+
+| `@Ensures` on static methods
+| Postconditions are now supported on `static` methods. The `old` snapshot
+is also available there, but -- since a static method has no instance state --
+`old` may only capture a method parameter's entry value; `old.<field>` is
+rejected.
+| https://issues.apache.org/jira/browse/GROOVY-12052[GROOVY-12052],
+https://issues.apache.org/jira/browse/GROOVY-12078[GROOVY-12078]
 |===
 
 [[monadic-comprehensions]]
@@ -1640,6 +1652,7 @@ The same nested map and block forms work for record-in-record graphs and
 mixed `@Immutable`/`@RecordType` hierarchies.
 
 [[sealed-types]]
+[[g6-stabilised]]
 == Stabilised features
 
 * Sealed classes, interfaces and traits -- introduced as an incubating
@@ -1655,6 +1668,31 @@ Groovy 4.0 -- is *promoted out of incubation in Groovy 6.0*
 (https://issues.apache.org/jira/browse/GROOVY-12010[GROOVY-12010]).
 Its public API is now covenanted and subject to binary-compatibility
 checks.
+
+* The `groovy-contracts` module is *promoted out of incubation in
+Groovy 6.0*
+(https://issues.apache.org/jira/browse/GROOVY-12038[GROOVY-12038]).
+Its core `@Requires`/`@Ensures`/`@Invariant` API is now stable; the
+newest additions described in <<groovy-contracts>> that build on
+still-incubating infrastructure -- loop-level `@Invariant`/`@Decreases`
+and `@Modifies` frame conditions -- remain incubating for this release.
+
+* The `RegexChecker` and `FormatStringChecker` type-checking extensions
+are *promoted out of incubation in Groovy 6.0*
+(https://issues.apache.org/jira/browse/GROOVY-12039[GROOVY-12039]).
+
+* The macro framework -- the `@Macro` annotation and related classes --
+is *promoted out of incubation in Groovy 6.0*
+(https://issues.apache.org/jira/browse/GROOVY-12029[GROOVY-12029]).
+
+* The `PropertyHandler` SPI for property-style AST transforms is
+*promoted out of incubation in Groovy 6.0*
+(https://issues.apache.org/jira/browse/GROOVY-12030[GROOVY-12030]).
+
+* `JavaShell` is *promoted out of incubation in Groovy 6.0*
+(https://issues.apache.org/jira/browse/GROOVY-12026[GROOVY-12026]) and
+gains a new `compileAllTo` method
+(https://issues.apache.org/jira/browse/GROOVY-12025[GROOVY-12025]).
 
 [[g6-extensions]]
 == Extension method additions and improvements
@@ -1795,6 +1833,61 @@ assert ['apple', 'avocado', 'banana', 'cherry', 'citrus', 'date']
 Both have lazy `Iterator` variants and array overloads, so they compose with
 other sequence operations without materialising intermediates.
 
+=== Allocation-free higher-order methods (`java.util.function` overloads)
+
+Many of Groovy's higher-order extension methods now have overloads that accept
+`java.util.function` SAM types -- `Predicate`, `Function`, `Consumer`,
+`BiPredicate`, `BiFunction`, and friends -- directly, instead of requiring a
+`Closure` wrapper
+(https://issues.apache.org/jira/browse/GROOVY-12034[GROOVY-12034],
+https://issues.apache.org/jira/browse/GROOVY-12054[GROOVY-12054]). Passing a
+lambda or method reference straight through avoids the per-call `Closure`
+allocation -- "fat-free" -- and improves interop with Java APIs that already
+hand you `java.util.function` values. The standard overloads mirror the
+existing `Closure` forms one-for-one, covering `each`/`eachWithIndex`,
+`collect`/`collectEntries`, `groupBy`, `inject`, `any`/`every`,
+`find`/`findAll`, `count`, and the lazy `collecting`/`findingAll` iterator
+variants.
+
+[source,groovy]
+----
+import java.util.function.Predicate
+import java.util.function.Function
+
+Predicate<Integer> even = n -> n % 2 == 0
+Function<Integer, Integer> square = n -> n * n
+
+assert [1, 2, 3, 4].findAll(even) == [2, 4]
+assert [1, 2, 3].collect(square) == [1, 4, 9]
+----
+
+A companion `curryWith` helper (in `org.apache.groovy.util.Lambdas`, and in
+`org.apache.groovy.util.Closures` for hybrid results usable as both a
+`Closure` and a `java.util.function` type) right-partials a two-argument SAM
+by fixing its second argument, so a shared `BiPredicate`/`BiFunction` can be
+reused across calls without a capturing closure:
+
+[source,groovy]
+----
+import static org.apache.groovy.util.Closures.curryWith
+import java.util.function.BiPredicate
+
+BiPredicate<Integer, Integer> divisibleBy = (n, d) -> n % d == 0
+assert [1, 2, 3, 4, 5, 6].findAll(curryWith(divisibleBy, 2)) == [2, 4, 6]
+----
+
+A matching set of *incubating* `...(self, BiPredicate/BiFunction, param)`
+overloads bake this right-curry in directly -- `list.find(condition, param)`
+is equivalent to `list.find(curryWith(condition, param))` -- covering
+`collect`/`collecting`, `find`/`findAll`/`findingAll`, `any`/`every`, and
+`count`:
+
+[source,groovy]
+----
+def divisibleBy = { n, d -> n % d == 0 }
+assert [1, 2, 3, 4, 5, 6].findAll(divisibleBy, 2) == [2, 4, 6]   // incubating
+----
+
 === Other new extension methods
 
 [cols="2,3,1", options="header"]
@@ -1803,8 +1896,10 @@ other sequence operations without materialising intermediates.
 
 | `isSorted()`
 | Check whether elements of an Iterable, Iterator, array, or Map
-are in sorted order. Supports natural ordering, `Comparator`, or `Closure`.
-| https://issues.apache.org/jira/browse/GROOVY-11891[GROOVY-11891]
+are in sorted order. Supports natural ordering, `Comparator`, or `Closure`,
+with primitive `int[]`/`long[]` overloads.
+| https://issues.apache.org/jira/browse/GROOVY-11891[GROOVY-11891],
+https://issues.apache.org/jira/browse/GROOVY-12070[GROOVY-12070]
 
 | `execute(dir:, env:, ...)`
 | Named parameters for process configuration: `dir`, `env`,
@@ -1849,6 +1944,26 @@ https://issues.apache.org/jira/browse/GROOVY-11957[GROOVY-11957]
 each match represented by a `List` containing the full match followed by
 each capture group.
 | https://issues.apache.org/jira/browse/GROOVY-11958[GROOVY-11958]
+
+| `clamp(lower, upper)` / `clamp(range)`
+| Constrain a `Comparable` to the inclusive bounds `[lower, upper]`
+(or a `Range`), returning the nearest bound when outside, e.g.
+`10.clamp(1, 5) == 5`.
+| https://issues.apache.org/jira/browse/GROOVY-12032[GROOVY-12032]
+
+| `takeIf { }`
+| Return the receiver if it satisfies the predicate, otherwise `null` --
+pairs naturally with Elvis/safe-navigation, e.g.
+`url.takeIf{ it.startsWith('http') } ?: "https://$url"`.
+| https://issues.apache.org/jira/browse/GROOVY-12031[GROOVY-12031]
+
+| `toMutableList()` / `toImmutableList()` / `toImmutableSet()`
+| Explicit-mutability accumulators for `Stream`/`BaseStream` (and
+`Iterable`/`Iterator`): `toMutableList` always yields a modifiable
+`ArrayList`, while `toImmutableList`/`toImmutableSet` yield unmodifiable
+results. The older `toList(Stream)` shim is deprecated in favour of the
+native JDK `Stream.toList()`.
+| https://issues.apache.org/jira/browse/GROOVY-12037[GROOVY-12037]
 |===
 
 [[g6-extension-disable]]
@@ -2413,6 +2528,23 @@ same lines: in addition to its existing endorsed-module notation it
 now recognises both shorthand forms, dispatching to `grab(Map)` once
 the coordinate has been parsed.
 
+=== Hardening
+
+Grape resolution has been hardened against several real-world failure
+modes (https://issues.apache.org/jira/browse/GROOVY-12005[GROOVY-12005]):
+
+* Coordinate values containing `..` path segments are now rejected
+(`should not contain '..'`) in both the Ivy and Maven engines, guarding
+against path traversal in the cache layout
+(https://issues.apache.org/jira/browse/GROOVY-12073[GROOVY-12073]).
+* A corrupt or truncated JAR (e.g. a CDN `429`/partial response) no
+longer aborts the whole `@Grab`; extension-method scanning skips the
+bad JAR with a warning while the remaining artifacts continue to register.
+* Strict local-`m2` and cached-grapes resolvers reject half-populated
+POM-only stubs and corrupt artifacts so a poisoned cache entry is
+re-fetched rather than silently used; a relaxed configuration is
+available for environments that need the previous lenient behaviour.
+
 [[platform-logging]]
 == Platform Logging
 
@@ -2633,6 +2765,13 @@ elements -- headings, code blocks, links, tables -- via the iterator and
 convenience properties documented in that module. Combined with `/img`
 above, this enables short pipelines from Markdown reports into rendered
 charts directly in the REPL.
+
+=== Case-insensitive syntax-highlight names
+
+Highlight-style names supplied to `/print -s <FORMAT>` (and the
+`/highlighter` switch) are now resolved case-insensitively, so `json`,
+`JSON`, and `Json` all select the same nanorc grammar
+(https://issues.apache.org/jira/browse/GROOVY-12018[GROOVY-12018]).
 
 [[theming]]
 == Theming Improvements
@@ -2874,8 +3013,10 @@ comment
 
 | `{@inheritDoc}`
 | Pulls in the parent class's/interface's corresponding
-documentation
-(https://issues.apache.org/jira/browse/GROOVY-3782[GROOVY-3782])
+documentation -- including from external (JDK) classes, resolved from
+the local JDK source archive
+(https://issues.apache.org/jira/browse/GROOVY-3782[GROOVY-3782],
+https://issues.apache.org/jira/browse/GROOVY-11988[GROOVY-11988])
 
 | `@apiNote`, `@implSpec`, `@implNote`
 | Recognised with proper heading labels (e.g. "Implementation
@@ -3103,6 +3244,10 @@ to `false`, any non-`null` `File` or `Path` reference is truthy
 (matching Groovy 4 behaviour); the default (`true`) preserves the
 Groovy 5 existence-aware semantics
 (https://issues.apache.org/jira/browse/GROOVY-11996[GROOVY-11996]).
+* `Tuple.equals` now follows Groovy's `List` equals semantics: a `Tuple`
+compares equal to any `List` with the same elements (element-wise, using
+Groovy equality), rather than requiring another `Tuple`
+(https://issues.apache.org/jira/browse/GROOVY-12017[GROOVY-12017]).
 
 == Other Module Changes
 
@@ -3141,6 +3286,12 @@ collision with `inheritAll`
 (https://issues.apache.org/jira/browse/GROOVY-11921[GROOVY-11921]).
 * *groovy-servlet*: Jakarta EE 11 compatibility
 (https://issues.apache.org/jira/browse/GROOVY-11922[GROOVY-11922]).
+* *groovy-json*: `JsonSlurper` now enforces a maximum nesting depth
+(default 1000) when parsing, guarding against stack exhaustion from
+maliciously deep documents. The limit is configurable per parser via
+`setMaxNestingDepth(int)` (a value `<= 0` disables the check) or globally
+with the `groovy.json.maxNestingDepth` system property
+(https://issues.apache.org/jira/browse/GROOVY-12064[GROOVY-12064]).
 
 [[Groovy6.0-breaking]]
 == Breaking changes
@@ -3221,6 +3372,27 @@ has been removed in JDK 26, so these references would otherwise cause
 Code that explicitly used the applet-related factories should migrate
 to standard `JFrame`/`JWindow` alternatives.
 (https://issues.apache.org/jira/browse/GROOVY-11912[GROOVY-11912])
+* `StringGroovyMethods#stripIndent(boolean)` now handles non-`String`
+arguments as documented. Previously certain non-`String` `CharSequence`
+inputs were not stripped as advertised; affected code now produces the
+documented (stripped) result.
+(https://issues.apache.org/jira/browse/GROOVY-12009[GROOVY-12009])
+* `IntRange.containsWithinBounds` no longer delegates to `contains`,
+restoring the continuous-bounds contract (the bounds check ignores any
+non-unit step). Code that relied on the previous step-aware delegation
+may see different results.
+(https://issues.apache.org/jira/browse/GROOVY-12067[GROOVY-12067])
+* `ClassNodeUtils.getPropNameForAccessor` now uses JavaBeans
+decapitalization, matching runtime property naming (e.g. an accessor
+`getURL` maps to property `URL`, not `uRL`). This corrects property-name
+derivation in AST transforms and type checking but may change derived
+names in code that relied on the prior behaviour.
+(https://issues.apache.org/jira/browse/GROOVY-12058[GROOVY-12058])
+* `SourceText` now slices source using UTF-16 offsets aligned with the
+code-point columns carried by the AST, so retrieved source containing
+supplementary characters (e.g. emoji, some CJK) is no longer truncated.
+Tooling that compensated for the previous truncation may need adjustment.
+(https://issues.apache.org/jira/browse/GROOVY-12085[GROOVY-12085])
 
 == Under exploration (before GA release)
 
@@ -3233,6 +3405,11 @@ to standard `JFrame`/`JWindow` alternatives.
 Groovy 6 requires JDK17+ to build and JDK17 is the
 minimum version of the JRE that we support.
 Groovy 6 has been tested on JDK versions 17 through 26.
+
+`CompilerConfiguration` also recognises a `JDK27` (`"27"`)
+`targetBytecode` value, mapped to the corresponding ASM `V27` class-file
+version, ahead of that JDK's general release
+(https://issues.apache.org/jira/browse/GROOVY-12028[GROOVY-12028]).
 
 == Known issues
 
