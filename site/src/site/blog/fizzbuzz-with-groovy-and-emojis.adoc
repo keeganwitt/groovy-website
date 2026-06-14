@@ -137,8 +137,20 @@ glue them. The classic Haskell rendition zips two infinite lazy cycles:
 zipWith (++) (cycle ["","","🥤"]) (cycle ["","","","","🐝"])
 ----
 
+That yields the fizz/buzz fragments, but a blank wherever a plain number belongs.
+The full FizzBuzz zips those against the naturals `[1..]`, keeping the number
+whenever the glued string is empty:
+
+[source,haskell]
+----
+zipWith (\n s -> if null s then show n else s)
+        [1..]
+        (zipWith (++) (cycle ["","","🥤"]) (cycle ["","","","","🐝"]))
+----
+
 Indexing two short period arrays by `(n - 1) % period` is the same idea without
-the laziness, and Elvis again fills in the number:
+the laziness, and it is this second form that Groovy matches — the Elvis
+`?: n.toString()` does the job of `if null s then show n`:
 
 [source,groovy]
 ----
@@ -152,6 +164,66 @@ def fizzbuzz = { int n ->
 
 Arithmetic has moved out of the conditionals and into the indexing — the
 divisibility is encoded in the _lengths_ of the two patterns.
+
+Groovy 6 can also do the _actually_ lazy version, and now the match with that
+second Haskell form is almost line for line: `repeat()` is `cycle`, `zip` is the
+inner `zipWith (++)`, `indexed(1)` supplies the `[1..]`, `collecting` is the
+outer `zipWith`, and `s[0] + s[1] ?: n` is the combine that keeps the number
+when the glue is empty. Nothing is computed until `take(20)` pulls a prefix:
+
+[source,groovy]
+----
+def fizz = ['', '', '🥤'].iterator().repeat()
+def buzz = ['', '', '', '', '🐝'].iterator().repeat()
+
+def result = fizz.zip(buzz)
+        .indexed(1)
+        .collecting { n, s -> s[0] + s[1] ?: n }   // glue the fragments; Elvis → the number
+        .take(20)
+        .toList()
+----
+
+Same trick, now genuinely infinite — the two streams cycle without end and we
+simply stop pulling after twenty.
+
+== FizzBuzz as a truth table
+
+Step back and FizzBuzz is just a function of two yes/no questions — "divisible
+by three?" and "divisible by five?" — which makes it a function of two bits, and
+a function of two bits fits in a 2&times;2 table. The most literal encoding of
+the problem there is: index the table by those two answers.
+
+[source,groovy]
+----
+def fb = [['',   '🥤'],     //  not ÷5:  [number,  🥤  ]
+          ['🐝', '🥤🐝']]    //      ÷5:  [🐝,      🥤🐝]
+
+def fizzbuzz = { int n ->
+    fb[n % 5 == 0 ? 1 : 0][n % 3 == 0 ? 1 : 0] ?: n.toString()
+}
+----
+
+Where `cycles` indexed by _position in a period_, this indexes by the two
+_conditions_ — the same data laid out along different axes. The top-left cell is
+empty, so Elvis supplies the number, exactly as before.
+
+The same table reads naturally as a `switch`, too. Groovy matches a `String`
+case label by equality, so stringifying the pair of bits gives the four rows
+something concrete to match:
+
+[source,groovy]
+----
+switch ([n % 3 == 0, n % 5 == 0].toString()) {
+    case '[true, true]'  -> '🥤🐝'
+    case '[true, false]' -> '🥤'
+    case '[false, true]' -> '🐝'
+    default              -> n
+}
+----
+
+The `.toString()` is the tell: `switch` wants a value to compare, so we hand it
+a string key. Groovy 7 will let us match the structure itself — we come back to
+that at the end.
 
 == FizzBuzz as data: a predicate list
 
@@ -421,20 +493,98 @@ switch (n) {
 }
 ----
 
-To be clear, this last form is *speculative* — GEP-19 is a draft targeting
-Groovy 7 and is not implemented today, so it does not compile on Groovy 6; it
-lives in the companion repo (kept out of the build) only to show where the
+GEP-19 also brings _list patterns_ — and here is the promised payoff for that
+stringified-key switch in the truth-table section. Instead of comparing
+`[true, true]` as _text_, you destructure the two remainders and match on the
+_structure_ directly; the `.toString()` disappears:
+
+[source,groovy]
+----
+switch ([n % 3, n % 5]) {
+    case [var a, var b] when a == 0 && b == 0 -> '🥤🐝'
+    case [0, var _]                           -> '🥤'
+    case [var _, 0]                           -> '🐝'
+    default                                   -> n
+}
+----
+
+Two details follow from GEP-19's own disambiguation rule: the wildcard is
+`var _` (a bare `_` stays an ordinary identifier), and an all-constant label like
+`[0, 0]` keeps its legacy `isCase` meaning — so the both-zero row earns its
+binding-and-guard rather than matching a constant pair directly.
+
+To be clear, both speculative forms are just that — GEP-19 is a draft targeting
+Groovy 7 and is not implemented today, so neither compiles on Groovy 6; they
+live in the companion repo (kept out of the build) only to show where the
 alignment leads. The point is the contrast: the _capability_ has been there for
 years and on every JDK; GEP-19 brings the matching _syntax_, not the power.
+
+== Metaprogramming, handle with care
+
+One Groovy capability hasn't appeared yet: runtime metaprogramming — reshaping a
+type through its metaclass, and overloading operators by name. It's a real power
+tool, and the engine behind much of Groovy's DSL and builder support. FizzBuzz is
+far too small to need any of it, which makes it a fun way to see how far the
+language will bend — with the usual caveat that these are tools to reach for
+deliberately, where they earn their keep.
+
+`ExpandoMetaClass` can add a property to a type, so every `Integer` answers for
+itself:
+
+[source,groovy]
+----
+Integer.metaClass.getFizzBuzz = { ->
+    (delegate % 15 == 0) ? '🥤🐝' :
+    (delegate % 3  == 0) ? '🥤'   :
+    (delegate % 5  == 0) ? '🐝'   : delegate
+}
+
+(1..20).each { println it.fizzBuzz }
+----
+
+Now `7.fizzBuzz == 7` and `15.fizzBuzz == '🥤🐝'` — the numbers answer for
+themselves. Tidy, bearing in mind it mutates a JDK type's metaclass for the whole
+runtime, which is the kind of reach worth weighing first.
+
+Operators are methods too, so `multiply` can take a new argument type. Teach
+`Integer` a `multiply(String)` and `(it % 3) * '🥤'` becomes meaningful — it
+yields the emoji exactly when the remainder is zero:
+
+[source,groovy]
+----
+Integer.metaClass.multiply = { String s -> delegate == 0 ? s : '' }
+
+(1..20).each { println(((it % 3) * '🥤' + (it % 5) * '🐝') ?: it) }
+----
+
+And if you would rather not metaprogram at all, the same idea sits in plain
+arithmetic: `'🥤' * n` repeats the string `n` times, so a 0/1 multiplier does the
+selecting:
+
+[source,groovy]
+----
+(1..20).each {
+    println(('🥤' * ((it % 3 + 2) / 3 as int % 2 ^ 1) +
+             '🐝' * ((it % 5 + 4) / 5 as int % 2 ^ 1)) ?: it)
+}
+----
+
+All three live in the companion repo's `diabolical/` module. They are a romp at
+the expressive end of Groovy; in real code the metaclass techniques earn their
+place in DSLs and frameworks rather than a five-line kata. Powerful when you need
+them — reach for them when they pull their weight, and leave them be when a plain
+function will do.
 
 == Conclusion
 
 None of these is _the_ way to write FizzBuzz, and that was never the goal. The
 fun is in how many shapes the same three rules can take: a switch of
 predicates, a nested ternary, a string you build and let collapse, two periodic
-patterns you index, a list of cases as data, a SQL-shaped query, the same
-mapping fanned across virtual threads, and a version a solver proves correct
-before it ever runs. Pick the one that makes you smile — and add emoji.
+patterns you index — or lazily zip forever — a 2&times;2 truth table you index or
+switch on, a list of cases as data, a
+SQL-shaped query, the same mapping fanned across virtual threads, a version
+a solver proves correct before it ever runs, and a few that bend Groovy's
+metaprogramming to the task. Pick the one that makes you smile — and add emoji.
 
 == Further information
 
