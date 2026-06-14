@@ -984,7 +984,11 @@ library:
 . *gapi:groovy.transform.Monadic[@Monadic] opt-in.* A user type that
 declares the annotation participates even when its method names diverge
 from the structural convention. The annotation may name alternative
-`bind` / `map` methods.
+`bind` / `map` methods, and optionally a `unit` (the `of`/`pure`
+factory that lifts a value into the carrier) — unused by `DO` itself
+but available to law-deriving and law-checking tooling. A data-style
+carrier should also provide structural `equals`/`hashCode`, since a
+comprehension composes monadic values up to value equality.
 
 === `MonadicChecker` and `MonadicShapeChecker`
 
