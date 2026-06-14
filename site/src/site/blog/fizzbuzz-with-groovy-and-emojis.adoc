@@ -413,7 +413,7 @@ itself, so the combiner alone carries the proof —
 
 [source,groovy]
 ----
-@Reducer(zero = '""')             // associativity + identity proven implicitly, from @Reducer
+@Reducer(zero = '""')           // associativity + identity proven implicitly, from @Reducer
 @Ensures({ result == a + b })
 static String glue(String a, String b) { a + b }
 ----
