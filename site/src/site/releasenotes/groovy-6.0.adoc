@@ -3252,6 +3252,15 @@ Groovy 5 existence-aware semantics
 compares equal to any `List` with the same elements (element-wise, using
 Groovy equality), rather than requiring another `Tuple`
 (https://issues.apache.org/jira/browse/GROOVY-12017[GROOVY-12017]).
+* The `invokedynamic` polymorphic inline cache uses a single background
+daemon thread (named `PIC-Cleaner`) to evict GC-cleared entries. Setting
+`-Dgroovy.indy.callsite.cleaner.inline=true` prevents that thread from
+starting and performs the (otherwise identical) cleanup inline on the
+calling thread instead. The default (`false`) keeps the background thread.
+This is primarily useful for tests and tools such as deterministic
+concurrency checkers, which can mistake the perpetually parked daemon for a
+deadlocked thread
+(https://issues.apache.org/jira/browse/GROOVY-12092[GROOVY-12092]).
 
 == Other Module Changes
 
