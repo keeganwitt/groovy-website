@@ -7,13 +7,13 @@
 [horizontal,options="compact"]
 *Number*:: GEP-22
 *Title*:: Traits
-*Version*:: 2
+*Version*:: 3
 *Type*:: Feature
 *Status*:: Final
-*Comment*:: Delivered in Groovy 2.3 and refined in later versions; static-member support remains incubating
+*Comment*:: Reflects trait semantics as of Groovy 4.0.32; static-member support remains incubating, with ongoing evolution tracked under GROOVY-12093
 *Leader*:: Cédric Champeau
 *Created*:: 2026-05-06
-*Last modification*:: 2026-05-11
+*Last modification*:: 2026-06-22
 ****
 
 == Abstract: Traits
@@ -207,23 +207,79 @@ original concrete class must continue to use the underlying object.
 
 === Static members
 
-Static methods, properties and fields in a trait are supported with
-the following constraints (collectively flagged *incubating* /
-experimental):
+Static methods, properties and fields in a trait are supported. The
+area remains *incubating*; further evolution is tracked under
+GROOVY-12093. The behaviour described below reflects the semantics
+shipping in Groovy 4.0.32.
 
 * Each implementing class receives its *own copy* of static members.
 Static state is not shared across implementing classes — a static field
 declared in a trait is conceptually a template, instantiated per
 implementer.
-* Static members are *not* exposed on the generated trait interface.
-Calls of the form `Trait.staticMethod(...)` are not statically valid.
-* Static members are accessed dynamically and are not subject to static
-type checking; traits with static methods cannot be `@CompileStatic`.
+
+* Trait static members are *not* exposed on the generated trait
+interface. External calls of the form `Impl.staticMethod(...)` against
+an implementing class are supported; calls of the form
+`Trait.staticMethod(...)` against the trait itself are not statically
+valid.
+
+* Static trait methods, fields and properties may be declared in, and
+called from, `@CompileStatic` and `@TypeChecked` contexts. Calls
+inside a statically-checked trait body are subject to the ordinary
+type-checking and resolvability rules.
+
+* A public static method declared in a trait may be overridden by a
+same-signature static method on an implementing class. A call of the
+form `m(...)` or `this.m(...)` made directly in the body of a trait
+method dispatches through the implementing class at runtime; the
+implementer's override, if any, is visible to the trait body.
+
+* A private static method declared in a trait is trait-internal: it
+is not composed onto the implementing class and is not overridable.
+
+* A static method call made from inside a closure body inside a trait
+method dispatches through the trait helper rather than through the
+implementing class. An implementer's override is not visible from
+such a call site.
+
+* A reference to a static field from trait code reads the trait's
+template field, not any same-named static on the implementing class.
+Per-implementer overridable defaults should be expressed through an
+accessor method, not a field (cf. the inheritance-of-state gotcha in
+<<_limitations,Limitations>>).
+
+* Trait composition occurs at the class that names the trait in its
+`implements` clause. A subclass of an implementer does not re-compose
+the trait; same-name static members declared on the subclass are not
+visible to trait code, because the trait's forwarder dispatches
+through the direct implementer.
+
+* A `T.m()` call made from within trait `T`'s own body throws
+`MissingMethodException` at runtime, for the same reason as the
+external case: trait static members do not appear on the trait
+interface.
+
 * Mixing static and instance methods of the same signature across
 multiple traits is undefined behaviour and should be avoided. If
 selection chooses a static variant where an instance variant is
 required, a compilation error is raised; conversely, an instance
 selection silently shadows the static variant.
+
+* A trait method (static or instance) that collides with a
+same-signature method inherited by the implementing class from its
+superclass shadows the inherited one at any call site where the trait
+method is reachable. At an instance call site (`new D().m()`), the
+trait member takes precedence regardless of whether either member is
+static or instance; at a static call site (`D.m()`), the trait member
+wins when it is itself static, while the inherited class static is
+reached only when the trait member is instance (and therefore
+unreachable via a static call).
+
+* To disambiguate such a collision, declare `m` on the implementing
+class and from its body invoke `super.m()` for the superclass version
+and `T.super.m()` for the trait version. Both super-call forms work
+uniformly for static and instance trait members; `T.super.m()` is the
+canonical escape for any trait-vs-superclass collision.
 
 === `@SelfType`
 
@@ -294,7 +350,8 @@ class, or via property defaults.
 field directly read the *trait's own* field, not any same-named property
 declared by the implementing class. To pick up an overriding value,
 trait code should access state through accessors (`getX()`), not by
-direct field reference.
+direct field reference. The same rule applies to static-field
+references — see <<_static_members,Static members>>.
 
 == Comparison with related constructs
 
@@ -404,9 +461,10 @@ routes them through a separate companion object whose members live on
 a singleton rather than per implementer. Groovy is the only one of the
 four that gives each implementing class its own copy of static members;
 this is what enables patterns such as overriding static defaults from
-the implementing class (e.g. Grails' `Validateable`), but is also why
-static-method dispatch remains an open design point — see
-<<_non_goals_and_potential_future_extensions,Non-goals>>.
+the implementing class (e.g. Grails' `Validateable`). The full Groovy
+4.0.32 dispatch behaviour is defined in <<_static_members,Static
+members>>; further evolution of the area is tracked under
+GROOVY-12093.
 * *Runtime trait application* (the `as` / `withTraits` form) is unique to
 Groovy. None of the other three constructs offers a way to attach a
 trait to an *existing* instance at runtime.
@@ -447,7 +505,7 @@ trait semantics.
 `@SelfType` formalised in the spec. Java stub generation for static
 trait properties hardened.
 
-| 5.0   | 2024
+| 5.0 [Interim] | 2024
 | Default, private and static methods in `interface` types are now
 implemented as *native* JVM bytecode rather than via the trait
 machinery (GROOVY-8299). This decouples the interface-default-method
@@ -455,10 +513,19 @@ feature from traits and improves Java interop. Multiple bug fixes
 landed for trait + `@TupleConstructor` default-value handling
 (GROOVY-8219, GROOVY-8788) and for trait static-field generation under
 static compilation (GROOVY-11817, GROOVY-11907).
+*Note:* GROOVY-8854 (Sep 2023) inadvertently rewrote
+`this.staticMethod()` in trait bodies to bind through the trait helper
+rather than through the implementing class, suppressing the override
+behaviour defined in <<_static_members,Static members>>. Tracked and
+corrected as GROOVY-11985 (see below).
 
-| 6.0+  | TBD
-| No spec-level changes to traits planned at the time of writing. This
-GEP is the canonical location to record any future change.
+| 5.0.7 / 6.0.0-alpha-2 [Interim] | 2026
+| Trait-body `m()` and `this.m()` calls to public trait statics again
+dispatch through the implementing class at runtime, restoring the
+override behaviour defined in <<_static_members,Static members>>
+(GROOVY-11985). Remaining static-dispatch design work is tracked at
+GROOVY-12093; this GEP is the canonical location to record any future
+change.
 |===
 
 == Non-goals and potential future extensions
@@ -467,11 +534,14 @@ The following items are deliberately out of scope for this GEP and for
 the current implementation. Any of them would warrant a follow-up
 revision of this document or a successor GEP.
 
-* Promoting static-member support out of incubating status. The current
-per-implementer template semantics is a deliberate JVM-shaped
+* Promoting trait static-member support out of incubating status. The
+current per-implementer template semantics is a deliberate JVM-shaped
 compromise; a "true" shared-static-member model would require either
 breaking that semantics or moving static state into a separate runtime
-holder.
+holder. Further evolution of trait static-member dispatch — closure
+call-site parity, mixed-static-vs-instance verdicts, interface
+exposure of trait statics, and related items — is tracked at
+GROOVY-12093 and may be addressed in a successor revision.
 * Emitting trait methods as native interface default methods on JDK 8+.
 The four-class helper model deliberately avoids this so that Java
 callers see traits as plain interfaces. Switching would be a
@@ -541,6 +611,16 @@ getter conflicts with generated getter (pre-compiled case).
 deterministic ordering of trait methods for reproducible builds.
 * https://issues.apache.org/jira/browse/GROOVY-11907[GROOVY-11907]:
 trait field reference transform restructure.
+* https://issues.apache.org/jira/browse/GROOVY-8854[GROOVY-8854]
+*(interim)*: trait `this.staticMethod()` receiver rewrite (the change
+that later caused the 5.0 dispatch regression corrected in
+GROOVY-11985).
+* https://issues.apache.org/jira/browse/GROOVY-11985[GROOVY-11985]
+*(interim)*: restoration of trait-body static dispatch through the
+implementing class (fixed in 5.0.7 / 6.0.0-alpha-2).
+* https://issues.apache.org/jira/browse/GROOVY-12093[GROOVY-12093]
+*(interim)*: remaining trait static-dispatch design work (closure
+parity, mixed-static-vs-instance, interface exposure).
 
 == Update history
 
@@ -553,3 +633,15 @@ contrasting Groovy traits with Scala traits, Kotlin interfaces, and
 Java default methods across state, conflict resolution, stackable
 `super`, static members, self-types, runtime application, and the
 Java-callable view.
+
+3 (2026-06-22) Rewrote _Static members_ to describe the dispatch
+behaviour shipping in Groovy 4.0.32 normatively (override visibility
+from trait-body call sites, closure call-site asymmetry, private-static
+trait-anchoring, per-direct-implementer composition, static-field
+template binding, `T.m()` unsupported from trait code, the uniform
+trait-shadows-superclass rule across the static/instance quadrant, and
+the `T.super.m()` disambiguation escape). Corrected the
+`@CompileStatic` claim. Added cross-version entries for the GROOVY-8854
+regression and the GROOVY-11985 restoration shipping in 5.0.7 /
+6.0.0-alpha-2. Cross-referenced GROOVY-12093 for the remaining
+static-dispatch design work.
