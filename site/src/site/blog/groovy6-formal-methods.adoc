@@ -658,6 +658,12 @@ The breadth here is well past what one post should reproduce in full, so a
 tour of the rest — each with a one-line pitch and a worked example in the
 repo for when you want it.
 
+And with the industry's focus on security sharpening — AI-accelerated threats,
+supply-chain risk, and a shift toward secure-by-design — it's useful to have
+another tool in that space that shifts whole bug classes left, several of them
+(overflow, out-of-bounds access, the salami-slice fraud above) squarely
+security-relevant and one aimed at security head-on:
+
 *Information-flow security (noninterference).* You can label data `High` or
 `Low` and prove that a secret never reaches a public sink — directly or via
 control flow. Noninterference means a secret never _influences_ anything an
