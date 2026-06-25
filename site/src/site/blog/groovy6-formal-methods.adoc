@@ -3,7 +3,7 @@ Paul King <paulk-asert|PMC_Member>
 :revdate: 2026-06-25T08:00:00+00:00
 :draft: true
 :keywords: formal methods, design by contract, verification, SMT, Z3, contracts, type checker, invariants, concurrency, rely-guarantee, information flow
-:description: Groovy 6 ships design-by-contract and a family of type-checking extensions. An external project, groovy-verify, builds on exactly those hooks to turn the same contracts into machine-checked proofs — Dafny-style, with counterexamples.
+:description: Groovy 6 ships design-by-contract & type-checking extensions. The groovy-verify project turns those contracts into Dafny-style proofs with counterexamples.
 
 == Introduction
 
