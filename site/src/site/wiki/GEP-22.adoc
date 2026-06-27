@@ -419,8 +419,12 @@ A trait `pkg.T` produces, after compilation, the following artefacts:
 . *An interface* `pkg.T` containing the abstract and public-method
 signatures, plus accessor signatures for any properties. This is the
 type that participates in `instanceof`, generics, and Java interop.
-The interface contains *no* default methods — trait method bodies are
-not bytecode-default-method bodies, even on JDK 8+.
+Public (non-`@Virtual`) static trait methods are also emitted here as
+JVM-native `static` interface methods that forward to the helper
+(GROOVY-12111); this is what makes both external `Trait.m()` and
+from-trait `T.m()` resolve at the JVM level. The interface contains
+*no* default (instance) methods — trait instance-method bodies are not
+bytecode-default-method bodies, even on JDK 8+.
 . *A trait helper class* named `pkg.T$Trait$Helper` (constant
 `Traits.TRAIT_HELPER`). Each non-abstract trait method `m(args)` is
 emitted as a `static` method on the helper, taking the receiver as an
