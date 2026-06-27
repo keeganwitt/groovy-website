@@ -13,7 +13,7 @@
 *Comment*:: Reflects trait semantics as of Groovy 6
 *Leader*:: Cédric Champeau
 *Created*:: 2026-05-06
-*Last modification*:: 2026-06-27
+*Last modification*:: 2026-06-28
 ****
 
 == Abstract: Traits
@@ -239,10 +239,10 @@ instantiated per implementer; static state is not shared across
 implementing classes.
 
 * Public static methods declared in a trait are promoted onto the
-generated trait interface as JVM-native interface statics. External
-calls of both forms — `Trait.staticMethod(...)` against the trait
-itself and `Impl.staticMethod(...)` against an implementing class —
-are supported.
+generated trait interface as JVM-native interface statics
+(GROOVY-12111). External calls of both forms —
+`Trait.staticMethod(...)` against the trait itself and
+`Impl.staticMethod(...)` against an implementing class — are supported.
 
 * Static trait methods, fields and properties may be declared in, and
 called from, `@CompileStatic` and `@TypeChecked` contexts. Calls
@@ -635,10 +635,11 @@ again dispatch through the implementing class at runtime, if
 using `@Virtual` (GROOVY-12093).
 
 | 6.0.0-alpha-2 | 2026
-| Public trait static methods are *declarer-bound by default* and are
-promoted onto the generated trait interface as JVM-native interface
-statics, so both `Trait.m()` from outside the trait and `T.m()` from
-inside the trait body resolve at the JVM level. The
+| Public trait static methods are *declarer-bound by default*
+(GROOVY-12093) and are promoted onto the generated trait interface as
+JVM-native interface statics (GROOVY-12111), so both `Trait.m()` from
+outside the trait and `T.m()` from inside the trait body resolve at the
+JVM level. The
 `@groovy.transform.Virtual` marker opts back into per-implementer
 override dispatch for callees that need it; `@Virtual` methods are
 not promoted onto the interface (interface statics are declarer-bound
@@ -748,10 +749,15 @@ GROOVY-11985).
 *(interim)*: experimented with restoring the 4.x behavior
 but ultimately rolled back.
 * https://issues.apache.org/jira/browse/GROOVY-12093[GROOVY-12093]:
-finalises the trait-static dispatch model — declarer-bound by default
-with public statics promoted onto the trait interface as JVM-native
-interface statics, and the `@groovy.transform.Virtual` marker opting
-into per-implementer override dispatch for callees that need it.
+finalises the trait-static dispatch model — declarer-bound by default,
+with the `@groovy.transform.Virtual` marker opting into per-implementer
+override dispatch for callees that need it.
+* https://issues.apache.org/jira/browse/GROOVY-12111[GROOVY-12111]:
+exposes public trait static methods on the generated trait interface as
+JVM-native interface statics, so both `Trait.m()` from outside the trait
+and `T.m()` from inside the trait body resolve at the JVM level
+(`@Virtual` methods are excluded — interface statics are declarer-bound
+by JVM rule, incompatible with virtual dispatch).
 * https://issues.apache.org/jira/browse/GROOVY-12104[GROOVY-12104]:
 rejects the `T.this.*` qualifier inside trait code at compile time
 (previously produced invalid or mis-typed bytecode at runtime).
@@ -793,8 +799,9 @@ implementer shadows the trait's default from inside trait code. Valid
 only on public, non-abstract static trait methods; applying it
 elsewhere is a compile-time error.
 
-5 (2026-06-27) From 6.0.0. Public trait static methods are now promoted onto
-the generated trait interface as JVM-native interface statics by default,
+5 (2026-06-28) From 6.0.0. Public trait static methods are now promoted onto
+the generated trait interface as JVM-native interface statics by default
+(GROOVY-12111),
 so both `Trait.m()` from outside the trait and `T.m()` from inside
 the trait body resolve at the JVM level. `@Virtual` methods are
 excluded from the promotion (interface statics are declarer-bound by
