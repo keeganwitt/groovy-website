@@ -10,10 +10,10 @@
 *Version*:: 5
 *Type*:: Feature
 *Status*:: Final
-*Comment*:: Reflects trait semantics as of Groovy 4.0.32, plus the `@Anchored` opt-in declarer-bound dispatch marker (GROOVY-12093) and the trait-body qualifier-syntax tightening rejecting `T.this.*` (GROOVY-12104) and unqualified static `super.m(...)` (GROOVY-12105)
+*Comment*:: Reflects trait semantics as of Groovy 6
 *Leader*:: Cédric Champeau
 *Created*:: 2026-05-06
-*Last modification*:: 2026-06-25
+*Last modification*:: 2026-06-27
 ****
 
 == Abstract: Traits
@@ -226,82 +226,85 @@ original concrete class must continue to use the underlying object.
 
 Static methods, properties and fields in a trait are supported. The
 area remains *incubating*. The behaviour described below reflects the
-semantics shipping in Groovy 4.0.32 plus the `@Anchored` opt-in
-declarer-bound dispatch marker introduced by GROOVY-12093.
+Groovy 6.0 model — declarer-bound dispatch for public trait statics,
+with promotion onto the generated trait interface as JVM-native
+interface statics, and an opt-in `@groovy.transform.Virtual` marker
+that restores per-implementer override dispatch for callees that need
+it (e.g. Grails' `Validateable.defaultNullable()` and similar
+framework hooks).
 
-* Each implementing class receives its *own copy* of static members.
-Static state is not shared across implementing classes — a static field
-declared in a trait is conceptually a template, instantiated per
-implementer.
+* Each implementing class receives its *own copy* of static state. A
+static field declared in a trait is conceptually a template,
+instantiated per implementer; static state is not shared across
+implementing classes.
 
-* Trait static members are *not* exposed on the generated trait
-interface. External calls of the form `Impl.staticMethod(...)` against
-an implementing class are supported; calls of the form
-`Trait.staticMethod(...)` against the trait itself are not statically
-valid.
+* Public static methods declared in a trait are promoted onto the
+generated trait interface as JVM-native interface statics. External
+calls of both forms — `Trait.staticMethod(...)` against the trait
+itself and `Impl.staticMethod(...)` against an implementing class —
+are supported.
 
 * Static trait methods, fields and properties may be declared in, and
 called from, `@CompileStatic` and `@TypeChecked` contexts. Calls
 inside a statically-checked trait body are subject to the ordinary
 type-checking and resolvability rules.
 
-* A public static method declared in a trait may be overridden by a
-same-signature static method on an implementing class. A call of the
-form `m(...)` or `this.m(...)` made directly in the body of a trait
-method dispatches through the implementing class at runtime; the
-implementer's override, if any, is visible to the trait body.
+* A public static method declared in a trait is *declarer-bound* by
+default: a call of the form `m(...)` or `this.m(...)` made directly
+in the body of a trait method resolves to the trait's own copy
+regardless of any same-signature static method declared on the
+implementing class. The implementer's same-name static is an
+independent method, not an override; external `Impl.m()` reaches
+that method, but trait-body calls do not see it.
+
+* A public static method may be annotated
+`@groovy.transform.Virtual` to opt into *per-implementer override*
+dispatch. Trait-body calls of the form `m(...)` or `this.m(...)` to
+a `@Virtual` callee are routed through the implementing class at
+runtime, so a same-signature static declared on the implementer
+shadows the trait's default from inside trait code. A `@Virtual`
+method is *not* promoted onto the trait interface (interface statics
+are declarer-bound by JVM rule, which is incompatible with virtual
+dispatch); external `Trait.m()` for a `@Virtual` callee is therefore
+routed via the implementer rather than resolved at the JVM level.
+
+* `@Virtual` is valid only on public static (non-abstract) trait
+methods. Applying it elsewhere — to an instance method, a private
+method or an abstract method — is a compile-time error.
 
 * A private static method declared in a trait is trait-internal: it
-is not composed onto the implementing class and is not overridable.
+is not composed onto the implementing class, is not overridable, and
+is not promoted onto the trait interface.
 
 * A static method call made from inside a closure body inside a trait
 method dispatches through the trait helper rather than through the
 implementing class. An implementer's override is not visible from
-such a call site.
-
-* A public static method may be annotated
-`@groovy.transform.Anchored` to opt out of the override dispatch
-described above. An `@Anchored` static is bound to the trait's
-definition: trait-body calls resolve to the trait's own copy, and the
-method is also promoted onto the generated trait interface as a
-JVM-native interface static. As a result, both `Trait.m()` calls from
-outside the trait and `T.m()` calls from inside the trait body resolve
-at the JVM level (unlike plain trait statics — see the
-`T.m()`-throws bullet below). An implementing class may declare a
-same-signature static method, but it is an independent method, not an
-override; the trait body always sees the trait's copy. The
-`@Anchored(inInterface=false)` attribute opts out of the interface
-promotion while retaining declarer-bound dispatch, for cases where a
-trait wants to keep the method publicly callable (via the implementer
-forwarder generated by trait composition) without adding a fresh
-Java-visible API surface.
-
-* `@Anchored` is valid only on public static (non-abstract) trait
-methods. Applying it elsewhere — to an instance method, a private
-method or an abstract method — is a compile-time error.
+such a call site, regardless of whether the callee is marked
+`@Virtual`.
 
 * A reference to a static field from trait code reads the trait's
 template field, not any same-named static on the implementing class.
-Per-implementer overridable defaults should be expressed through an
-accessor method, not a field (cf. the inheritance-of-state gotcha in
-<<_limitations,Limitations>>). For example:
+Per-implementer overridable defaults should be expressed through a
+`@Virtual` accessor method, not a field (cf. the inheritance-of-state
+gotcha in <<_limitations,Limitations>>). For example:
 +
 [source,groovy]
 ----
+import groovy.transform.Virtual
 trait V {
-    static String getOrigin() { 'trait' }      // overridable default
+    @Virtual static String getOrigin() { 'trait' }   // overridable default
     static String describe() { "origin is ${origin}" }
 }
 class Over implements V {
-    static String getOrigin() { 'class' }      // visible to trait body
+    static String getOrigin() { 'class' }            // visible to trait body
 }
 assert Over.describe() == 'origin is class'
 ----
 +
 Inside the body of `describe()`, the property reference `origin`
-resolves through Groovy's getter chain to `getOrigin()`, which
-dispatches through the implementing class per the previous bullet and
-picks up the override.
+resolves through Groovy's getter chain to `getOrigin()`, which is
+`@Virtual` and so dispatches through the implementing class, picking
+up the override.
 
 * Trait composition occurs at the class that names the trait in its
 `implements` clause. A subclass of an implementer does not re-compose
@@ -309,10 +312,13 @@ the trait; same-name static members declared on the subclass are not
 visible to trait code, because the trait's forwarder dispatches
 through the direct implementer.
 
-* A `T.m()` call made from within trait `T`'s own body throws
-`MissingMethodException` at runtime, for the same reason as the
-external case: trait static members do not appear on the trait
-interface.
+* A `T.m()` call made from within trait `T`'s own body resolves
+through the trait interface's JVM-native static (the promotion
+described above), and so reaches the trait's own copy — the same
+trait-anchored dispatch that any `Trait.m()` caller sees from outside
+the trait. For a `@Virtual` callee, which is not promoted onto the
+interface, `T.m()` from trait code reaches the trait's default via
+the implementer-routing path.
 
 * Mixing static and instance methods of the same signature across
 multiple traits is undefined behaviour and should be avoided. If
@@ -347,22 +353,16 @@ The principal dispatch behaviour summarised:
 | Disambiguation / escape
 
 | `public static m()`
-| Dispatches through the implementing class (item 4)
-| `Impl.m()` works; `Trait.m()` is not statically valid
+| Dispatches to the trait's own copy (declarer-bound)
+| Both `Trait.m()` and `Impl.m()` resolve at the JVM level via the trait interface's static
+| No
+| Mark `@Virtual` to opt into per-implementer override dispatch
+
+| `@Virtual public static m()`
+| Dispatches through the implementing class
+| `Impl.m()` works; `Trait.m()` resolves through implementer routing (the method is not promoted onto the interface)
 | Yes
-| Mark `@Anchored` to opt out
-
-| `@Anchored public static m()`
-| Dispatches to the trait's own copy (declarer-bound)
-| Both `Trait.m()` and `Impl.m()` resolve at the JVM level
-| No
 | `T.super.m()` from an override on the implementer reaches the trait's copy
-
-| `@Anchored(inInterface=false) public static m()`
-| Dispatches to the trait's own copy (declarer-bound)
-| `Impl.m()` works; `Trait.m()` is not valid (no interface promotion)
-| No
-| Same as above
 
 | `private static m()`
 | Dispatches to the trait's own copy (trait-internal)
@@ -376,10 +376,10 @@ The principal dispatch behaviour summarised:
 | No
 | Use a static accessor pair instead — see the worked example above
 
-| `static getX()` / `static setX()` accessor pair
+| `@Virtual static getX()` / `static setX()` accessor pair
 | Property syntax `x` resolves through the getter chain
 | `Impl.x` resolves via the MOP
-| Yes (same dispatch as a public static method)
+| Yes (the `@Virtual` getter dispatches through the implementing class)
 | (the supported pattern for overridable static defaults)
 
 | Public instance method
@@ -484,7 +484,7 @@ traits against the closest analogue in each language.
 | No state of any kind.
 
 | Static methods
-| Yes (incubating). Each implementing class receives its own copy; not exposed on the generated interface. See <<_static_members,Static members>>.
+| Yes (incubating). Each implementing class receives its own copy; public statics are also promoted onto the generated trait interface as JVM-native interface statics. Declarer-bound by default; per-implementer override dispatch is opt-in via `@groovy.transform.Virtual`. See <<_static_members,Static members>>.
 | Indirect, via a companion `object`. Static-like state lives on a singleton, not per implementer.
 | Indirect, via a `companion object` declared inside the interface. Members are instance members of the companion; `@JvmStatic` promotes them to true JVM statics.
 | Yes (since Java 8). Resolved against the declaring interface; *not* inherited by sub-interfaces or implementing classes.
@@ -567,12 +567,15 @@ without auxiliary delegation.
 treat them as per-interface (no inheritance, no overriding). Scala
 routes them through a separate companion object whose members live on
 a singleton rather than per implementer. Groovy is the only one of the
-four that gives each implementing class its own copy of static members;
-this is what enables patterns such as overriding static defaults from
-the implementing class (e.g. Grails' `Validateable`). The full Groovy
-4.0.32 dispatch behaviour is defined in <<_static_members,Static
-members>>; further evolution of the area is tracked under
-GROOVY-12093.
+four that gives each implementing class its own copy of static
+members, which is what enables patterns such as overriding static
+defaults from the implementing class (e.g. Grails' `Validateable`).
+On Groovy 6.0 the dispatch shape that exposes this — trait-body calls
+seeing the implementer's override — is opt-in via
+`@groovy.transform.Virtual`; the default for public trait statics is
+declarer-bound with the method promoted onto the trait interface as a
+JVM-native interface static. The full dispatch behaviour is defined
+in <<_static_members,Static members>>.
 * *Runtime trait application* (the `as` / `withTraits` form) is unique to
 Groovy. None of the other three constructs offers a way to attach a
 trait to an *existing* instance at runtime.
@@ -621,31 +624,30 @@ feature from traits and improves Java interop. Multiple bug fixes
 landed for trait + `@TupleConstructor` default-value handling
 (GROOVY-8219, GROOVY-8788) and for trait static-field generation under
 static compilation (GROOVY-11817, GROOVY-11907).
-*Note:* GROOVY-8854 (Sep 2023) inadvertently rewrote
+*Note:* GROOVY-8854 (Sep 2023) rewrote
 `this.staticMethod()` in trait bodies to bind through the trait helper
-rather than through the implementing class, suppressing the override
-behaviour defined in <<_static_members,Static members>>. Tracked and
-corrected as GROOVY-11985 (see below).
+rather than through the implementing class, disabling the previously available
+override behaviour (re-enabled using @Virtual as part of GROOVY-12093 - see below).
 
-| 5.0.7 / 6.0.0-alpha-2 [Interim] | 2026
-| Trait-body `m()` and `this.m()` calls to public trait statics again
-dispatch through the implementing class at runtime, restoring the
-override behaviour defined in <<_static_members,Static members>>
-(GROOVY-11985).
+| 5.0.7 / 6.0.0-alpha-2 | 2026
+| Trait-body `m()` and `this.m()` calls to public trait statics can
+again dispatch through the implementing class at runtime, if
+using `@Virtual` (GROOVY-12093).
 
-| 6.0   | TBD
-| `@groovy.transform.Anchored` introduces opt-in declarer-bound
-dispatch for public static trait methods (GROOVY-12093). `@Anchored`
-methods are bundled with promotion onto the generated trait interface
-as JVM-native interface statics, making external `Trait.m()` and
-from-trait `T.m()` calls resolve at the JVM level. The
-`@Anchored(inInterface=false)` attribute retains declarer-bound
-dispatch while suppressing interface promotion. Misapplication of the
-marker (on instance, private, or abstract methods) is a compile-time
-error. The closure call-site asymmetry, the static-field non-goal,
-and the trait-shadows-superclass quadrant are all documented in
-<<_static_members,Static members>>; no separate fork remains open at
-the time of writing.
+| 6.0.0-alpha-2 | 2026
+| Public trait static methods are *declarer-bound by default* and are
+promoted onto the generated trait interface as JVM-native interface
+statics, so both `Trait.m()` from outside the trait and `T.m()` from
+inside the trait body resolve at the JVM level. The
+`@groovy.transform.Virtual` marker opts back into per-implementer
+override dispatch for callees that need it; `@Virtual` methods are
+not promoted onto the interface (interface statics are declarer-bound
+by JVM rule, incompatible with virtual dispatch). Misapplication of
+the marker (on instance, private, or abstract methods) is a
+compile-time error. The closure call-site asymmetry, the static-field
+non-goal, and the trait-shadows-superclass quadrant are all documented
+in <<_static_members,Static members>>; no separate fork remains open
+at the time of writing.
 Trait-body qualifier syntax is tightened: `T.this.*` is rejected at
 compile time (GROOVY-12104; previously produced a VerifyError on 4.x
 and a ClassCastException at runtime on 5.x/6.x), and unqualified
@@ -666,10 +668,9 @@ revision of this document or a successor GEP.
 current per-implementer template semantics is a deliberate JVM-shaped
 compromise; a "true" shared-static-member model would require either
 breaking that semantics or moving static state into a separate runtime
-holder. Further evolution of trait static-member dispatch — closure
-call-site parity, mixed-static-vs-instance verdicts, interface
-exposure of trait statics, and related items — is tracked at
-GROOVY-12093 and may be addressed in a successor revision.
+holder. Remaining open items in trait static-member dispatch — closure
+call-site parity and mixed-static-vs-instance verdicts — may be
+addressed in a successor revision.
 * Emitting trait methods as native interface default methods on JDK 8+.
 The four-class helper model deliberately avoids this so that Java
 callers see traits as plain interfaces. Switching would be a
@@ -744,12 +745,20 @@ trait field reference transform restructure.
 that later caused the 5.0 dispatch regression corrected in
 GROOVY-11985).
 * https://issues.apache.org/jira/browse/GROOVY-11985[GROOVY-11985]
-*(interim)*: restoration of trait-body static dispatch through the
-implementing class (fixed in 5.0.7 / 6.0.0-alpha-2).
+*(interim)*: experimented with restoring the 4.x behavior
+but ultimately rolled back.
 * https://issues.apache.org/jira/browse/GROOVY-12093[GROOVY-12093]:
-introduces the `@groovy.transform.Anchored` marker for opt-in
-declarer-bound dispatch of public static trait methods, with bundled
-interface promotion and an `inInterface=false` opt-out.
+finalises the trait-static dispatch model — declarer-bound by default
+with public statics promoted onto the trait interface as JVM-native
+interface statics, and the `@groovy.transform.Virtual` marker opting
+into per-implementer override dispatch for callees that need it.
+* https://issues.apache.org/jira/browse/GROOVY-12104[GROOVY-12104]:
+rejects the `T.this.*` qualifier inside trait code at compile time
+(previously produced invalid or mis-typed bytecode at runtime).
+* https://issues.apache.org/jira/browse/GROOVY-12105[GROOVY-12105]:
+rejects unqualified `super.m(...)` from a `static` trait method at
+compile time (previously threw `MissingMethodException` because the
+trait chain is not walked for statics).
 
 == Update history
 
@@ -776,28 +785,27 @@ the GROOVY-8854 regression and the GROOVY-11985 restoration shipping
 in 5.0.7 / 6.0.0-alpha-2. Cross-referenced GROOVY-12093 for the remaining
 static-dispatch design work.
 
-4 (2026-06-22) Adopted GROOVY-12093:
-`@groovy.transform.Anchored` is now a supported marker for public
-static trait methods, selecting declarer-bound dispatch bundled with
-interface promotion, plus an `inInterface=false` opt-out. Added
-normative bullets under _Static members_ for the marker, the opt-out
-attribute, and the misapplication compile error. Added a
-quick-reference behaviour table summarising dispatch across the
-principal trait-member kinds. Added a cross-version evolution row for
-the release shipping the feature. Removed the "interim" tag from
-GROOVY-12093 in _Representative JIRA issues_ (the design point it
-tracked is now closed). The closure call-site asymmetry, the
-static-field non-goal, and the trait-shadows-superclass quadrant
-remain as they were after v3 — documented, with workarounds where
-applicable.
+4 (2026-06-27) From 5.0.7. Added `@groovy.transform.Virtual`, a marker for
+public static trait methods that opts into per-implementer override dispatch:
+trait-body calls to a `@Virtual` callee are routed through the
+implementing class at runtime, so a same-signature static on the
+implementer shadows the trait's default from inside trait code. Valid
+only on public, non-abstract static trait methods; applying it
+elsewhere is a compile-time error.
 
-5 (2026-06-25) Tightened trait-body qualifier syntax. Added item 4
-to _this, super, and stackable traits_ rejecting `T.this.*`
-(GROOVY-12104; previously produced a VerifyError on 4.x and a
-ClassCastException on 5.x/6.x) and rejecting unqualified
-`super.m(...)` from a `static` trait method (GROOVY-12105; previously
-threw `MissingMethodException` because the trait chain is not walked
-for statics). Item 2 of the same section now cross-references item 4
-for the static-method restriction. The recommended alternatives are
-existing documented features: `this.m(...)` for normal dispatch and
-`T.super.m(...)` for explicit trait-anchored dispatch.
+5 (2026-06-27) From 6.0.0. Public trait static methods are now promoted onto
+the generated trait interface as JVM-native interface statics by default,
+so both `Trait.m()` from outside the trait and `T.m()` from inside
+the trait body resolve at the JVM level. `@Virtual` methods are
+excluded from the promotion (interface statics are declarer-bound by
+JVM rule, incompatible with virtual dispatch). Trait-body qualifier
+syntax tightened in the same revision: `T.this.*` is rejected at
+compile time (GROOVY-12104; previously produced a VerifyError on 4.x
+and a ClassCastException on 5.x/6.x) and unqualified `super.m(...)`
+from a `static` trait method is rejected at compile time
+(GROOVY-12105; previously threw `MissingMethodException` because the
+trait chain is not walked for statics). Item 2 of _this, super, and
+stackable traits_ now cross-references item 4 for the static-method
+restriction; the recommended alternatives are existing documented
+features (`this.m(...)` for normal dispatch and `T.super.m(...)` for
+explicit trait-anchored dispatch).
