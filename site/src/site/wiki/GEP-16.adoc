@@ -9,7 +9,7 @@
 *Title*:: `val` type placeholder for final declarations
 *Version*:: 6
 *Type*:: Feature
-*Status*:: Draft
+*Status*:: Final
 *Leader*:: Paul King
 *Created*:: 2026-04-12
 *Last modification*:: 2026-05-07

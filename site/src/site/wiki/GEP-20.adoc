@@ -9,7 +9,7 @@
 *Title*:: Multi-assignment Destructuring
 *Version*:: 1
 *Type*:: Feature
-*Status*:: Draft
+*Status*:: Accepted
 *Leader*:: Paul King
 *Created*:: 2026-04-25
 *Last modification*:: 2026-04-25

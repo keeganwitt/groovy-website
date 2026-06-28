@@ -9,7 +9,7 @@
 *Title*:: Compound assignment operator overloading
 *Version*:: 2
 *Type*:: Feature
-*Status*:: Draft
+*Status*:: Accepted
 *Leader*:: Paul King
 *Created*:: 2026-04-12
 *Last modification*:: 2026-04-28

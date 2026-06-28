@@ -9,7 +9,7 @@
 *Title*:: Broadening AST transform awareness under joint compilation
 *Version*:: 7
 *Type*:: Feature
-*Status*:: Draft
+*Status*:: Accepted
 *Leader*:: Paul King
 *Created*:: 2026-04-28
 *Last modification*:: 2026-04-30

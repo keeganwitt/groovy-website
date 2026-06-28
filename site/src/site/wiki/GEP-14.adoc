@@ -9,7 +9,7 @@
 *Title*:: Record classes
 *Version*:: 1
 *Type*:: Feature
-*Status*:: Draft
+*Status*:: Final
 *Leader*:: Paul King
 *Created*:: 2021-10-26
 *Last modification*:: 2021-10-26

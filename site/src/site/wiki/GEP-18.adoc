@@ -9,7 +9,7 @@
 *Title*:: Integrated Concurrency and Parallel Processing
 *Version*:: 1
 *Type*:: Feature
-*Status*:: Draft
+*Status*:: Final
 *Leader*:: Paul King
 *Created*:: 2026-04-15
 *Last modification*:: 2026-04-15
@@ -35,7 +35,7 @@ actors, agents, and more. However, GPars is a separate library with its
 own release cycle, and modern JDK developments (virtual threads, structured
 task scope, parallel streams) have shifted the concurrency landscape.
 
-Groovy 6 introduced native `async`/`await` support (GEP-16), providing
+Groovy 6 introduced native `async`/`await` support (GROOVY-9381), providing
 language-level concurrency primitives. This GEP extends that foundation
 with the higher-level patterns that GPars users rely on, integrated
 directly into Groovy core so they are available out of the box.
@@ -440,5 +440,5 @@ The following GPars features are intentionally excluded or deferred:
 
 == References
 
-* GROOVY-9381: Async/Await (Groovy 6)
+* https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381: Async/Await] (Groovy 6)
 * https://github.com/GPars/GPars[GPars on GitHub]
