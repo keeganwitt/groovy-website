@@ -1673,6 +1673,12 @@ Groovy 4.0 -- is *promoted out of incubation in Groovy 6.0*
 Its public API is now covenanted and subject to binary-compatibility
 checks.
 
+* The `groovy-ginq` module (GINQ -- Groovy-Integrated Query) --
+introduced as an incubating module in Groovy 4.0 -- is *promoted out of
+incubation in Groovy 6.0*
+(https://issues.apache.org/jira/browse/GROOVY-12042[GROOVY-12042]).
+The 6.0 query enhancements are described in <<ginq,GINQ Enhancements>>.
+
 * The `groovy-contracts` module is *promoted out of incubation in
 Groovy 6.0*
 (https://issues.apache.org/jira/browse/GROOVY-12038[GROOVY-12038]).
