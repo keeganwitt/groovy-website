@@ -7,7 +7,7 @@
 [horizontal,options="compact"]
 *Number*:: GEP-22
 *Title*:: Traits
-*Version*:: 6
+*Version*:: 7
 *Type*:: Feature
 *Status*:: Final
 *Comment*:: Reflects trait semantics as of Groovy 6
@@ -150,32 +150,35 @@ the runtime hierarchy.
 implementation chain* (in the order produced by the `implements` clause
 of the implementing class, walked right-to-left). When the chain is
 exhausted, `super` resolves to the actual superclass of the implementing
-class. (See item 4 for the static-method restriction.)
+class. (This applies to instance methods only; from a `static` trait
+method it is rejected — see the unsupported-syntax list below.)
 . A qualified `T.super.m(...)` call resolves to trait `T`'s implementation
 of `m`, regardless of position in the chain. This is the explicit
 override form.
-. `T.this.*` qualifier syntax is not supported inside trait code and is
-rejected at compile time (GROOVY-12104). `T.this` is Java's
-enclosing-instance access for inner classes, and a trait is not an
-enclosing scope of its implementer (per item 1, `this` is the
-implementing instance directly), so `T.this` has no coherent meaning
-here. The rejection covers both method calls (`T.this.m(...)`) and
-field/property access (`T.this.x`). For normal dispatch use
-`this.m(...)` (item 1); for explicit trait-anchored dispatch use
-`T.super.m(...)` (item 3). Separately, the unqualified `super.m(...)`
-form of item 2 is supported for instance methods only; from a
-`static` trait method the trait chain is not walked and the form is
-rejected at compile time (GROOVY-12105). Use `T.super.m(...)` for the
-trait's own static `m`, or call the implementer-side method by name
-without a qualifier. (Note: this restriction is specific to traits.
-Groovy permits unqualified `super.m(...)` in `static` methods of
-plain classes, where it dispatches to the actual superclass's static
-method.)
 
 This rule set yields *stackable traits*: behaviours that delegate to the
 next trait via unqualified `super` can be composed in different orders
 to produce different overall behaviours, without those traits needing to
 know about each other.
+
+The following qualifier syntax is *not* supported inside trait code and
+is rejected at compile time:
+
+* `T.this.*` (GROOVY-12104). `T.this` is Java's enclosing-instance access
+for inner classes, and a trait is not an enclosing scope of its
+implementer (per item 1, `this` is the implementing instance directly),
+so it has no coherent meaning here. The rejection covers both method
+calls (`T.this.m(...)`) and field/property access (`T.this.x`). For normal
+dispatch use `this.m(...)` (item 1); for explicit trait-anchored dispatch
+use `T.super.m(...)` (item 3).
+* unqualified `super.m(...)` from a `static` trait method (GROOVY-12105).
+The unqualified `super` form of item 2 is supported for instance methods
+only; from a `static` trait method the trait chain is not walked. Use
+`T.super.m(...)` for the trait's own static `m`, or call the
+implementer-side method by name without a qualifier. (This restriction is
+specific to traits: Groovy permits unqualified `super.m(...)` in `static`
+methods of plain classes, where it dispatches to the actual superclass's
+static method.)
 
 === Multiple inheritance and conflict resolution
 
@@ -233,6 +236,27 @@ that restores per-implementer override dispatch for callees that need
 it (e.g. Grails' `Validateable.defaultNullable()` and similar
 framework hooks).
 
+Trait rules apply in three distinct phases; it helps to keep them apart
+when reading the rules that follow:
+
+* *Defining* a trait — checks that run when the trait itself is
+*compiled*, independent of `@CompileStatic`. Malformed trait code is
+rejected outright (for example a misapplied `@Virtual`, a `T.this.*`
+qualifier, or unqualified `super` from a static trait method — see
+<<__this_super_and_stackable_traits,this, super, and stackable traits>>).
+These rejections always apply, in dynamic and statically-checked code
+alike, because you cannot even define such a trait.
+* *Weaving* a trait — what happens when a class names the trait in its
+`implements` clause: per-direct-implementer composition, the bridge
+forwarders, and the static-helper plumbing (see
+<<_bytecode_and_stub_model,Bytecode and stub model>>).
+* *Using* a trait — resolving a call at its call site, which follows the
+*compilation mode*. Under `@CompileStatic`/`@TypeChecked` an unresolvable
+call is a *compile-time error*; in dynamic code the same call instead
+fails at *runtime* with `MissingMethodException`. So the resolvability
+rules below describe the same outcome reported at two different times
+depending on how the calling code is compiled.
+
 * Each implementing class receives its *own copy* of static state. A
 static field declared in a trait is conceptually a template,
 instantiated per implementer; static state is not shared across
@@ -265,8 +289,13 @@ runtime, so a same-signature static declared on the implementer
 shadows the trait's default from inside trait code. A `@Virtual`
 method is *not* promoted onto the trait interface (interface statics
 are declarer-bound by JVM rule, which is incompatible with virtual
-dispatch); external `Trait.m()` for a `@Virtual` callee is therefore
-routed via the implementer rather than resolved at the JVM level.
+dispatch). It therefore has *no qualified `Trait.m(...)` form*: a bare
+`Trait.m(...)` names the trait with no implementing class to dispatch
+through, so it is rejected — a *compile-time error* under
+`@CompileStatic`/`@TypeChecked` (GROOVY-12112), and a runtime
+`MissingMethodException` in dynamic code. Read a concrete class's value
+with `Impl.m(...)`, or use `T.super.m(...)` from within trait code for
+the trait's own definition.
 
 * `@Virtual` is valid only on public static (non-abstract) trait
 methods. Applying it elsewhere — to an instance method, a private
@@ -316,9 +345,11 @@ through the direct implementer.
 through the trait interface's JVM-native static (the promotion
 described above), and so reaches the trait's own copy — the same
 trait-anchored dispatch that any `Trait.m()` caller sees from outside
-the trait. For a `@Virtual` callee, which is not promoted onto the
-interface, `T.m()` from trait code reaches the trait's default via
-the implementer-routing path.
+the trait. This applies to plain (non-`@Virtual`) statics only; a
+`@Virtual` callee has no qualified form, so `T.m()` from trait code is
+rejected the same way as any other `Trait.m(...)` call (GROOVY-12112) —
+use unqualified `m(...)`/`this.m(...)` for override-visible dispatch, or
+`T.super.m(...)` for the trait's own default.
 
 * Static methods declared in a super-trait are inherited by a
 sub-trait and may be called from the sub-trait's own body, resolved by
@@ -388,7 +419,7 @@ The principal dispatch behaviour summarised:
 
 | `@Virtual public static m()`
 | Dispatches through the implementing class
-| `Impl.m()` works; `Trait.m()` resolves through implementer routing (the method is not promoted onto the interface)
+| `Impl.m()` works; `Trait.m()` is rejected (not on the interface) — compile error under `@CompileStatic` (GROOVY-12112), runtime `MissingMethodException` dynamically
 | Yes
 | `T.super.m()` from an override on the implementer reaches the trait's copy
 
@@ -416,6 +447,75 @@ The principal dispatch behaviour summarised:
 | Yes
 | `T.super.m()` reaches the trait's copy from any override
 |===
+
+==== When to use `@Virtual`
+
+A plain trait `static` is a fixed part of the trait: trait code that
+calls it always reaches the trait's own copy, and an implementing class
+cannot change what the trait sees. That is the right default for an
+internal helper or a constant — something the trait owns outright.
+
+`@Virtual` is for the opposite case: a `static` method that the trait
+wants implementing classes to be able to *override*, and whose override
+the trait's own logic must *honour*. It is the template-method pattern —
+a default plus a per-class override — applied to a static member,
+mirroring the override-visibility that trait *instance* methods already
+have.
+
+Reach for it when the overridable thing is genuinely a property of the
+*type* rather than of an instance — a policy or configuration default
+that:
+
+* answers a question about the class as a whole ("are properties nullable
+by default for this entity?", "what is the default page size?");
+* may be consulted where no instance exists yet — during class
+initialisation, in static factory methods, or while building metadata;
+* external callers should be able to read statically as `Impl.setting()`.
+
+This is the pattern Grails uses for hooks such as
+`Validateable.defaultNullable()`: the framework ships a default, a domain
+class may override it with its own `static`, and the framework's own
+(static) logic must see the per-class value. For overridable static
+*data* rather than behaviour, expose it through a `@Virtual` accessor
+(`@Virtual static getSetting()`) rather than a `static` field, since a
+bare static-field read from trait code is not override-visible (see the
+worked example above).
+
+If the member is instead an internal helper, a constant, or anything the
+trait should keep authority over, leave it a plain `static`:
+declarer-bound is the safer default, and an implementer's same-named
+static then stays an independent method rather than silently changing the
+trait's behaviour.
+
+[NOTE]
+====
+Why the obvious alternatives do not fit a class-level overridable default:
+
+* An *instance method* would give override-visibility for free, but it is
+the wrong shape — the value answers a question about the *type*, and it is
+often needed where no instance exists yet (class initialisation, static
+factories, metadata building). You should not have to instantiate a class
+to ask a question about the class.
+* A plain *`static` field* is per-implementer, but a bare static-field read
+from trait code reads the trait's own template field, *not* the
+implementer's override (the documented non-goal above), so it cannot carry
+an overridable default that the trait honours.
+* An *abstract / required* contract removes the default entirely — every
+implementer is then forced to supply the value, losing the "sensible
+default, occasionally overridden" ergonomics.
+
+`@Virtual` is the only construct that provides all three at once: a
+default, a per-class override, and trait-code visibility of that override,
+in a static context.
+====
+
+The call forms follow the use case: the trait consults the setting with
+`setting()` or `this.setting()`; an implementing class overrides it with a
+plain `static setting()`; external code reads a concrete class's value
+with `Impl.setting()`; and `T.super.setting()` reaches the trait's own
+default explicitly. A bare `Trait.setting()` is *not* part of the pattern
+— it has no implementing class to dispatch through and is rejected
+(GROOVY-12112; see the `@Virtual` rule above).
 
 === `@SelfType`
 
@@ -516,7 +616,7 @@ traits against the closest analogue in each language.
 | No state of any kind.
 
 | Static methods
-| Yes (incubating). Each implementing class receives its own copy; public statics are also promoted onto the generated trait interface as JVM-native interface statics. Declarer-bound by default; per-implementer override dispatch is opt-in via `@groovy.transform.Virtual`. See <<_static_members,Static members>>.
+| Yes (incubating). Each implementing class receives its own copy. Public statics are declarer-bound by default and promoted onto the generated trait interface as JVM-native interface statics; `@groovy.transform.Virtual` opts a static into per-implementer override dispatch and is then *not* promoted to the interface (so it has no qualified `Trait.m(...)` form). See <<_static_members,Static members>>.
 | Indirect, via a companion `object`. Static-like state lives on a singleton, not per implementer.
 | Indirect, via a `companion object` declared inside the interface. Members are instance members of the companion; `@JvmStatic` promotes them to true JVM statics.
 | Yes (since Java 8). Resolved against the declaring interface; *not* inherited by sub-interfaces or implementing classes.
@@ -686,7 +786,7 @@ compile time (GROOVY-12104; previously produced a VerifyError on 4.x
 and a ClassCastException at runtime on 5.x/6.x), and unqualified
 `super.m(...)` from a `static` trait method is rejected at compile
 time (GROOVY-12105; previously threw `MissingMethodException`
-because the trait chain is not walked for statics). See item 4 of
+because the trait chain is not walked for statics). See
 <<__this_super_and_stackable_traits,this, super, and stackable
 traits>>.
 A sub-trait can again resolve a `static` method inherited from a
@@ -695,6 +795,11 @@ is a subtype of the declared parameter type (GROOVY-12106; this had
 regressed in the 5.0.x line, where static type checking matched the
 inherited helper static by exact parameter type only). The fix is
 targeted for backport to the `GROOVY_5_0_X` line.
+A qualified `Trait.m(...)` call to a `@Virtual` trait static — which has
+no implementing class to dispatch through — is now rejected with a clear,
+actionable message under `@CompileStatic`/`@TypeChecked` (GROOVY-12112)
+rather than the generic "cannot find matching method"; in dynamic code it
+remains a runtime `MissingMethodException`.
 |===
 
 == Non-goals and potential future extensions
@@ -808,6 +913,11 @@ a sub-trait again resolves a `static` method inherited from a
 super-trait from its own body, including with a subtype argument
 (static type checking had matched the inherited helper static by exact
 parameter type only, regressing this in the 5.0.x line).
+* https://issues.apache.org/jira/browse/GROOVY-12112[GROOVY-12112]:
+rejects a qualified `Trait.m(...)` call to a `@Virtual` trait static with
+a clear compile-time error (under `@CompileStatic`/`@TypeChecked`) instead
+of the generic "cannot find matching method"; dynamic code still reports a
+runtime `MissingMethodException`.
 
 == Update history
 
@@ -855,8 +965,8 @@ and a ClassCastException on 5.x/6.x) and unqualified `super.m(...)`
 from a `static` trait method is rejected at compile time
 (GROOVY-12105; previously threw `MissingMethodException` because the
 trait chain is not walked for statics). Item 2 of _this, super, and
-stackable traits_ now cross-references item 4 for the static-method
-restriction; the recommended alternatives are existing documented
+stackable traits_ now cross-references the static-method restriction;
+the recommended alternatives are existing documented
 features (`this.m(...)` for normal dispatch and `T.super.m(...)` for
 explicit trait-anchored dispatch).
 
@@ -868,3 +978,9 @@ unqualified/`this.` (declarer-bound, or override-visible under
 `Parent.super.m(...)` — with subtype-aware argument resolution, matching
 plain-class static inheritance (GROOVY-12106; this had regressed in the
 5.0.x line). Added the corresponding cross-version and JIRA-issue entries.
+
+7 (2026-06-28) Added a "_When to use `@Virtual`_" rationale to _Static
+members_ (template-method-like overridable static defaults, with a NOTE
+on why an instance method, a `static` field, or an abstract contract do
+not fit), and a phase framing (defining vs weaving vs using a trait, and
+the `@CompileStatic` compile-error vs dynamic runtime-error split).
