@@ -1,0 +1,662 @@
+= GEP-26: GINQ SQL Backend (Native and JOOQ Providers)
+
+:icons: font
+
+.Metadata
+****
+[horizontal,options="compact"]
+*Number*:: GEP-26
+*Title*:: GINQ SQL Backend (Native and JOOQ Providers)
+*Version*:: 1
+*Type*:: Feature
+*Status*:: Draft
+*Target*:: Groovy 7.0
+*Comment*:: Builds on the existing GINQ collection provider and the `groupby...into` group model; strictly additive and opt-in
+*Leader*:: Paul King
+*Created*:: 2026-06-28
+*Last modification*:: 2026-06-28
+****
+
+[width="80%",align="center"]
+|===
+a| NOTE: _WARNING:_
+Material on this page is still under development!
+We are currently working on Groovy 6.0 and this proposal targets Groovy 7.0.
+The final version of this proposal may differ significantly from the current draft,
+but having this draft available allows us to gather early feedback, align design
+decisions in Groovy 6 as best we can, and iterate on the design.
+We welcome feedback and discussion, but please keep in mind that the details are not yet finalized.
+|===
+
+== Abstract
+
+Groovy-Integrated Query (GINQ) lets developers express SQL-like queries directly
+in Groovy and, today, executes them entirely _in memory_ over `Iterable`, `Stream`,
+and array data sources via its _collection provider_. Because GINQ's surface syntax
+was deliberately modelled on SQL, the same query text maps almost one-to-one onto a
+relational `SELECT` statement.
+
+This GEP proposes a *SQL execution backend for GINQ*: the ability to run an
+_unchanged_ GINQ query against a relational database, pushing filtering, joining,
+grouping, and aggregation down to the database engine instead of materialising tables
+into memory. The backend is delivered as *two providers that share a common front-end*:
+
+* *Native SQL provider* — dependency-free, ships in the module, generates ANSI SQL and
+  executes it through `groovy.sql.Sql`. Fully available under the Apache License 2.0.
+* *JOOQ provider* — optional, user-supplied JOOQ dependency, adds dialect-aware
+  rendering, window functions, and comprehensive function mapping by delegating to
+  JOOQ's plain-SQL DSL.
+
+Both providers consume the same provider-independent intermediate representation
+produced once from the GINQ AST, so the difficult work — understanding GINQ semantics —
+is done a single time, and each provider only renders the "last mile." The feature is
+strictly additive and opt-in: the collection provider remains the default and is unchanged.
+
+== Motivation
+
+GINQ users routinely query data that originates in a database. Today they have two
+awkward choices: materialise rows into collections (for example with
+`groovy.sql.Sql.rows()`) and then query the collections with GINQ — which pulls entire
+tables across the wire and discards the database's indexes and query planner — or
+abandon GINQ and hand-write SQL, losing GINQ's compile-time checked, uniform, and
+composable syntax. Neither is satisfying.
+
+The relational backend closes this gap. The motivating insight is the same one behind
+C#'s LINQ: _a query language should be independent of its execution engine._
+LINQ-to-Objects and LINQ-to-SQL share one surface syntax and differ only in the provider
+that executes it. GINQ already has the architectural seam for this — a pluggable code
+generator selected per query — but ships only the in-memory generator. This GEP fills in
+the relational half.
+
+The concrete benefits:
+
+* *Push-down.* `where`, `join`, `groupby`, aggregation, and `limit` execute inside the
+  database, using its indexes and optimiser, returning only the rows the query actually needs.
+* *One syntax, two worlds.* The same query can target a collection during testing and a
+  database in production, with the provider as the only difference.
+* *Composability preserved.* Results come back as a `Queryable`, so further GINQ
+  operations and ordinary Groovy collection methods continue to work on the result.
+* *Zero-dependency floor, optional ceiling.* The native provider guarantees a fully ASL2,
+  dependency-free baseline; JOOQ is an opt-in upgrade for teams that need broad dialect coverage.
+
+=== Design principles
+
+* *Same syntax, different execution.* The GINQ surface language does not change. A query
+  becomes a database query purely by selecting a provider. No new query keywords are
+  introduced by this GEP.
+
+* *Zero-dependency core.* The native provider depends only on `groovy-sql`. Every feature
+  it offers is available under ASL2 with no third-party runtime dependency. JOOQ is
+  strictly optional.
+
+* *Translate cleanly, or refuse clearly.* Expressions that have a faithful SQL meaning are
+  translated; expressions that do not are either pushed to an in-memory fallback (mixed
+  mode) or rejected at compile time with a precise, actionable error — never silently
+  mis-executed.
+
+* *Safe by construction.* Literals and captured variables always become bound statement
+  parameters. SQL text is never assembled by string concatenation of user values. SQL
+  injection is structurally impossible.
+
+* *Render once, reuse everywhere.* The GINQ AST is walked into a provider-independent
+  intermediate model exactly once; providers differ only in how they render that model.
+
+* *Additive and opt-in.* The collection provider remains the default. Existing GINQ code,
+  semantics, and performance are untouched.
+
+== Background: how GINQ executes today
+
+This section is self-contained so the proposal can be read without external references. A
+GINQ query is written as a closure passed to the `GQ`/`GQL` macros or attached to a method
+via the `@GQ` annotation:
+
+[source,groovy]
+----
+def result = GQ {
+    from p in persons
+    join c in cities on p.cityId == c.id
+    where p.age >= 18
+    groupby c.name into g
+    having g.count() > 1
+    orderby c.name
+    select c.name, g.count() as people, g.avg(p -> p.age) as avgAge
+}
+----
+
+Compilation proceeds through three stages, the first two of which are _provider-independent_:
+
+. *Parsing.* A builder walks the closure's AST and produces a structured `GinqExpression`
+  tree — a faithful, typed model of the clauses (`from`, `join`/`on`, `where`, `groupby`,
+  `having`, `orderby`, `limit`, `select`, and the set-operation keywords `union`,
+  `unionall`, `intersect`, `minus`).
+. *Optimisation.* An optional optimiser rewrites the `GinqExpression` for efficiency (for
+  example predicate push-down between joins). Still provider-independent.
+. *Code generation.* A _visitor_ walks the optimised `GinqExpression` and emits executable
+  Groovy AST. *This is the pluggable step.* The shipped collection visitor generates a
+  fluent chain of `Queryable` calls
+  (`from(...).where(...).groupByInto(...).select(...)`) that execute in memory.
+
+Two existing facts make a relational backend natural:
+
+* *The visitor is already selectable per query.* The `astWalker` configuration key names
+  the visitor class, so alternative code generators are a supported extension point rather
+  than a new concept.
+* *Grouping already has a clean model.* The `groupby ... into g` form binds a first-class
+  group object (a `GroupResult`) supporting `g.count()`, `g.sum(...)`, `g.avg(...)`, key
+  access via `g.key`/`g["name"]`, and so on. This maps directly onto SQL `GROUP BY` with
+  aggregate functions, with none of the implicit-variable rewriting the classic `groupby`
+  form requires.
+
+== Architecture
+
+=== Dual provider
+
+The backend is a *dual offering*: a built-in native provider with no external dependencies
+and an optional JOOQ-backed provider, both sitting behind one user-facing configuration
+surface and sharing one intermediate model.
+
+----
+groovy-ginq         core: parser, GinqExpression AST, optimiser, collection provider
+groovy-ginq-sql     shared: GINQ AST -> SqlQuery model, expression translator, result wrapping
+                    +-- NativeSqlProvider   built-in, ANSI SQL via groovy.sql.Sql
+                    +-- JooqSqlProvider     optional, delegates to the JOOQ DSL
+----
+
+=== Shared front-end
+
+Both providers reuse stages 1 and 2 of the existing pipeline unchanged. The SQL-specific
+work begins at the visitor: instead of emitting `Queryable` call chains, the SQL visitor
+walks the `GinqExpression` into a provider-independent `SqlQuery` model (an intermediate
+representation, or IR). A _renderer_ then turns that IR into something executable. There
+are two renderers, one per provider, and they are the only provider-specific code of any size.
+
+----
+GinqExpression --(shared SQL visitor)--> SqlQuery (IR)
+                                             |
+                          +------------------+------------------+
+                          v                                     v
+                NativeSqlRenderer                       JooqSqlRenderer
+            IR -> ANSI SQL text + params             IR -> JOOQ DSL calls
+            executed via groovy.sql.Sql              executed via DSLContext
+                          |                                     |
+                          v                                     v
+            Queryable<GroovyRowResult>                  Queryable<Record>
+----
+
+=== The SqlQuery intermediate model
+
+The IR is the central design asset. By understanding GINQ semantics once and recording the
+result in a neutral shape, each renderer is reduced to a mechanical tree-to-text (native)
+or tree-to-tree (JOOQ) mapping. A sketch:
+
+[source,groovy]
+----
+class SqlQuery {
+    boolean distinct
+    List<TableRef>   sources      // from + joined tables
+    List<JoinClause> joins        // type (inner/left/right/full/cross) + on-predicate
+    SqlExpr          where        // where predicate (nullable)
+    List<SqlExpr>    groupBy       // group-by keys
+    SqlExpr          having        // having predicate (nullable)
+    List<OrderSpec>  orderBy       // column + asc/desc + nulls-first/last
+    LimitOffset      limit         // limit + optional offset (nullable)
+    List<Projection> select        // output columns + aliases
+    List<SetOp>      setOps        // union / unionall / intersect / minus chain
+}
+
+// SqlExpr is a small closed hierarchy:
+//   Column, BoundParam, BinaryOp, UnaryOp, FunctionCall,
+//   Aggregate, InList, Between, SubQuery, CaseWhen, RawFragment
+----
+
+A `BoundParam` never carries a literal value into rendered SQL; it carries a positional
+index into a runtime parameter list (see _Parameter binding and SQL injection safety_).
+This is what makes both renderers injection-safe for free.
+
+== Features
+
+=== Provider selection and configuration
+
+A new high-level `provider` configuration key selects the backend. It is sugar over the
+existing low-level `astWalker` key, which remains available as an escape hatch for custom
+visitors.
+
+[cols="1,2,2"]
+|===
+|`provider` value |Backend |Notes
+
+|`'collection'` |In-memory (current behaviour) |Default; nothing changes
+|`'native-sql'` |Native SQL provider |ANSI SQL, no extra dependency
+|`'jooq-sql'` |JOOQ provider |Requires JOOQ on the classpath
+|`'sql'` |Auto-detect |JOOQ if present on the classpath, otherwise native
+|===
+
+Both the macro and annotation forms accept the new keys:
+
+[source,groovy]
+----
+// Macro form
+def highEarners = GQL(provider: 'native-sql', dataSource: sql) {
+    from e in 'employees'
+    where e.salary > 100000
+    orderby e.salary in desc
+    select e.name, e.salary
+}
+
+// Annotation form
+@GQ(provider = "sql")
+List<GroovyRowResult> highEarners(Sql dataSource) {
+    from e in 'employees'
+    where e.salary > 100000
+    select e.name, e.salary
+}
+----
+
+The annotation gains one new optional member, `provider`, alongside the existing `value`,
+`optimize`, `parallel`, and `astWalker` members. Adding an annotation member with a default
+is binary compatible (see _Compatibility and impact_).
+
+=== Data sources and table references
+
+A `dataSource` configuration key supplies the connection. The accepted types depend on the
+provider:
+
+[cols="1,3"]
+|===
+|Provider |Accepted `dataSource` types
+
+|Native |`groovy.sql.Sql`, `javax.sql.DataSource`, `java.sql.Connection`
+|JOOQ |`org.jooq.DSLContext`, or any of the native types (a `DSLContext` is derived)
+|===
+
+In the collection provider, `from e in employees` binds `employees` to a runtime collection
+variable. In the SQL providers, the data source of a `from`/`join` is a *table name*,
+written as a string literal:
+
+[source,groovy]
+----
+from e in 'employees'                       // table name
+join d in 'departments' on e.deptId == d.id // joined table name
+from e in table('hr.employees')             // schema-qualified (helper form)
+----
+
+String literals are the initial, simplest form and match how dynamic SQL builders work. A
+`table(...)` helper accommodates schema qualification and quoting. Type-driven table
+inference (`from e in Employee`) is explicitly deferred (see _Excluded and deferred features_).
+
+=== Clause mapping
+
+Each GINQ clause maps to its SQL counterpart:
+
+[cols="1,1"]
+|===
+|GINQ |SQL
+
+|`from e in 'employees'` |`FROM employees e`
+|`join d in 'departments' on e.deptId == d.id` |`INNER JOIN departments d ON e.dept_id = d.id`
+|`leftjoin` / `rightjoin` / `fulljoin` / `crossjoin` |`LEFT` / `RIGHT` / `FULL` / `CROSS JOIN`
+|`where e.salary > 50000` |`WHERE e.salary > ?`
+|`groupby d.name into g` |`GROUP BY d.name`
+|`having g.count() > 5` |`HAVING COUNT(*) > ?`
+|`orderby e.salary in desc` |`ORDER BY e.salary DESC`
+|`limit 10, 20` |`LIMIT 20 OFFSET 10` (ANSI; dialect-rendered under JOOQ)
+|`select d.name, g.count(), g.avg(e -> e.salary)` |`SELECT d.name, COUNT(*), AVG(e.salary)`
+|`union` / `unionall` / `intersect` / `minus` |`UNION` / `UNION ALL` / `INTERSECT` / `EXCEPT`
+|===
+
+=== Expression translation
+
+The core of the work is translating Groovy expressions used in `where`, `on`, `having`, and
+`select` into `SqlExpr` nodes. The translator handles a defined vocabulary and rejects the rest:
+
+[cols="2,2,1"]
+|===
+|Groovy expression |SQL output |Difficulty
+
+|`e.salary > 50000` |`e.salary > ?` + param `50000` |Easy
+|`e.name == 'Alice'` |`e.name = ?` + param `'Alice'` |Easy (`==` -> `=`)
+|`e.name != null` |`e.name IS NOT NULL` |Null special-case
+|`e.dept in ['A','B']` |`e.dept IN (?, ?)` |Medium
+|`a && b`, `a \|\| b`, `!a` |`AND` / `OR` / `NOT` |Easy
+|`g.count()` / `count()` |`COUNT(*)` |Easy
+|`g.avg(e -> e.salary)` |`AVG(e.salary)` |Easy
+|`e.name.toUpperCase()` |`UPPER(e.name)` |Function mapping
+|`+e.name ==~ /^A.*/+` |`e.name LIKE 'A%'` (restricted patterns) |Hard
+|Arbitrary Groovy code |— |Reject, or in-memory fallback
+|===
+
+The translator starts with comparisons, boolean logic, null checks, `in` lists, arithmetic,
+and the standard aggregate functions. Method-call mapping (such as `toUpperCase()` to
+`UPPER`) is a lookup table extended incrementally. Anything outside the recognised
+vocabulary triggers a compile-time error in the default strict mode, or is deferred to
+in-memory evaluation in mixed mode (see _Mixed-mode execution_).
+
+=== Parameter binding and SQL injection safety
+
+Every literal and every captured (enclosing-scope) variable becomes a positional bound
+parameter; only column/table identifiers and structural keywords are ever emitted into the
+SQL text. Property access on an alias variable (`e.salary`) renders as a column reference; a
+literal or free variable (`50000`, `threshold`) renders as `?` with the value collected into
+a runtime parameter list.
+
+[source,groovy]
+----
+def threshold = 50000
+GQL(provider: 'native-sql', dataSource: sql) {
+    from e in 'employees'
+    where e.salary > threshold && e.active == true
+    select e.name
+}
+// Renders:  SELECT e.name FROM employees e WHERE e.salary > ? AND e.active = ?
+// Params:   [50000, true]   (bound via PreparedStatement)
+----
+
+Because user values never enter the SQL text, SQL injection is not merely discouraged but
+structurally prevented — the same guarantee `groovy.sql.Sql` provides for parameterised queries.
+
+=== Aggregation and `groupby...into`
+
+The SQL providers support the `groupby ... into g` form, which maps directly to `GROUP BY`
+plus aggregate functions:
+
+[source,groovy]
+----
+// GINQ with into
+from e in 'employees'
+groupby e.dept into g
+select g.dept, g.count(), g.avg(e -> e.salary)
+----
+
+[source,sql]
+----
+-- Generated SQL
+SELECT e.dept, COUNT(*), AVG(e.salary)
+FROM employees e
+GROUP BY e.dept
+----
+
+The translation is direct pattern matching: `g.key` or `g.dept` becomes the `GROUP BY`
+column; `g.count()` becomes `COUNT(*)`; `g.sum(e -> e.amount)` becomes `SUM(e.amount)`; and
+so on. The standard aggregates (`count`, `sum`, `avg`, `min`, `max`) are supported by both
+providers. The classic `groupby` form (without `into`) relies on implicit-variable rewriting
+that does not translate cleanly; supporting only the `into` form in the SQL providers
+initially is a deliberate, reasonable simplification.
+
+=== Set operations and subqueries
+
+The DSL set operations combine complete `from...select` queries and map to their SQL
+equivalents, including left-associative chaining (`Q1 union Q2 minus Q3`): `union` to
+`UNION`, `unionall` to `UNION ALL`, `intersect` to `INTERSECT`, `minus` to `EXCEPT`. Nested
+GINQ queries used as subqueries (including `in`-subquery and `exists`-style patterns) render
+as SQL subqueries; basic subqueries are in scope for the native provider, with the full
+range available under JOOQ.
+
+=== Native SQL provider
+
+Ships inside `groovy-ginq-sql` with no external dependencies and is licensed under ASL2. It
+renders the IR to an ANSI SQL string with positional parameters and executes via
+`groovy.sql.Sql`, wrapping the resulting `GroovyRowResult` rows as a `Queryable`.
+
+*Scope:*
+
+* `SELECT` / `FROM` / `WHERE` with comparisons, boolean logic, null checks, `IN` lists, arithmetic;
+* `JOIN` — inner, left, right, full, cross;
+* `GROUP BY` / `HAVING` / standard aggregates;
+* `ORDER BY`, `LIMIT`/`OFFSET` (ANSI form);
+* set operations and basic subqueries;
+* common function mapping (for example `toUpperCase()` to `UPPER`).
+
+*Limitations (by design):*
+
+* ANSI SQL by default. A small *Dialect SPI* covers the handful of high-variance points
+  (`LIMIT`/`OFFSET` syntax, identifier quoting, a few function names) so the common
+  open-source databases work out of the box; comprehensive dialect coverage is JOOQ's role.
+* No window functions.
+* Limited function mapping — common cases only.
+* Untranslatable expressions are rejected with a clear error (or deferred to in-memory in mixed mode).
+
+=== JOOQ provider
+
+An optional provider that delegates to https://www.jooq.org[JOOQ]'s plain-SQL DSL. Users
+supply their own JOOQ dependency. The provider maps the `SqlQuery` IR to JOOQ DSL calls — a
+tree-to-tree mapping that is simpler than native string rendering because JOOQ owns parameter
+binding, quoting, escaping, and dialect rendering.
+
+[source,groovy]
+----
+// The IR for a grouped query maps to JOOQ's plain-SQL DSL (no code generation required):
+dsl.select(field("dept"), count(), avg(field("salary")))
+   .from(table("employees"))
+   .where(field("salary").gt(val(50000)))
+   .groupBy(field("dept"))
+   .fetch()
+----
+
+*What JOOQ adds over native:* dialect support for 30+ databases; full window-function
+support; comprehensive function mapping; and dialect-aware `LIMIT`/`OFFSET`. Crucially,
+JOOQ's plain-SQL API works _without_ code generation, which suits GINQ's dynamic,
+string-named tables and columns.
+
+[NOTE]
+====
+*Licensing.* The JOOQ Open Source Edition is ASL2 and supports the open-source databases
+(PostgreSQL, MySQL, MariaDB, H2, SQLite, Derby, Firebird, ...). Commercial databases (Oracle,
+SQL Server, DB2) require a JOOQ commercial licence. This is precisely why the native provider
+exists: it guarantees GINQ's SQL support is fully usable under ASL2 with zero external
+dependencies. JOOQ is always optional.
+====
+
+=== Mixed-mode execution
+
+Some GINQ constructs have no portable SQL equivalent (for example list-collecting aggregates
+on many databases, window functions on the native provider, or an arbitrary Groovy expression
+in a `select`). Mixed mode provides a graceful boundary, modelled on LINQ-to-SQL's
+`AsEnumerable()`:
+
+. push the translatable prefix of the query down to the database;
+. bring the partial result back as a `Queryable<GroovyRowResult>`;
+. finish the remaining operations in memory using the collection provider.
+
+Mixed mode is opt-in. The default for the SQL providers is *strict*: an untranslatable
+construct is a compile-time error, so users never get a silent, surprising performance cliff.
+Enabling mixed mode trades that strictness for completeness.
+
+== Compilation
+
+GINQ is a compile-time transformation, and the SQL backend preserves that. Because table
+names are string literals and the clause structure is fixed in source, *the SQL skeleton is a
+compile-time constant*; only parameter _values_ are runtime. Concretely, the SQL visitor:
+
+. walks the optimised `GinqExpression` into a `SqlQuery` IR at compile time;
+. has the active renderer produce (a) a constant SQL template string containing `?`
+  placeholders and (b) a parameter-extraction plan describing which source expressions supply
+  each placeholder;
+. emits Groovy AST that, at runtime, evaluates the parameter expressions (literals and
+  captured variables), invokes the data source with the template and parameter list, and
+  wraps the rows as a `Queryable`;
+. detects any untranslatable expression during step 1 and either raises a precise compile
+  error (strict mode) or marks that fragment for in-memory evaluation (mixed mode).
+
+The upshot is that query _shape_ errors and untranslatable-expression errors surface at
+compile time, while the generated runtime code is a thin, predictable wrapper around
+`groovy.sql.Sql` or a JOOQ `DSLContext`. The result type is `Queryable<GroovyRowResult>`
+(native) or `Queryable<org.jooq.Record>` (JOOQ), each adaptable to GINQ's `NamedRecord` so
+that downstream GINQ and ordinary collection operations compose seamlessly.
+
+== SQL and LINQ alignment
+
+The design follows the provider model proven by C#'s LINQ. LINQ-to-Objects and LINQ-to-SQL
+present one query syntax over two execution engines; switching providers switches engines
+without rewriting queries. GINQ's collection provider is the analogue of LINQ-to-Objects, and
+this GEP supplies the analogue of LINQ-to-SQL. Where LINQ-to-SQL uses an expression-tree
+visitor to emit SQL, GINQ uses its `GinqExpression` visitor to populate the `SqlQuery` IR;
+where LINQ offers `AsEnumerable()` to drop back to in-memory evaluation, GINQ offers mixed
+mode. The dual native/JOOQ split has no direct LINQ counterpart and exists to honour the
+zero-dependency, fully-ASL2 design principle while still offering broad dialect coverage to
+those who want it.
+
+== Feature coverage by provider
+
+[cols="2,1,1"]
+|===
+|Feature |Native |JOOQ
+
+|SELECT / FROM / WHERE |Yes |Yes
+|JOIN (inner, left, right, full, cross) |Yes |Yes
+|GROUP BY / HAVING / standard aggregates |Yes |Yes
+|ORDER BY, LIMIT / OFFSET |ANSI + small Dialect SPI |Dialect-aware
+|Parameter binding |PreparedStatement |JOOQ-managed
+|Set operations (UNION / INTERSECT / EXCEPT) |Yes |Yes
+|Subqueries |Basic |Full
+|Window functions |No |Yes
+|Dialect differences |ANSI only (+ SPI) |30+ databases
+|Function mapping |Common cases |Comprehensive
+|Mixed-mode fallback |Yes |Yes
+|External dependency |None |JOOQ (user-supplied)
+|===
+
+== Module structure and packaging
+
+The backend ships as a new optional module, `groovy-ginq-sql`, keeping the relational
+dependency surface out of core GINQ:
+
+----
+groovy-ginq        core: parser, GinqExpression AST, optimiser, collection provider
+groovy-ginq-sql    SQL backend: shared visitor, SqlQuery IR, expression translator,
+                   NativeSqlProvider, Dialect SPI, JooqSqlProvider, result wrapping
+    depends on:  groovy-ginq   (AST types and Queryable)
+    depends on:  groovy-sql    (Sql, GroovyRowResult)
+    compileOnly: jooq          (only the JooqSqlProvider; user supplies it at runtime)
+----
+
+Providers register through a small provider registry resolved via `ServiceLoader`, so adding
+`groovy-ginq-sql` to the classpath makes `provider: 'native-sql'` and `provider: 'sql'`
+available, and adding JOOQ additionally enables `provider: 'jooq-sql'`. The proposed
+implementation packages mirror existing GINQ conventions, for example
+`org.apache.groovy.ginq.provider.sql`.
+
+== Reference implementation
+
+As a Feature GEP, this proposal will be accompanied by a reference implementation covered by
+unit tests and documented in the GINQ user guide. The H2 in-memory database is proposed for
+tests of both providers (test-only dependency; the dialect-specific JOOQ tests can target
+additional open-source databases as available).
+
+=== Effort estimates
+
+[cols="3,1,1,3"]
+|===
+|Component |Lines (est.) |Effort |Notes
+
+|Shared visitor: `GinqExpression` -> `SqlQuery` IR |400–600 |Medium-High |Written once, used by both providers
+|`SqlQuery` IR model + `SqlExpr` hierarchy |150–250 |Low-Medium |Tables, predicates, projections, joins, ordering
+|Expression translator (Groovy AST -> `SqlExpr` + params) |300–500 |Medium |Operator/null/`in` mapping, parameter extraction
+|Native renderer (IR -> ANSI SQL + params) |300–400 |Medium |String building, parameter collection
+|Native Dialect SPI + a couple of dialects |150–250 |Low |LIMIT/OFFSET, quoting, function names
+|JOOQ renderer (IR -> JOOQ DSL) |200–300 |Medium |Tree-to-tree; JOOQ handles binding/dialect
+|Provider registry, config keys, connection lifecycle |150–250 |Low |Resolves `provider`/`dataSource`; leverages `groovy.sql.Sql`
+|Result wrapping (`GroovyRowResult` / `Record` -> `Queryable`) |50–100 |Low |Adapter to `NamedRecord`
+|Tests (both providers, H2) |700–1000 |Medium |Per-clause, edge cases, injection prevention, dialects
+|*Total* |*~2,400–3,650* |*Medium-High* |Delivers two providers from one front-end
+|===
+
+For reference, the existing collection visitor is on the order of 1,600 lines; the shared
+visitor is the hardest part here, and each individual renderer is comparatively modest.
+
+=== Phased delivery
+
+[cols="1,3,4"]
+|===
+|Phase |What ships |What works
+
+|1 |Shared visitor + `SqlQuery` IR + native provider (basic) |Single-table `SELECT`/`FROM`/`WHERE`/`ORDER BY`/`LIMIT` with simple expressions and parameters
+|2 |Joins + `GROUP BY`/aggregates + set operations (native) |Multi-table queries, aggregation via `groupby...into`, `UNION`/`INTERSECT`/`EXCEPT`
+|3 |JOOQ provider (reuses the shared IR) |Phases 1–2 for free, plus dialect support and window functions
+|4 |Subqueries, `in`-subquery, `exists` |Nested queries in both providers
+|5 |Mixed-mode fallback, function mapping, polish |Graceful degradation for untranslatable expressions
+|===
+
+Phase 1 already delivers something useful with zero external dependencies. Phases 2 and 3
+both depend only on Phase 1 (the shared IR) and not on each other, so they can proceed in
+parallel. Phase 3 adds JOOQ as an optional upgrade path.
+
+== Excluded and deferred features
+
+[cols="2,1,3"]
+|===
+|Feature |Status |Rationale
+
+|Object-relational mapping |Not planned |This is not an ORM. No entity mapping, identity map, change tracking, dirty-checking, or DDL/schema migration.
+|Type-driven table inference (`from e in Employee`) |Deferred |String-literal table names are the initial form; deriving table/column names from a class can come later.
+|Window functions in the native provider |Deferred |Available through JOOQ; out of scope for the ANSI native renderer initially.
+|Full dialect breadth in the native provider |Deferred |The native Dialect SPI covers common high-variance points only; comprehensive coverage is JOOQ's role.
+|Asynchronous and streaming data sources |Deferred |A separate concern and a natural fit for integration with the concurrency primitives of GEP-18; not part of this GEP.
+|Transaction and connection-pool management |Not planned |Connection lifecycle is delegated to the supplied `Sql`/`DataSource`/`DSLContext`; GINQ adds no transaction abstraction.
+|Classic `groupby` (without `into`) in the SQL providers |Deferred |The `into` form is supported first; the classic form would require replicating implicit-variable rewriting.
+|===
+
+== Compatibility and impact
+
+=== Backwards compatibility
+
+The feature is purely additive and opt-in:
+
+* The `collection` provider remains the default. Existing GINQ queries compile and execute
+  exactly as before, with unchanged semantics and performance.
+* The relational code lives in a new optional module (`groovy-ginq-sql`); the core
+  `groovy-ginq` module gains no new dependency.
+* The new `@GQ(provider = ...)` annotation member has a default value, so adding it is
+  source- and binary-compatible. The existing `astWalker` member is unchanged and continues
+  to work as the low-level escape hatch.
+
+=== Interaction with GINQ stabilisation
+
+GINQ's `provider`/`astWalker` selection and the result `Queryable` surface are the
+forward-evolution points exercised by this proposal. Any effort to mark GINQ stable should
+keep these configuration keys explicitly open to additive growth, so that this backend (and
+any future provider) can be introduced compatibly. Introducing the SQL providers requires no
+breaking change to the GINQ surface language.
+
+=== Security
+
+All literals and captured variables are bound as statement parameters; user values never
+enter SQL text. SQL injection is structurally prevented for both providers.
+
+=== Performance
+
+Push-down moves filtering, joining, grouping, and limiting into the database, typically
+reducing both data transfer and client memory versus materialising tables and querying them
+in memory. Mixed mode, when enabled, can reintroduce in-memory work for the untranslatable
+tail of a query; strict mode (the default) makes that trade-off explicit by refusing to
+compile such queries.
+
+== Alternatives considered
+
+* *Native provider only.* Rejected as the sole offering: it would leave dialect breadth and
+  window functions permanently out of reach. Because the shared IR makes a second renderer
+  cheap, offering JOOQ alongside native is high value for modest extra cost.
+* *JOOQ provider only.* Rejected: it would impose a third-party dependency on all relational
+  use and would not be fully usable under ASL2 for commercial databases. A zero-dependency
+  native floor is a design principle.
+* *Direct AST-to-SQL with no intermediate model.* Rejected: it would duplicate the semantic
+  understanding of GINQ across each renderer, making the providers diverge and the JOOQ
+  renderer far harder. The `SqlQuery` IR localises that work.
+* *A new query syntax for relational queries.* Rejected: the whole point is that GINQ syntax
+  already _is_ SQL-shaped. Reusing it unchanged is the feature.
+* *Expose only the low-level `astWalker` key (no `provider` key).* Rejected for usability:
+  requiring users to name visitor classes is poor ergonomics. `provider` is a clear, stable
+  sugar over `astWalker`, which remains for advanced cases.
+* *Type-driven (ORM-style) tables from the outset.* Deferred: string-literal table names are
+  simpler, match dynamic SQL builders, and avoid committing to mapping semantics before the
+  core backend is proven.
+
+== References
+
+* link:GEP-18.html[GEP-18: Integrated Concurrency and Parallel Processing] — home for the deferred asynchronous/streaming data sources
+* https://issues.apache.org/jira/browse/GROOVY-8258[GROOVY-8258: original GINQ proposal and implementation]
+* https://issues.apache.org/jira/browse/GROOVY-11915[GROOVY-11915: groupby...into redesign and first-class group results]
+* https://groovy.apache.org/documentation.html[GINQ user guide — Querying collections in SQL-like style]
+* https://www.jooq.org[JOOQ — plain-SQL DSL and dialect support]
+* https://www.jooq.org/legal/licensing[JOOQ licensing]
+* https://learn.microsoft.com/en-us/dotnet/csharp/linq/[Microsoft LINQ — prior art for one syntax over multiple execution engines]
+* https://www.h2database.com[H2 Database Engine — proposed test database]
