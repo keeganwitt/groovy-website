@@ -804,6 +804,32 @@ contract as class/method/field-level transforms. See
 <<annotation-validation>> for the corresponding compile-time
 validation rules.
 
+== Fluent AST Query API (incubating)
+
+A small, read-only, fluent query API over the Groovy AST is now available
+in the `org.codehaus.groovy.ast.query` package (`AstQuery` / `AstContext`).
+It lets AST transform, type-checker and tooling authors locate nodes
+declaratively, without hand-writing a `CodeVisitorSupport` subclass that
+carries mutable state
+(https://issues.apache.org/jira/browse/GROOVY-12116[GROOVY-12116]).
+
+Several internal AST walkers were ported to it. For example, the
+`@TailRecursive` recursive-call detector dropped from a 41-line
+`CodeVisitorSupport` subclass -- two `visitXxx` overrides plus mutable
+fields and a `synchronized` entry point -- to a 16-line class whose
+entire logic is a single query:
+
+[source,java]
+----
+public boolean test(MethodNode method) {
+    RecursivenessTester tester = new RecursivenessTester();
+    return AstQuery.from(method.getCode())
+            .descendants(MethodCallExpression.class, StaticMethodCallExpression.class)
+            .where(call -> tester.isRecursive(Maps.of("method", method, "call", call)))
+            .any();
+}
+----
+
 [[groovy-contracts]]
 == Groovy-Contracts Enhancements
 
@@ -1060,6 +1086,74 @@ FunctionalJava / Vavr carriers by name.
 See link:../wiki/GEP-23.html[GEP-23] for the full specification, the
 desugaring rules, the carrier-shape requirements, and the relationship
 to `for await` / parallel collections / actors and agents.
+
+== Trait Static Members (incubating)
+
+Traits may declare `static` methods, properties and fields, with each
+implementing class receiving its own copy of the static state.
+This feature has been available across numerous Groovy versions
+but is further enhanced and clarified in Groovy 6
+(the area remains incubating). A summary follows, but
+see link:../wiki/GEP-22.html[GEP-22] for the full trait specification.
+
+A public trait `static` method is *declarer-bound* by default: a call
+to it from trait code always reaches the trait's own copy, and it is
+promoted onto the generated trait interface as a JVM-native interface
+static, so both `Trait.m()` and `Impl.m()` resolve at the JVM level
+(https://issues.apache.org/jira/browse/GROOVY-12111[GROOVY-12111]).
+
+When a trait wants implementing classes to be able to *override* a
+static default -- and wants the trait's own logic to honour that
+override -- the method can be annotated `@groovy.transform.Virtual`.
+Trait-body calls to a `@Virtual` static then dispatch through the
+implementing class, so a same-signature static on the implementer
+shadows the trait's default. This is the template-method pattern applied
+to a static member, and the mechanism behind framework hooks such as
+Grails' `Validateable.defaultNullable()`
+(https://issues.apache.org/jira/browse/GROOVY-12093[GROOVY-12093]).
+
+[source,groovy]
+----
+import groovy.transform.Virtual
+
+trait Validateable {
+    @Virtual static boolean defaultNullable() { false }   // overridable default
+    static boolean check() { defaultNullable() }          // honours the override
+}
+class Book implements Validateable {
+    static boolean defaultNullable() { true }             // per-class override
+}
+assert Book.check()                                       // true
+----
+
+`@Virtual` is valid only on public, non-abstract `static` trait methods;
+applying it elsewhere is a compile-time error. A `@Virtual` static is
+not promoted onto the interface (interface statics are declarer-bound by
+JVM rule), so a qualified `Trait.m(...)` to a `@Virtual` static is now
+rejected with a clear compile-time error rather than a generic
+"cannot find matching method"
+(https://issues.apache.org/jira/browse/GROOVY-12112[GROOVY-12112]).
+
+Static methods inherited from a super-trait now resolve from a
+sub-trait's own body by the same rules as a static declared in the
+sub-trait, with subtype-aware argument resolution matching plain-class
+static inheritance
+(https://issues.apache.org/jira/browse/GROOVY-12106[GROOVY-12106]);
+this resolution is also independent of the order in which co-compiled
+sibling traits are processed
+(https://issues.apache.org/jira/browse/GROOVY-12117[GROOVY-12117]).
+
+Two trait-body qualifier forms that previously produced invalid bytecode
+or runtime errors are now rejected at compile time: `T.this.*`, which
+has no coherent meaning inside trait code (use `this.m(...)` or
+`T.super.m(...)`)
+(https://issues.apache.org/jira/browse/GROOVY-12104[GROOVY-12104]),
+and an unqualified `super.m(...)` from a `static` trait method (use
+`T.super.m(...)`)
+(https://issues.apache.org/jira/browse/GROOVY-12105[GROOVY-12105]).
+
+See link:../wiki/GEP-22.html[GEP-22] for the full trait specification,
+including the complete static-member dispatch model.
 
 [[type-checking-extensions]]
 == Type Checking Extensions
@@ -2345,6 +2439,12 @@ JAXP factory types -- the existing `DocumentBuilderFactory` and
 `allowDocTypeDeclaration` / `allowExternalResources` overloads where
 appropriate.
 | https://issues.apache.org/jira/browse/GROOVY-11979[GROOVY-11979]
+
+| Security-feature diagnostics
+| gapi:groovy.xml.FactorySupport[FactorySupport] now logs a warning when
+a requested XML parser security feature cannot be set, instead of failing
+silently, making hardened-parser misconfigurations visible.
+| https://issues.apache.org/jira/browse/GROOVY-12120[GROOVY-12120]
 |===
 
 [[markdown]]
@@ -3267,6 +3367,18 @@ This is primarily useful for tests and tools such as deterministic
 concurrency checkers, which can mistake the perpetually parked daemon for a
 deadlocked thread
 (https://issues.apache.org/jira/browse/GROOVY-12092[GROOVY-12092]).
+* Subscript increment/decrement and elvis-assignment no longer evaluate
+the receiver (and index) more than once: `a[i]++` / `a[i]--` evaluate
+the receiver a single time
+(https://issues.apache.org/jira/browse/GROOVY-12098[GROOVY-12098]),
+and `a[i] ?= v` evaluates both the receiver and the index once
+(https://issues.apache.org/jira/browse/GROOVY-12099[GROOVY-12099]).
+Side effects in the receiver or index expression now occur exactly once.
+* Internal, locale-independent case conversions now use `Locale.ROOT`
+instead of the default locale, so keyword, identifier and format
+handling no longer varies by platform locale (e.g. the Turkish
+dotless-`i`). Case conversion in your own code is unaffected
+(https://issues.apache.org/jira/browse/GROOVY-12055[GROOVY-12055]).
 
 == Other Module Changes
 
@@ -3311,6 +3423,19 @@ maliciously deep documents. The limit is configurable per parser via
 `setMaxNestingDepth(int)` (a value `<= 0` disables the check) or globally
 with the `groovy.json.maxNestingDepth` system property
 (https://issues.apache.org/jira/browse/GROOVY-12064[GROOVY-12064]).
+* *groovy-json*: integer values exceeding the `long` range now parse to
+`BigInteger`, preserving full precision instead of overflowing; values
+within `long` range are unchanged
+(https://issues.apache.org/jira/browse/GROOVY-12101[GROOVY-12101]).
+* The YAML, TOML, CSV and Markdown stream parsers now decode
+`InputStream` input as UTF-8 rather than the platform default charset,
+for consistent cross-environment results; pass a `Reader` to use a
+different encoding
+(https://issues.apache.org/jira/browse/GROOVY-12074[GROOVY-12074]).
+* *groovy-jmx*: `JmxBuilder` now passes the connector environment map
+through to the JMX connector server/client rather than discarding it, so
+connector-specific options are honoured
+(https://issues.apache.org/jira/browse/GROOVY-12119[GROOVY-12119]).
 
 [[Groovy6.0-breaking]]
 == Breaking changes
@@ -3412,6 +3537,25 @@ code-point columns carried by the AST, so retrieved source containing
 supplementary characters (e.g. emoji, some CJK) is no longer truncated.
 Tooling that compensated for the previous truncation may need adjustment.
 (https://issues.apache.org/jira/browse/GROOVY-12085[GROOVY-12085])
+* Map membership via the `in` operator (and `isCase`) is now
+*key-based*: `key in map` tests `map.containsKey(key)` rather than the
+former value-truthy semantics, which could even mutate a `withDefault`
+map by materialising the queried key. Code that tested a map's
+*values* should use `map.containsValue(v)` (or `v in map.values()`).
+(https://issues.apache.org/jira/browse/GROOVY-9848[GROOVY-9848])
+* Plain subscript assignment evaluates strictly left-to-right again:
+in `a[index] = expr`, the receiver and `index` are evaluated before
+`expr`. A long-standing regression (from GROOVY-2556) had caused `expr`
+to be evaluated first. Code whose `index` or right-hand side has side
+effects that relied on the previous order may behave differently.
+(https://issues.apache.org/jira/browse/GROOVY-12097[GROOVY-12097])
+* *groovy-sql*: a GString query containing a *quoted* dynamic expression
+(an interpolation placed inside quotes, which cannot be bound as a
+`PreparedStatement` placeholder and is a SQL-injection risk, CWE-89) is
+now rejected with a `SQLException` rather than only warned about. Set
+`-Dgroovy.sql.injection.lenient=true` to restore the previous (insecure)
+behaviour as a porting aid.
+(https://issues.apache.org/jira/browse/GROOVY-12118[GROOVY-12118])
 
 == Under exploration (before GA release)
 
