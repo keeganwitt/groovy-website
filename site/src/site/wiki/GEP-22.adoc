@@ -13,7 +13,7 @@
 *Comment*:: Reflects trait semantics as of Groovy 6
 *Leader*:: Cédric Champeau
 *Created*:: 2026-05-06
-*Last modification*:: 2026-06-28
+*Last modification*:: 2026-06-30
 ****
 
 == Abstract: Traits
@@ -120,8 +120,8 @@ under name-mangled identifiers:
 
 * For a field `bar` of type `T` declared in trait `my.pkg.Foo`, the
 implementing class gains a field named `my_pkg_Foo__bar` of type `T`.
-* The mangling rule is: replace each `.` in the package name with `_`,
-append `_<TraitSimpleName>__<fieldName>`. The double underscore separates
+* The mangling rule is: replace each `.` in the package name with `+_+`,
+append `<traitSimpleName>__<fieldName>`. The double underscore separates
 the trait identity from the field identity.
 * Private fields follow the same scheme but are also marked private; the
 mangling guarantees no collisions when a class implements multiple
@@ -225,10 +225,11 @@ the proxied object when both exist. The proxy is *not* an instance of
 the original class; consumers that rely on `instanceof` against the
 original concrete class must continue to use the underlying object.
 
-=== Static members
+[#_static_members]
+=== Static members (Incubating)
 
-Static methods, properties and fields in a trait are supported. The
-area remains *incubating*. The behaviour described below reflects the
+Static methods, properties and fields in a trait are supported.
+The behaviour described below reflects the
 Groovy 6.0 model — declarer-bound dispatch for public trait statics,
 with promotion onto the generated trait interface as JVM-native
 interface statics, and an opt-in `@groovy.transform.Virtual` marker
@@ -282,7 +283,7 @@ independent method, not an override; external `Impl.m()` reaches
 that method, but trait-body calls do not see it.
 
 * A public static method may be annotated
-`@groovy.transform.Virtual` to opt into *per-implementer override*
+`@Virtual` to opt into *per-implementer override*
 dispatch. Trait-body calls of the form `m(...)` or `this.m(...)` to
 a `@Virtual` callee are routed through the implementing class at
 runtime, so a same-signature static declared on the implementer
@@ -341,7 +342,7 @@ the trait; same-name static members declared on the subclass are not
 visible to trait code, because the trait's forwarder dispatches
 through the direct implementer.
 
-* A `T.m()` call made from within trait `T`'s own body resolves
+* A `T.m()` call made from within trait `T`+'s+ own body resolves
 through the trait interface's JVM-native static (the promotion
 described above), and so reaches the trait's own copy — the same
 trait-anchored dispatch that any `Trait.m()` caller sees from outside
@@ -540,6 +541,99 @@ A trait may carry both annotations. For the degenerate single-permitted-
 implementer case, `@SelfType(Foo)` is preferred over
 `@Sealed(permittedSubclasses = ['Foo'])` for clarity.
 
+=== Generics
+
+Generics in a trait behave the *same* as generics in an ordinary class or
+interface. The implementing class sees the trait's type parameters exactly
+as if it extended an abstract generic *superclass* that bound them — the
+superclass model, not the bare generic-*interface* model, because a trait
+contributes state and method bodies, not only signatures. Bounded and
+recursive (F-bounded) type parameters, wildcards, type-parameter narrowing
+in a sub-trait (`trait Foo extends Bar<String>`), bounded method-level type
+parameters, and generic return types all follow the rules they would
+outside a trait.
+
+The *...but* is that traits have no native generics: the four-class model
+(<<_bytecode_and_stub_model,Bytecode and stub model>>) *reconstructs*
+ordinary generic semantics across the trait interface, the static helper,
+the field helper, and the woven bridges. That reconstruction is faithful,
+but it happens at seams that have no analogue outside traits, and the
+following points are therefore specified rather than left implicit:
+
+* A trait's class-level type parameter is *promoted to a method-level type
+parameter* on each generated static helper method (a `static` method
+cannot reference an enclosing type variable). Bounds are carried across
+the promotion intact, including intersection bounds (`T extends A & B`)
+and F-bounds (`T extends Comparable<T>`).
+* A method-level type parameter that *shadows* a class-level one of the
+same name is renamed when both are flattened onto a single helper static,
+preserving the shadowing semantics without a JVM-level name clash.
+* The generic signature on the trait *interface* (against which a call from
+an implementing class is type-checked) and the generic signature on the
+*helper* (through which the call dispatches, and against which a
+trait-body call is checked) agree, so a call resolves identically from
+both sites.
+* A generic field — including a parameterised collection field — survives
+field-helper remapping with its fixed type argument, so `@CompileStatic`
+implementer code sees the reified element type.
+* A `static` method inherited from a generic super-trait resolves from a
+sub-trait body with subtype-aware argument matching, exactly as for
+plain-class static inheritance (GROOVY-12106; see
+<<_static_members,Static members>>).
+* Self-types (`trait T<SELF extends T<SELF>>`) and stackable
+`T.super.m(...)` calls preserve the type parameter through the lowering.
+
+Error behaviour matches non-trait generics: a class that reaches the same
+generic super-trait through two incompatible bindings is rejected at
+compile time, as it would be for a generic interface. (The diagnostic
+currently reports the resulting accessor-return-type incompatibility rather
+than naming the binding conflict directly; the *outcome* — rejection — is
+the specified behaviour.)
+
+These behaviours are pinned by the `TraitGenericsMatrix` conformance suite
+(package `org.codehaus.groovy.transform.traitx`).
+
+=== Metaprogramming
+
+Trait-contributed members participate in the runtime meta-object protocol
+(MOP) the *same* as members declared on the implementing class itself: they
+are visible to dynamic dispatch, to `respondsTo`/`hasProperty`
+introspection, and to `metaClass` manipulation. For MOP purposes a trait is
+indistinguishable from a superclass that declared the same members.
+
+The *...but* is a short list of clarifications, plus the runtime-application
+capabilities that traits add and ordinary classes do not:
+
+* A trait may implement the MOP hook methods `methodMissing`,
+`propertyMissing` and `invokeMethod`; they are woven onto the
+implementing class and handle that class's otherwise-unresolved calls and
+property accesses.
+* A *real* (woven) trait method always takes precedence over the
+implementer's `methodMissing`/`propertyMissing`: only genuinely
+unresolved names reach the hook.
+* A trait's `invokeMethod`, in the absence of `GroovyInterceptable`, acts
+as a missing-method fallback — it intercepts only calls that do not
+resolve to a real method — exactly as it would on a plain class. It is
+*not* a blanket interceptor unless the implementing class also implements
+`GroovyInterceptable`.
+* A trait method is an ordinary instance method on the implementer, so a
+runtime `metaClass`/`ExpandoMetaClass` override of that method *shadows*
+the trait's version, just as it would shadow a class-declared method.
+Trait methods carry no privilege against the MOP.
+* Remapped public trait fields are reachable dynamically under their
+mangled names (<<_fields,Fields>>), through both property and subscript
+access.
+
+The two trait-specific runtime capabilities — coercing an existing instance
+to a trait with `as`, and applying traits to an instance with `withTraits`
+— are specified in <<_runtime_application,Runtime application>>; SAM
+coercion of a single-abstract-method trait is specified in
+<<_sam_coercion,SAM coercion>>. All three are metaprogramming entry points
+with no equivalent on a plain class.
+
+These behaviours are pinned by the `TraitDynamicBehaviorMatrix` conformance
+suite (package `org.codehaus.groovy.transform.traitx`).
+
 === Bytecode and stub model
 
 A trait `pkg.T` produces, after compilation, the following artefacts:
@@ -616,7 +710,7 @@ traits against the closest analogue in each language.
 | No state of any kind.
 
 | Static methods
-| Yes (incubating). Each implementing class receives its own copy. Public statics are declarer-bound by default and promoted onto the generated trait interface as JVM-native interface statics; `@groovy.transform.Virtual` opts a static into per-implementer override dispatch and is then *not* promoted to the interface (so it has no qualified `Trait.m(...)` form). See <<_static_members,Static members>>.
+| Yes (incubating). Each implementing class receives its own copy. Public statics are declarer-bound by default and promoted onto the generated trait interface as JVM-native interface statics; `@Virtual` opts a static into per-implementer override dispatch and is then *not* promoted to the interface (so it has no qualified `Trait.m(...)` form). See <<_static_members,Static members>>.
 | Indirect, via a companion `object`. Static-like state lives on a singleton, not per implementer.
 | Indirect, via a `companion object` declared inside the interface. Members are instance members of the companion; `@JvmStatic` promotes them to true JVM statics.
 | Yes (since Java 8). Resolved against the declaring interface; *not* inherited by sub-interfaces or implementing classes.
@@ -704,7 +798,7 @@ members, which is what enables patterns such as overriding static
 defaults from the implementing class (e.g. Grails' `Validateable`).
 On Groovy 6.0 the dispatch shape that exposes this — trait-body calls
 seeing the implementer's override — is opt-in via
-`@groovy.transform.Virtual`; the default for public trait statics is
+`@Virtual`; the default for public trait statics is
 declarer-bound with the method promoted onto the trait interface as a
 JVM-native interface static. The full dispatch behaviour is defined
 in <<_static_members,Static members>>.
@@ -772,7 +866,7 @@ using `@Virtual` (GROOVY-12093).
 JVM-native interface statics (GROOVY-12111), so both `Trait.m()` from
 outside the trait and `T.m()` from inside the trait body resolve at the
 JVM level. The
-`@groovy.transform.Virtual` marker opts back into per-implementer
+`@Virtual` marker opts back into per-implementer
 override dispatch for callees that need it; `@Virtual` methods are
 not promoted onto the interface (interface statics are declarer-bound
 by JVM rule, incompatible with virtual dispatch). Misapplication of
@@ -893,7 +987,7 @@ GROOVY-11985).
 but ultimately rolled back.
 * https://issues.apache.org/jira/browse/GROOVY-12093[GROOVY-12093]:
 finalises the trait-static dispatch model — declarer-bound by default,
-with the `@groovy.transform.Virtual` marker opting into per-implementer
+with the `@Virtual` marker opting into per-implementer
 override dispatch for callees that need it.
 * https://issues.apache.org/jira/browse/GROOVY-12111[GROOVY-12111]:
 exposes public trait static methods on the generated trait interface as
@@ -944,7 +1038,7 @@ the GROOVY-8854 regression and the GROOVY-11985 restoration shipping
 in 5.0.7 / 6.0.0-alpha-2. Cross-referenced GROOVY-12093 for the remaining
 static-dispatch design work.
 
-4 (2026-06-27) From 5.0.7. Added `@groovy.transform.Virtual`, a marker for
+4 (2026-06-27) From 5.0.7. Added `@Virtual`, a marker for
 public static trait methods that opts into per-implementer override dispatch:
 trait-body calls to a `@Virtual` callee are routed through the
 implementing class at runtime, so a same-signature static on the
@@ -979,8 +1073,12 @@ unqualified/`this.` (declarer-bound, or override-visible under
 plain-class static inheritance (GROOVY-12106; this had regressed in the
 5.0.x line). Added the corresponding cross-version and JIRA-issue entries.
 
-7 (2026-06-28) Added a "_When to use `@Virtual`_" rationale to _Static
-members_ (template-method-like overridable static defaults, with a NOTE
-on why an instance method, a `static` field, or an abstract contract do
-not fit), and a phase framing (defining vs weaving vs using a trait, and
-the `@CompileStatic` compile-error vs dynamic runtime-error split).
+7 (2026-06-30) Added
+a _"When to use_ `@Virtual`+"+ rationale to _Static
+members_ (template-method-like overridable static defaults),
+a phase framing (defining vs weaving vs using a trait, and
+the `@CompileStatic` compile-error vs dynamic runtime-error split),
+a _Generics_ section that explains the similarities and differences
+compared to normal classes, and
+a _Metaprogramming_ section that explains the similarities and differences
+compared to normal classes.
