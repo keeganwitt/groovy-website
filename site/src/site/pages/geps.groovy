@@ -40,9 +40,12 @@ layout 'layouts/main.groovy', true,
                             }
                             p 'In addition, smaller GEPs are tracked as issues in Jira:'
                             ul {
-                                new groovy.json.JsonSlurper().parse("$JIRA_SERVER/rest/api/2/search?jql=component=GEP%20and%20project=GROOVY".toURL()).issues.each { gep ->
+                                new groovy.json.JsonSlurper().parse("$JIRA_SERVER/rest/api/2/search?jql=(labels=GEP%20or%20component=GEP)%20and%20project=GROOVY%20order%20by%20key%20desc&fields=summary,status&maxResults=100".toURL()).issues.each { gep ->
                                     li {
                                         a(href: "$JIRA_SERVER/browse/$gep.key", "$gep.key: $gep.fields.summary")
+                                        if (gep.fields.status?.statusCategory?.key != 'done') {
+                                            yield ' (open)'
+                                        }
                                     }
                                 }
                             }
