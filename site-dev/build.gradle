@@ -40,6 +40,8 @@ def excludeFromChecks = [
     'https://issues.apache.org/jira',
     'target.html',
     'foo.html',
+    'mystyle.css',
+    '-unreleased.html',   // changelog placeholders generated during a Groovy release
     'http://www.acme.com/cars',
     'http://localhost:8080/groovy/hello.groovy'
 ]
@@ -154,7 +156,12 @@ tasks.register('checkDeadLinks') {
 
     doLast {
         def baseDir = generateSite.outputDir.get().asFile
+        // The user site is deployed alongside this one, so resolve cross-site links
+        // against its build output too (when available) to avoid false positives.
+        def siblingSite = file('../site-user/build/site')
+        def additionalRoots = siblingSite.directory ? [siblingSite] : []
         def checkLinks = new CheckLinks(baseDir: baseDir,
+                additionalRoots: additionalRoots,
                 excludeFromChecks: excludeFromChecks,
                 logger: logger)
 
