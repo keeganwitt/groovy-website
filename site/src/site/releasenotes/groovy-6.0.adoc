@@ -19,7 +19,11 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 == Highlights
 
+Groovy 6 is a big release, so the headline changes are grouped below, each linking to a fuller section further down. A few themes tie them together: closing long-standing gaps with modern Java and Kotlin, growing the batteries-included standard library and modules that make Groovy such a productive scripting language, making concurrent code readable again, and — looking ahead — turning code into specifications that people and AI tools alike can reason about.
+
 *_<<async-await,Native Async/Await>> (incubating)_*
+
+Closes Groovy's biggest concurrency gap: asynchronous code you read top to bottom instead of stitching together callbacks and futures — with virtual threads doing the work on JDK 21+.
 
 - Sequential-style concurrent code — no callbacks or `CompletableFuture` chains.
 - Automatic *virtual threads* on JDK 21+; cached thread pool fallback on JDK 17–20.
@@ -27,12 +31,16 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 *_<<concurrency-toolkit,Integrated Concurrency Toolkit>> (incubating)_*
 
+Gathers high-level concurrency — agents, actors, dataflow, channels and parallel collections — into one coherent package, so you pick the right tool for the job instead of hand-rolling threads, and it's callable from Java too.
+
 - Unified `groovy.concurrent` package: agents, actors, dataflow variables, channels, and parallel collections.
 - `@ActiveObject` adds actor semantics to ordinary classes — no message protocols to hand-write.
 - Parallel `Collection` methods (`collectParallel`, `findAllParallel`, `eachParallel`, ...) for CPU-bound work.
 - Same APIs available to Java, Kotlin and other JVM languages via the standalone <<concurrent-java,`groovy-concurrent-java`>> module.
 
 *_New Language Features_*
+
+Small, sharp ergonomics that cut day-to-day friction and keep Groovy in step with modern Java and Kotlin.
 
 - <<val-keyword,`val` contextual keyword>> for final declarations — a clean companion to `var`.
 - <<module-imports,Module imports>> (JEP 511): `import module java.sql` covers every exported package in one line even on JDK17.
@@ -44,6 +52,8 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 
 *_<<human-ai-reasoning,Designed for Human and AI Reasoning>>_*
 
+The release's most forward-looking theme: contracts, purity and frame conditions make each method a self-describing, compile-checked specification — as useful to an AI assistant as to the next person reading the code.
+
 - New <<type-checking-extensions,`NullChecker`>> type checker with an optional flow-sensitive `strict` mode requiring no annotations.
 - `@Modifies` frame conditions and `@Pure` purity declarations, verified at compile time by `ModifiesChecker` and `PurityChecker`.
 - `CombinerChecker` verifies parallel-reduction combiners are associative, via new `@Associative`/`@Reducer` declarations.
@@ -54,6 +64,8 @@ Some features described here as "incubating" may become stable before 6.0.0 fina
 - Those verified declarations are machine-actionable — a foundation for AI skills and tooling, not just for reading.
 
 *_<<g6-new-modules,New Optional Modules>>_*
+
+Batteries-included scripting: reach for HTTP, CSV, Markdown or a Maven-backed `@Grab` right out of the box — reinforcing Groovy as the _Python of the JVM_.
 
 - <<concurrent-java,`groovy-concurrent-java`>> — Standalone Java library exposing the `groovy.concurrent` toolkit; no Groovy runtime required.
 - <<http-builder,`groovy-http-builder`>> — HTTP client with imperative DSL and declarative `@HttpBuilderClient` interface.
@@ -67,10 +79,14 @@ Auto-parsed JSON, XML and HTML responses; typed return objects driven by interfa
 
 *_Existing Module Improvements_*
 
+Less ceremony for querying and parsing data, with more consistency across formats.
+
 - <<ginq,GINQ>> provides a cleaner `groupby ... into` which binds a group to a named variable with aggregate access, and gains SQL-style set operators: `union`, `intersect`, `minus`, `unionall`.
 - Consistent <<typed-parsing,typed parsing>> across JSON, CSV, TOML, YAML and XML modules.
 
 *_<<g6-extensions,Extension Method Additions>>_*
+
+The GDK standard library keeps growing, so more everyday tasks are one method call away rather than a hand-written loop or an extra dependency.
 
 - New methods including `groupByMany`, `waitForResult`, `findGroups`/`findAllGroups`, `isSorted`, `zipWithNext`/`groupConsecutive`, and lazy `grepping`.
 - Asynchronous file I/O on `Path` (`textAsync`, `bytesAsync`, `writeAsync`) returning `CompletableFuture` — composes with `await`.
@@ -78,13 +94,17 @@ Auto-parsed JSON, XML and HTML responses; typed return objects driven by interfa
 
 *_Tooling Improvements_*
 
+The docs, shell and console catch up with modern expectations — Markdown, syntax highlighting, dark mode and inline charts.
+
 - <<groovydoc,GroovyDoc>> adds JEP 467 Markdown doc comments (`///`) and JEP 413 `{@snippet}` blocks for inline and external code samples. Also added is Prism.js syntax highlighting, class-hierarchy tree pages, `{@value}`/`{@inheritDoc}` support, and improved script documentation.
 - Light, dark, "follow system" and <<theming,custom themes>> for GroovyDoc, the GDK reference, and GroovyConsole.
 - <<groovysh,Groovysh>> gains an `/img` command for inline images and charts using JLine's terminal-graphics support, Markdown handling in `/slurp`.
 
 *_JDK/Java Integration Improvements_*
 
-- Tested across JDK 17–26; <<Groovy6.0-requirements,JDK 17>> is now the minimum supported runtime. Module import already mentioned.
+Keeps Groovy a first-class citizen on today's JVM: current JDK support, one-line module imports, and cleaner interop for mixed Groovy/Java projects.
+
+- Tested across JDK 17–27; <<Groovy6.0-requirements,JDK 17>> is now the minimum supported runtime. Module import already mentioned.
 - <<joint-compilation-stubs,Joint Compilation Stub Improvements>>: AST-transform-generated members (`@Immutable`, `@Builder`, `@TupleConstructor`, `@Delegate`, ...) are now visible in generated stubs. Java code in mixed-language projects can finally call constructors and methods contributed by transforms.
 
 [[g6-new-modules]]
@@ -242,6 +262,25 @@ AsyncScope.run {
 // Both tasks guaranteed complete here
 ----
 
+=== Iterating and cleaning up: `for await` and `defer`
+
+`for await` consumes an async source -- a generator, channel, or
+reactive stream -- pulling values as they arrive, while `defer`
+registers a cleanup action that runs when the enclosing scope exits
+(LIFO order, on success or failure alike):
+
+[source,groovy]
+----
+async {
+    def reader = openLogStream()
+    defer { reader.close() }                    // runs on scope exit, always
+
+    for await (line in tailLines(reader)) {     // consume values as produced
+        if (line.contains('ERROR')) println line
+    }
+}   // reader.close() runs here
+----
+
 === Feature summary
 
 [cols="1,3", options="header"]
@@ -356,39 +395,16 @@ assert seen == [1, 2, 3]
 
 === `@ActiveObject` — actor semantics with class syntax
 
-A hand-written actor (gapi:groovy.concurrent.Actor[Actor]) expresses concurrency by encoding a message
-protocol — typed messages, a `switch` over message kinds, and explicit
-`send`/`sendAndGet` plumbing at every call site:
-
-[source,groovy]
-----
-import groovy.concurrent.Actor
-
-// Hand-written actor — message protocol explicit
-def account = Actor.stateful(0.0) { balance, msg ->
-    switch (msg) {
-        case { it instanceof Map && it.deposit }:
-            return balance + msg.deposit
-        case { it instanceof Map && it.withdraw }:
-            if (msg.withdraw > balance) throw new RuntimeException('Insufficient funds')
-            return balance - msg.withdraw
-        default: return balance
-    }
-}
-
-account.send([deposit: 100])
-account.send([withdraw: 30])
-def balance = await(account.sendAndGet([deposit: 0]))
-assert balance == 70.0
-----
-
-To know whether the actor is being used safely, a reader (human or AI)
-has to follow each message kind through the dispatch loop and match it
-against every call site. gapi:groovy.transform.ActiveObject[@ActiveObject]
-(applicable target: `TYPE`) inverts this: write a normal class, mark methods that participate in
-the actor's serialised mailbox with
-gapi:groovy.transform.ActiveMethod[@ActiveMethod] (applicable target: `METHOD`), and the AST
-transform routes those calls through an internal actor:
+A hand-written actor (gapi:groovy.concurrent.Actor[Actor]) encodes its
+message protocol explicitly -- typed messages, a `switch` over message
+kinds, and `send`/`sendAndGet` plumbing at every call site -- so a
+reader (human or AI) has to trace each message kind through the
+dispatch loop and every call site to know the actor is used safely.
+gapi:groovy.transform.ActiveObject[@ActiveObject] (target: `TYPE`)
+inverts this: write a normal class, mark the methods that run on the
+actor's serialised mailbox with
+gapi:groovy.transform.ActiveMethod[@ActiveMethod] (target: `METHOD`),
+and the AST transform routes those calls through an internal actor:
 
 [source,groovy]
 ----
@@ -982,67 +998,33 @@ Groovy dependency on the library).
 
 === Carrier participation
 
-A type participates as a carrier via one of four routes:
+A type qualifies as a carrier via any of four routes. The built-in
+allow-list recognises stdlib and Groovy-core types by class --
+`Optional`, `Stream`, `CompletionStage`/`CompletableFuture`, and
+`Awaitable`/`DataflowVariable` -- and common FunctionalJava
+(`fj.data.*`) and Vavr (`io.vavr.control.*`) carriers by
+fully-qualified name, with no Groovy dependency on those libraries.
+Beyond the list, any type exposing a single-argument `flatMap` (plus
+`map`) qualifies structurally, and a user type whose method names
+diverge can opt in with gapi:groovy.transform.Monadic[@Monadic]
+(naming its `bind`/`map`, and optionally a `unit` factory for
+law-checking tooling). GEP-23 has the per-carrier method mapping and
+the exact shape rules.
 
-. *Standard allow-list (by type).* Stdlib and Groovy-core carriers
-recognised by `Class`: `Optional`, `Stream`, `CompletionStage`
-(covering `CompletableFuture`), and `Awaitable` (covering
-`DataflowVariable`).
-. *Standard allow-list (by name).* Common third-party carriers
-recognised by fully-qualified name, with no Groovy dependency on the
-library:
-+
-[cols="2,1,1",options="header"]
-|===
-| Carrier | bind | map
-| `fj.data.Option`             | `bind`    | `map`
-| `fj.data.List`               | `bind`    | `map`
-| `fj.data.Stream`             | `bind`    | `map`
-| `fj.data.Validation`         | `bind`    | `map`
-| `fj.P1`                      | `bind`    | `map`
-| `io.vavr.control.Option`     | `flatMap` | `map`
-| `io.vavr.control.Try`        | `flatMap` | `map`
-| `io.vavr.control.Either`     | `flatMap` | `map`
-| `io.vavr.control.Validation` | `flatMap` | `map`
-|===
-. *Structural match.* A type that exposes a single-argument `flatMap`
-(and, for the map role, `map`) qualifies without further declaration.
-. *gapi:groovy.transform.Monadic[@Monadic] opt-in.* A user type that
-declares the annotation participates even when its method names diverge
-from the structural convention. The annotation may name alternative
-`bind` / `map` methods, and optionally a `unit` (the `of`/`pure`
-factory that lifts a value into the carrier) — unused by `DO` itself
-but available to law-deriving and law-checking tooling. A data-style
-carrier should also provide structural `equals`/`hashCode`, since a
-comprehension composes monadic values up to value equality.
+=== Compile-time checking
 
-=== `MonadicChecker` and `MonadicShapeChecker`
-
-Under `@CompileStatic`/`@TypeChecked`,
-gapi:groovy.typecheckers.MonadicChecker[MonadicChecker] enforces
-carrier participation, asserts the closure-return shape of `DO` chains
-(catching bare-value and cross-carrier bodies), and restores the
-comprehension's static result type through the rewritten chain. It is
-activated the same way as every other type-checking extension —
-`@TypeChecked(extensions = 'groovy.typecheckers.MonadicChecker')`,
-already shown in the example above.
-
-gapi:groovy.typecheckers.MonadicShapeChecker[MonadicShapeChecker] is a
-sibling extension that lints hand-written
-`flatMap`/`map`/`thenCompose`/`thenApply` chains over the same carrier
-set, independent of `DO`. It catches three high-confidence problems:
-`flatMap` returning a non-carrier, `flatMap` returning a different
-carrier, and `map` returning the same carrier (the `M<M<T>>`
-foot-gun). The first two would be compile errors in Java, but Groovy's
-single-abstract-method coercion of closures normally lets them
-through; the checker restores the Java guarantee. The third compiles
-cleanly in both Java and Groovy — an `Optional<Optional<Integer>>` is
-a well-typed value, just (almost certainly) not the one the author
-intended.
-
-The two extensions are complementary but independent: `MonadicChecker`
-covers `DO`-macro rewrites, `MonadicShapeChecker` covers native chains.
-Code that mixes both forms may opt into both.
+Two type-checking extensions back the feature, each activated like any
+other (`@TypeChecked(extensions = '...')`).
+gapi:groovy.typecheckers.MonadicChecker[MonadicChecker] -- shown in the
+example above -- enforces carrier participation and the closure-return
+shape of `DO` chains, and restores the comprehension's static result
+type. gapi:groovy.typecheckers.MonadicShapeChecker[MonadicShapeChecker]
+is independent of `DO`: it lints hand-written
+`flatMap`/`map`/`thenCompose`/`thenApply` chains, catching a `flatMap`
+that returns a non-carrier or a different carrier (which Groovy's
+closure coercion would otherwise let through), and the
+`map`-returning-`M<M<T>>` foot-gun. The two compose -- code mixing both
+forms can opt into both.
 
 === Feature summary
 
@@ -1267,12 +1249,10 @@ requires the combiner to be a method reference to an annotated method. The
 checker also recognises `Monoid`/`Semigroup` carriers from external libraries,
 and covers `java.util.stream` `reduce` overloads. Since associativity is
 undecidable in general, this is a conservative, false-positive-averse safety
-net rather than a proof; the annotations assert the law and are intended to be
-backed by tests. Because the law is fully specified by the annotation itself,
-those tests are <<human-ai-reasoning,machine-actionable>> -- a property-based
-test asserting `combine(a, combine(b, c)) == combine(combine(a, b), c)` (plus
-the identity law for `@Reducer`) can be auto-derived by tooling or an AI agent
-directly from the declaration.
+net rather than a proof: the annotations assert the law and are meant to be
+backed by tests -- and because the law is fully specified by the annotation,
+those tests are <<human-ai-reasoning,machine-actionable>> and can be
+auto-derived from the declaration.
 
 === Feature summary
 
@@ -1375,7 +1355,7 @@ class Account {
 }
 ----
 
-When analyzing a sequence of calls:
+When analysing a sequence of calls:
 
 [source,groovy]
 ----
@@ -1384,17 +1364,11 @@ account.withdraw(30)
 def bal = account.available()
 ----
 
-*With annotations*, each call is a self-contained specification --
-3 linear reasoning steps:
+*With annotations*, each call reads as a self-contained specification:
+chain the `@Ensures` postconditions and trust `@Modifies` to bound what
+changed, without opening a single method body.
 
-1. `deposit(100)`: `@Requires` met (100 > 0), `@Ensures` gives
-   `balance == old + 100`, `@Modifies` proves only `balance` and `log` changed
-2. `withdraw(30)`: `@Requires` met (30 > 0, 30 within balance),
-   `@Ensures` gives `balance == 100 - 30 = 70`,
-   `@Modifies` proves `withdraw` didn't undo the deposit
-3. `available()`: `@Pure` proves no side effects -- just returns `balance` (70)
-
-*Without annotations*, the analyzer must read every method body,
+*Without annotations*, the analyser must read every method body,
 verify what each one modifies (2 fields × 3 calls = 6 "did this change?"
 questions), re-verify earlier state after later calls, and check whether
 `available()` has hidden side effects.
@@ -1424,7 +1398,7 @@ which is where AI starts hallucinating or saying
 
 | Can `deposit`/`withdraw` be reordered safely?
 | Check `@Modifies` sets + `@Requires` preconditions
-| Must analyze all pairs for interference
+| Must analyse all pairs for interference
 |===
 
 The type checkers provide the compile-time guarantee that these
@@ -1434,24 +1408,18 @@ methods have no side effects. Without that guarantee, annotations
 would be just comments -- claims you'd still need to verify by
 reading the code.
 
-Reading and verification are two of the payoffs; a third is that the
-same declarations are _machine-actionable_. Because `@Pure`, `@Modifies`,
+Reading and verification are two payoffs; a third is that the same
+declarations are _machine-actionable_. Because `@Pure`, `@Modifies`,
 `@Requires`/`@Ensures`, `@Invariant`/`@Decreases` and the algebraic
-`@Associative`/`@Reducer` are both
-machine-readable and compiler-enforced, tooling and AI skills can build
-on them rather than guess -- deriving tests and documentation, driving or
-validating refactorings and migrations, and treating each verified
-contract as a guardrail an agent must not cross. The algebraic annotations
-are an especially direct case: an `@Associative` method fully specifies a
-property -- `combine(a, combine(b, c)) == combine(combine(a, b), c)` --
-so an AI agent or skill can mechanically generate the property-based test
-that backs the assertion (and, for `@Reducer`, the matching identity law)
-rather than infer intent from the body. The compile-time
-guarantee is what makes this safe: a skill can rely on a `@Pure` method
-being pure because `PurityChecker` proved it, not because a comment
-claimed it. A Groovy 6 codebase is therefore not only easier for humans
-and AI to _read_ -- it is a verified specification they can reliably
-_build on_.
+`@Associative`/`@Reducer` are both machine-readable and
+compiler-enforced, tooling and AI skills can build on them rather than
+guess -- deriving tests and documentation, validating refactorings, and
+treating each verified contract as a guardrail an agent must not cross.
+The compile-time guarantee is what makes this safe: a skill can rely on
+a `@Pure` method being pure because `PurityChecker` proved it, not
+because a comment claimed it. A Groovy 6 codebase is therefore not only
+easier for humans and AI to _read_ -- it is a verified specification
+they can reliably _build on_.
 
 [[val-keyword]]
 == `val` Keyword for Final Declarations
@@ -2156,6 +2124,11 @@ Java's `[I@hashcode`). These can be selectively disabled using the
 [[ginq]]
 == GINQ Enhancements
 
+GINQ (Groovy-Integrated Query) runs SQL-style queries over in-memory
+collections. Groovy 6 adds two conveniences. The examples use the `GQ`
+macro, which returns a queryable result; its sibling `GQL` returns a
+plain `List`.
+
 === `groupby` ... `into`
 
 GINQ's `groupby` clause now supports an `into` keyword
@@ -2198,7 +2171,7 @@ assert GQL {
 } == ['Alice', 'Bob', 'Carol', 'Dave']
 ----
 
-See the dochome:using-ginq.html[GINQ user guide]
+See the dochome6:using-ginq.html[GINQ user guide]
 for the full set of clauses and operators.
 
 [[csv]]
@@ -2658,6 +2631,10 @@ available for environments that need the previous lenient behaviour.
 [[platform-logging]]
 == Platform Logging
 
+Groovy's own diagnostics can now be routed, filtered, or silenced
+through standard JVM logging -- no more hard-coded `System.err` output
+you can't control.
+
 Groovy 6 replaces direct `System.err` output with the JDK's
 Platform Logging API (`java.lang.System.Logger`)
 for internal errors and warnings
@@ -2688,7 +2665,7 @@ java.util.logging.ConsoleHandler.level = ALL
 groovy.grape.Grape.level = FINE
 ----
 
-Loggers are organized by module (Core, Grape, Ant, Console, GroovyDoc,
+Loggers are organised by module (Core, Grape, Ant, Console, GroovyDoc,
 JSON, Servlet, Swing, Testing) -- see the
 https://groovy-lang.org/logging.html[logging guide]
 for the full list of logger names and their levels.
@@ -3088,7 +3065,7 @@ attribute (Ant task) sets a default Prism language for unattributed
 highlighted without source edits
 (https://issues.apache.org/jira/browse/GROOVY-11950[GROOVY-11950]).
 See the
-dochome:groovydoc.html[Groovydoc
+dochome6:groovydoc.html[Groovydoc
 documentation] for the rewrite rules and the per-block opt-out.
 
 === Feature summary
@@ -3189,7 +3166,8 @@ feature set.
 [[annotation-validation]]
 == Improved Annotation Validation
 
-Groovy 6 closes gaps in annotation target validation for Groovy-specific
+Misplaced annotations that used to compile silently are now caught at
+compile time. Groovy 6 closes gaps in annotation target validation for Groovy-specific
 annotation targets
 (https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884]),
 and to now be fully compliant with JLS 9.6.4.1
@@ -3224,7 +3202,7 @@ gapi:groovy.transform.Parallel[@Parallel])
 Annotations without the appropriate `@ExtendedTarget` declaration
 are now flagged as compile errors when applied to these constructs.
 This is a <<Groovy6.0-breaking,breaking change>> for code that
-previously relied on the lenient behavior.
+previously relied on the lenient behaviour.
 
 == Java Compatibility
 
@@ -3291,11 +3269,11 @@ values within `@interface` declarations -- e.g.
 `String[] value() default {}`
 (https://issues.apache.org/jira/browse/GROOVY-11845[GROOVY-11845]).
 
-=== Labeled break targeting non-loop blocks
+=== Labelled break targeting non-loop blocks
 
-Labeled `break` targeting a labeled (non-loop) block now correctly
+Labelled `break` targeting a labelled (non-loop) block now correctly
 exits that block, matching Java. Previously the `break` exited only
-the innermost enclosing loop, causing statements after the labeled
+the innermost enclosing loop, causing statements after the labelled
 block to re-execute
 (https://issues.apache.org/jira/browse/GROOVY-6844[GROOVY-6844],
 https://issues.apache.org/jira/browse/GROOVY-7463[GROOVY-7463]).
@@ -3462,7 +3440,7 @@ Groovy 5 still includes such support on JDK versions that support it.
 sibling `var` keyword now apply to `val` as well -- chiefly a field
 named `val` declared immediately before a method or constructor, and
 `val as Type` cast expressions. The `-Dgroovy.val.enabled=false`
-system property reverts to the prior behavior as a porting aid.
+system property reverts to the prior behaviour as a porting aid.
 (https://issues.apache.org/jira/browse/GROOVY-9308[GROOVY-9308],
 https://issues.apache.org/jira/browse/GROOVY-11994[GROOVY-11994])
 * Annotation target validation is now enforced for import and loop statements
@@ -3477,7 +3455,7 @@ may no longer work.
 * When multiple `set(String, ...)` method overloads exist, Groovy now selects
 the best-matching overload based on the value type rather than always using
 the same method. This fixes incorrect `GroovyCastException` errors at runtime
-but may change which setter is invoked if your code relied on the previous behavior.
+but may change which setter is invoked if your code relied on the previous behaviour.
 (https://issues.apache.org/jira/browse/GROOVY-11829[GROOVY-11829])
 * `TomlSlurper` and `YamlSlurper` no longer prematurely close `Reader`
 and `InputStream` arguments passed to parsing methods. Callers are now
@@ -3553,8 +3531,8 @@ effects that relied on the previous order may behave differently.
 (an interpolation placed inside quotes, which cannot be bound as a
 `PreparedStatement` placeholder and is a SQL-injection risk, CWE-89) is
 now rejected with a `SQLException` rather than only warned about. Set
-`-Dgroovy.sql.injection.lenient=true` to restore the previous (insecure)
-behaviour as a porting aid.
+`-Dgroovy.sql.injection.lenient=true` to restore the previous
+(less secure) behaviour as a porting aid.
 (https://issues.apache.org/jira/browse/GROOVY-12118[GROOVY-12118])
 
 == Under exploration (before GA release)
@@ -3567,7 +3545,7 @@ behaviour as a porting aid.
 
 Groovy 6 requires JDK17+ to build and JDK17 is the
 minimum version of the JRE that we support.
-Groovy 6 has been tested on JDK versions 17 through 26.
+Groovy 6 has been tested on JDK versions 17 through 27.
 
 `CompilerConfiguration` also recognises a `JDK27` (`"27"`)
 `targetBytecode` value, mapped to the corresponding ASM `V27` class-file
