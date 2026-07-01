@@ -1321,7 +1321,7 @@ following the same two-layer pattern used elsewhere in this post.
 * link:../wiki/GEP-20.html[GEP-20 — Destructuring]
 * https://groovy.apache.org/blog/groovy-async-await[Native Async/Await for Groovy] — the `Awaitable` carrier `DO` composes
 * https://groovy.apache.org/blog/groovy-null-checker[NullChecker walkthrough]
-* https://www.functionaljava.org/[FunctionalJava]
+* https://github.com/functionaljava/functionaljava[FunctionalJava]
 * https://github.com/highj/highj[highj — lightweight HKT for Java]
 * https://vavr.io/[Vavr] — Java FP library with `Try`/`Either`/`Validation`/`Option` control carriers, persistent collections, tuples, and the `For(...).yield(...)` For-Comprehension form. The control carriers are in `DO`'s standard allow-list (Groovy 6).
 * https://guaraqe.com/posts/2026-05-24-why-cartesian-categories.html[WireCat: Visual Programming with Cartesian Categories] — the Haskell post that the `wire` demo is modelled on

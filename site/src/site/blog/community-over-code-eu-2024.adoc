@@ -223,7 +223,7 @@ Check out the Groovy https://github.com/apache/apachecon-eu/blob/main/static/pos
 See also:
 
 * https://photos.apachecon.com/index.php?/category/38[Additional photos] (may be added to over time).
-* https://eu.communityovercode.org/program/[The official program] includes all tracks and will include
+* https://communityovercode.org/[The official program] includes all tracks and will include
 links to the slides of the talks if/when available.
 
 Other trip reports:

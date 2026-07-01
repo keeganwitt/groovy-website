@@ -10,7 +10,7 @@ https://commons.apache.org/[Apache Commons]
 https://commons.apache.org/proper/commons-math/[Math],
 https://www.ojalgo.org/[ojAlgo],
 https://ejml.org/[EJML], and
-https://deeplearning4j.konduit.ai/nd4j/tutorials/quickstart[Nd4j]
+https://web.archive.org/web/20260417034825/https://deeplearning4j.konduit.ai/nd4j/tutorials/quickstart[Nd4j]
 (part of Eclipse https://deeplearning4j.konduit.ai/[Deeplearning4j]).
 We'll also take a quick
 look at using the incubating Vector API for matrix calculations
@@ -720,7 +720,7 @@ styles may be supported.
 * Apache Commons Math https://commons.apache.org/proper/commons-math/userguide/linear.html[User Guide] and https://github.com/apache/commons-math[GitHub mirror]
 * ojAlgo https://www.ojalgo.org/[website] and https://github.com/optimatika/ojAlgo/[GitHub repo]
 * EJML http://ejml.org/[website] and https://github.com/lessthanoptimal/ejml[GitHub repo]
-* Nd4j https://deeplearning4j.konduit.ai/nd4j/tutorials/quickstart[documentation] and https://github.com/eclipse/deeplearning4j/tree/master/nd4j[GitHub repo]
+* Nd4j https://web.archive.org/web/20260417034825/https://deeplearning4j.konduit.ai/nd4j/tutorials/quickstart[documentation] and https://github.com/eclipse/deeplearning4j/tree/master/nd4j[GitHub repo]
 * https://github.com/paulk-asert/MatrixGroovy[Example code repo]
 * https://www.youtube.com/watch?v=I5WM2wdjr1M[Leslie Matrices for population age distribution modelling] video
 * https://dl.acm.org/doi/abs/10.1145/3386326[A history of the Groovy programming language] paper

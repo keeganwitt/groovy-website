@@ -43,7 +43,7 @@ systems in F# and Swift and Java has had several versions
 
 There are also existing Java libraries like
 http://jscience.org/[JScience] which have been developed, and
-https://objectcomputing.com/resources/publications/sett/june-2006-units-and-measures-with-jscience[shown early promise],
+https://web.archive.org/web/20251018194228/https://objectcomputing.com/resources/publications/sett/june-2006-units-and-measures-with-jscience[shown early promise],
 but now don't seem to be actively maintained. While the
 https://onlinelibrary.wiley.com/doi/10.1002/spe.2926[jury is still out]
 about whether units of measurement systems will spread further into
@@ -477,7 +477,7 @@ The error message is:
 * https://varkor.github.io/blog/2018/07/30/types-for-units-of-measure.html[Types for units of measure]
 * https://www.slideshare.net/keilw/how-jsr-385-could-have-saved-the-mars-climate-orbiter-jfokus-2020[How JSR 385 could have Saved the Mars Climate Orbiter - JFokus 2020] (slide deck)
 * https://www.manning.com/books/groovy-in-action-second-edition[Groovy in Action] (in particular the DSL chapter)
-* https://objectcomputing.com/resources/publications/sett/june-2006-units-and-measures-with-jscience[Units and Measures with JScience]
+* https://web.archive.org/web/20251018194228/https://objectcomputing.com/resources/publications/sett/june-2006-units-and-measures-with-jscience[Units and Measures with JScience]
 * https://onlinelibrary.wiley.com/doi/10.1002/spe.2926[Unit of measurement libraries, their popularity and suitability]
 * https://speakerdeck.com/glaforge/groovy-domain-specific-languages-techniques[Groovy Domain-Specific Languages techniques] (slide deck)
 * http://docs.groovy-lang.org/docs/latest/html/documentation/core-domain-specific-languages.html[Domain-Specific Languages] (Groovy documentation)

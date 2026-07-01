@@ -31,7 +31,7 @@ The emoji idea is borrowed, with thanks, from Don Raab's
 https://donraab.medium.com/ternary-predicate-and-pattern-matching-for-fizzbuzz-with-java-26-646c812a137b[_Ternary,
 Predicate, and Pattern Matching for FizzBuzz with Java 26_], which dresses up
 its Java variants the same way. It is also where the emoji appear in the
-https://github.com/paulk-asert/groovy-verify#fizzbuzz--element-wise-array-correctness[`groovy-verify`]
+https://github.com/paulk-asert/groovy-verify/blob/main/examples/miscellaneous.md[`groovy-verify`]
 project, one of whose examples we revisit below.
 
 The starting point for this post was a reader's first attempt, which already
@@ -601,7 +601,7 @@ metaprogramming to the task. Pick the one that makes you smile — and add emoji
 
 * Companion code for this post: https://github.com/paulk-asert/groovy-fizzbuzz
 * Don Raab's https://donraab.medium.com/ternary-predicate-and-pattern-matching-for-fizzbuzz-with-java-26-646c812a137b[Ternary, Predicate, and Pattern Matching for FizzBuzz with Java 26] — the source of the emoji idea
-* The https://github.com/paulk-asert/groovy-verify#fizzbuzz--element-wise-array-correctness[`groovy-verify`] FizzBuzz example and its Concurrency "lite" section
+* The https://github.com/paulk-asert/groovy-verify/blob/main/examples/miscellaneous.md[`groovy-verify`] FizzBuzz example and its Concurrency "lite" section
 * https://groovy.apache.org/blog/gpars-meets-virtual-threads[GPars meets Virtual Threads]
 * https://www.reddit.com/r/coding/comments/59iijd/the_most_elegant_implementation_of_fizzbuzz/[The most elegant implementation of FizzBuzz] (Reddit)
 * link:../wiki/GEP-18.html[GEP-18 — Integrated Concurrency and Parallel Processing]

@@ -631,7 +631,7 @@ https://en.wikipedia.org/wiki/Word2vec[Word2vec] by Google Research,
 https://nlp.stanford.edu/projects/glove/[GloVe] by Stanford NLP, and
 https://fasttext.cc/[fastText] by Facebook Research.
 We'll use
-https://deeplearning4j.konduit.ai/deeplearning4j/reference/word2vec-glove-doc2vec[DeepLearning4J]
+https://deeplearning4j.konduit.ai/[DeepLearning4J]
 to load and use these models.
 
 * Context-dependent approaches can provide more accurate matching if the context is
@@ -652,7 +652,7 @@ We'll use the https://djl.ai/[Deep Java Library] to load and use both of these m
 === fastText
 Many Word2Vec libraries can read and write models to a standard file format based on the original https://github.com/tmikolov/word2vec[Google implementation].
 
-For example, we can download some of the pre-trained models from the https://radimrehurek.com/gensim/models/word2vec.html[Gensim Python library], convert them to the Word2Vec format, and then open them with https://deeplearning4j.konduit.ai/deeplearning4j/reference/word2vec-glove-doc2vec[DeepLearning4J].
+For example, we can download some of the pre-trained models from the https://radimrehurek.com/gensim/models/word2vec.html[Gensim Python library], convert them to the Word2Vec format, and then open them with https://deeplearning4j.konduit.ai/[DeepLearning4J].
 
 [source,python]
 ----
@@ -1459,7 +1459,7 @@ Other referenced sites:
 * https://github.com/tdebatty/java-string-similarity
 * https://github.com/OpenRefine/OpenRefine
 * https://djl.ai/
-* https://deeplearning4j.konduit.ai/deeplearning4j/reference/word2vec-glove-doc2vec
+* https://deeplearning4j.konduit.ai/
 
 Related libraries and links:
 

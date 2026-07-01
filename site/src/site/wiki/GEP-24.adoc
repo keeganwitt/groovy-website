@@ -786,9 +786,9 @@ parallels. The `@Requires` discharge mechanism is shared.
 * link:../releasenotes/groovy-6.0.html#type-checking-extensions[Groovy 6 release notes — type-checking extensions]
 * link:../releasenotes/groovy-6.0.html#human-ai-reasoning[Groovy 6 release notes — Designed for human and AI reasoning]
 * https://www.vavr.io/[Vavr] — the reference design for `Try<T>` and related carriers
-* https://www.functionaljava.org/[FunctionalJava] — `fj.data.Validation` lineage
+* https://github.com/functionaljava/functionaljava[FunctionalJava] — `fj.data.Validation` lineage
 * https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/CompletableFuture.html#exceptionally(java.util.function.Function)[`CompletableFuture.exceptionally`] — JDK precedent for the recover-callback shape
-* https://github.com/joeduffy/articles/blob/master/error-model.md[Joe Duffy — "The Error Model"] — Midori's hybrid exception/Result design that informs the spec-layer / carrier-layer split
+* https://joeduffyblog.com/2016/02/07/the-error-model/[Joe Duffy — "The Error Model"] — Midori's hybrid exception/Result design that informs the spec-layer / carrier-layer split
 
 .Update history
 ****

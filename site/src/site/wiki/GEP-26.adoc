@@ -655,7 +655,7 @@ compile such queries.
 * link:GEP-18.html[GEP-18: Integrated Concurrency and Parallel Processing] — home for the deferred asynchronous/streaming data sources
 * https://issues.apache.org/jira/browse/GROOVY-8258[GROOVY-8258: original GINQ proposal and implementation]
 * https://issues.apache.org/jira/browse/GROOVY-11915[GROOVY-11915: groupby...into redesign and first-class group results]
-* https://groovy.apache.org/documentation.html[GINQ user guide — Querying collections in SQL-like style]
+* link:../documentation.html[GINQ user guide — Querying collections in SQL-like style]
 * https://www.jooq.org[JOOQ — plain-SQL DSL and dialect support]
 * https://www.jooq.org/legal/licensing[JOOQ licensing]
 * https://learn.microsoft.com/en-us/dotnet/csharp/linq/[Microsoft LINQ — prior art for one syntax over multiple execution engines]

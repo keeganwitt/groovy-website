@@ -51,7 +51,7 @@ to and from float and long IEEE 754 32-bit representations, a "magic" constant,
 some bit shifting, and a touch of Newton's method throw in for good measure.
 
 The details have been explained in some detail in numerous blogs, e.g.
-https://suraj.sh/fast-square-root-approximation/[Fast Square Root Approximation]
+https://web.archive.org/web/20250207183256/https://suraj.sh/fast-square-root-approximation[Fast Square Root Approximation]
 and
 https://betterexplained.com/articles/understanding-quakes-fast-inverse-square-root/[Understanding Quake’s Fast Inverse Square Root],
 and videos, e.g.

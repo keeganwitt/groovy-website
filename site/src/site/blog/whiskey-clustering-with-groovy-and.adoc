@@ -11,7 +11,7 @@ https://spark.apache.org/[Apache Spark] to scale up the
 https://en.wikipedia.org/wiki/K-means_clustering[k-means] clustering algorithm.
 Let's look at another useful technology for scaling up this problem,
 https://ignite.apache.org/[Apache Ignite].
-The Ignite team recently released a https://ignite.apache.org/releases/2.14.0/release_notes.html[new version],
+The Ignite team recently released a https://web.archive.org/web/20231109024642/https://ignite.apache.org/releases/2.14.0/release_notes.html[new version],
 but earlier versions are also fine for our example.
 
 Before we start, a quick reminder of the problem.

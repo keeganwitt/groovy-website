@@ -213,7 +213,7 @@ We know the result was Versicolor for that data point.
 
 * Source code: https://github.com/paulk-asert/groovy-oracle23ai
 * https://docs.groovy-lang.org/latest/html/documentation/sql-userguide.html[Groovy SQL User Guide]
-* https://docs.oracle.com/en/database/oracle/oracle-database/23/vecse/oracle-ai-vector-search-users-guide.pdf[Oracle AI Vector Search User's Guide]
+* https://docs.oracle.com/en/database/oracle/oracle-database/23/vecse/index.html[Oracle AI Vector Search User's Guide]
 
 == Conclusion
 

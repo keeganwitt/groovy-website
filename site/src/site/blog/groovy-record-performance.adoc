@@ -249,7 +249,7 @@ record GroovyRecordScalaMurmur3Label(String x0, String x1, String x2, String x3,
 And this has almost identical performance to the native Scala example from our earlier bar chart.
 
 If you want a smaller dependency than the Scala runtime jar, you could use
-the https://guava.dev/releases/31.0-jre/api/docs/src-html/com/google/common/hash/Hashing.html#line.158[32-bit Murmur3] algorithm from https://github.com/google/guava[Guava]
+the https://guava.dev/releases/31.0-jre/api/docs/com/google/common/hash/Hashing.html[32-bit Murmur3] algorithm from https://github.com/google/guava[Guava]
 or write your own combiner to combine hashes produced by Apache Commons Codec's
 https://commons.apache.org/proper/commons-codec/apidocs/org/apache/commons/codec/digest/MurmurHash3.html#hash32x86-byte:A-[Murmur3 algorithm] on the bytes of each String component.
 In my tests, both of these alternatives ended up being slower than borrowing Scala's algorithm,
