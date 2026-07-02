@@ -651,6 +651,25 @@ https://github.com/paulk-asert/groovy-verify/blob/main/examples/concurrency.md[c
 examples] carry the full set, including seqlocks and a lock-free bounded
 counter.
 
+*Where rung 1 reaches further.* The framing above — rung 1 proves the local
+half, the upper rungs the rest — has an instructive exception. Leino's
+_Modeling Concurrency in Dafny_ casts a ticket lock for mutual exclusion as
+atomic events over a system invariant; ported to `groovy-verify`
+(https://github.com/paulk-asert/groovy-verify/blob/main/examples/dafny.md#ticket-lock--mutual-exclusion-leino-krml260[walked
+through in full in the repo]), rung 1
+SMT-proves the _structural_ properties directly — *mutual exclusion* (at most
+one process in the critical section) and, for two processes, the *fair-schedule
+liveness* that a hungry process eventually enters (the "eventually", not merely
+per-call termination). Here rung 2 changes role: a
+https://github.com/paulk-asert/groovy-verify/blob/main/src/tlc/Ticket.tla[`Ticket.tla`]
+model has TLC enumerate every interleaving at three processes — which
+_validates the fairness and framing facts the proof assumes_ (TLC derives them
+from the transition system rather than taking them as hypotheses), confirms the
+same invariant on every reachable state, and pushes past the proof's two-process
+bound. Two independent methods on one artifact — with the honest edge that the
+symbolic liveness proof stops at two processes and leans on assumptions that TLC
+is what discharges.
+
 [[and-theres-more]]
 == And there's more
 
@@ -718,7 +737,8 @@ proven via the pigeonhole property of a finite enum domain.
 * *An external benchmark* — 23 problems ported from Verus' HumanEval suite
 ("problems we didn't pick"), proven _correct_, not merely overflow-safe.
 * *Dafny and OpenJML ports* — `SumMax` (VSComp'10), binary search,
-max-by-elimination — the cross-tool credentials, reproduced in Groovy.
+max-by-elimination, and _Modeling Concurrency in Dafny_'s ticket lock (safety
+_and_ liveness) — the cross-tool credentials, reproduced in Groovy.
 * *Verifying Java fragments* — since Java is largely a syntactic subset of
 Groovy, many integer/array algorithms verify by reading the Java source _as
 Groovy_ (with the honest caveat that the proof is over Groovy semantics).
@@ -937,6 +957,7 @@ Design-by-Contract module shipped with Groovy
 * https://groovy.apache.org/blog/groovy-null-checker[Compile-time null safety for Groovy] — the `NullChecker` walkthrough
 * https://repository.apache.org/content/repositories/orgapachegroovy-1109[Groovy 6.0.0-alpha-2 staged artifacts] (currently in the release vote)
 * https://dafny.org[Dafny] and https://github.com/verus-lang/verus[Verus] — the auto-active verifiers whose specification style and counterexample UX this echoes
+* https://leino.science/papers/krml260.pdf[K. Rustan M. Leino, _Modeling Concurrency in Dafny_ (KRML 260)] — the ticket-lock development (safety and liveness) reproduced above
 * https://www.openjml.org[OpenJML] and https://www.adacore.com/about-spark[SPARK] — JVM and Ada prior art
 * https://github.com/Z3Prover/z3[Z3] — the SMT solver behind the proofs
 * https://lamport.azurewebsites.net/tla/tla.html[TLA+]/TLC, https://github.com/JetBrains/lincheck[Lincheck], https://github.com/cmu-pasta/fray[Fray], https://github.com/openjdk/jcstress[jcstress] — the upper concurrency rungs
