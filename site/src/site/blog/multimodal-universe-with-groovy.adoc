@@ -1,7 +1,7 @@
 = Exploring the Multimodal Universe with Groovy&trade;
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2026-07-01T11:00:00+00:00
-:keywords: groovy, groovysh, huggingface, astronomy, astrophysics, data science, sixel, java2d, spectrum
+:keywords: groovy, groovysh, huggingface, astronomy, astrophysics, data science, sixel, jfreechart, spectrum
 :description: Reproduce a viral astronomy demo in groovysh: load galaxy images and spectra from Hugging Face's Multimodal Universe and render them inline with /img.
 
 A recent https://x.com/cgeorgiaw[post on X by Georgia Channing] (@cgeorgiaw) caught our eye:
@@ -80,8 +80,114 @@ chart we build ourselves.
 
 Here is the complete `mmu.groovy` script. It reads one cross-matched-style row from each dataset,
 decodes the galaxy PNG, filters the masked points out of the spectrum (mirroring the video's
-`s = s[~s["mask"]]`), and hand-draws the spectrum as a Java2D line plot returned as a
+`s = s[~s["mask"]]`), and plots the spectrum with JFreeChart, handed to `/img` as a
 `BufferedImage`:
+
+[source,groovy]
+----
+import groovy.json.JsonSlurper
+import java.awt.Color
+import javax.imageio.ImageIO
+import org.jfree.chart.ChartFactory
+import org.jfree.data.xy.XYSeries
+import org.jfree.data.xy.XYSeriesCollection
+
+rows = { String ds -> new JsonSlurper().parse(
+    new URL("https://datasets-server.huggingface.co/rows?dataset=$ds&config=default&split=train&offset=0&length=1")).rows[0].row }
+
+// --- the galaxy: gz10 stores a ready-made RGB PNG as base64 bytes ---
+galaxy = ImageIO.read(new ByteArrayInputStream(rows('UniverseTBD/mmu_gz10').rgb_image.bytes.decodeBase64()))
+
+// --- the spectrum: drop masked points, like s[~s["mask"]] in the video ---
+spec = rows('UniverseTBD/mmu_sdss_sdss').spectrum
+pts = [spec.'lambda', spec.flux, spec.mask].transpose().findAll { !it[2] }.collect { [it[0] as double, it[1] as double] }
+
+// --- a JFreeChart line plot -> a BufferedImage that /img renders ---
+series = new XYSeries('flux')
+pts.each { series.add(it[0], it[1]) }
+plot = ChartFactory.createXYLineChart('SDSS spectrum', 'Wavelength (Å)', 'Flux', new XYSeriesCollection(series))
+plot.XYPlot.renderer.setSeriesPaint(0, Color.MAGENTA)  // magenta, to match the original demo
+plot.removeLegend()
+chart = plot.createBufferedImage(820, 520)
+println "galaxy ${galaxy.width}x${galaxy.height}, spectrum ${pts.size()} pts -> chart ${chart.width}x${chart.height}"
+----
+
+A few things worth pointing out:
+
+* The whole data-access layer is a one-line closure. `JsonSlurper` parses the HTTP response, and
+Groovy's GDK gives us `decodeBase64()` on the PNG string for free.
+* `transpose()` zips the three parallel arrays (`lambda`, `flux`, `mask`) together so we can
+`findAll` the unmasked samples in one readable expression.
+* The spectrum is drawn with https://www.jfree.org/jfreechart/[JFreeChart]: `createXYLineChart`
+gives us axes, ticks and gridlines for free, and `createBufferedImage` hands `/img` exactly the
+`BufferedImage` it wants. That is the same trick the `groovysh` user guide uses to show off XChart,
+Smile and Orson Charts — `/img` speaks `BufferedImage`, so the whole JVM charting ecosystem is one
+`/grab` away.
+
+== Running it
+
+Start `groovysh`, pull in the one charting dependency with the shell's `/grab` command, load the
+script, and view each result with `/img`:
+
+[source,subs="none"]
+----
+groovy> /grab org.jfree:jfreechart:1.5.6
+groovy> /load mmu.groovy
+galaxy 256x256, spectrum 3713 pts -> chart 820x520
+Loaded: mmu.groovy
+groovy> /img $galaxy
+groovy> /img $chart
+----
+
+We use `groovysh`'s `/grab` command rather than an `@Grab` annotation in the script itself: `/load`
+runs the file as a plain script, so grabbing the dependency in the shell first keeps that step
+explicit (and matches how the `groovysh` guide adds XChart, Smile and the other charting libraries).
+
+Here is the script itself, viewed through the shell's built-in `/less` pager (which syntax-highlights
+Groovy):
+
+image:img/mmu-groovysh-source.png[The mmu.groovy script in the groovysh pager,800]
+
+And here is the payoff — a galaxy and its spectrum, drawn directly in the terminal:
+
+image:img/mmu-groovysh-output.png[groovysh rendering a galaxy image and its spectrum inline,600]
+
+== What are we looking at?
+
+The top image is a single galaxy from the Galaxy Zoo / DECaLS set: a bright central bulge with
+fainter spiral structure around it, sitting in a field speckled with foreground stars and other
+faint sources (the little coloured dots). It is a true-colour composite assembled from the survey's
+imaging bands.
+
+The lower plot is that same class of object's SDSS optical spectrum: **flux on the vertical axis
+against wavelength (in &#8491;ngstr&ouml;ms) on the horizontal axis**, from about 3800&#8491; on the
+left to 9200&#8491; on the right. The characteristic shape — low and noisy in the blue, rising to a
+broad, fairly flat continuum toward the red — is the combined light of the galaxy's stellar
+populations, with narrow spikes where emission lines and residual sky features poke through. We drew
+the line in magenta to match the original demo, and let JFreeChart supply the axes, ticks and
+gridlines. We removed the flagged (`mask`ed) pixels first, so 3713 good samples remain out of the
+original ~3850.
+
+The real point: a few lines of Groovy pulled a real galaxy and a real spectrum out of an 80TB,
+30-survey collection, over plain HTTP, and painted them in a terminal — with no local data download.
+And because `groovysh`'s `/img` speaks `BufferedImage`, reaching for a proper charting library like
+JFreeChart costs one `/grab` and a handful of lines. And if you would rather ship no dependency at
+all, the pure-JDK variant at the end of this post draws the same plot by hand.
+
+== What we didn't reproduce
+
+The original video's headline feat is the *cross-match* itself — joining `gz10` (imagery) against
+`sdss` (spectra), or SDSS against Gaia, using LSDB's HATS-partitioned catalogs. That machinery is
+Python-native and has no direct JVM equivalent, so here we simply grabbed a representative row from
+each dataset rather than computing the spatial join. Everything downstream of the match — decoding
+the image, cleaning the spectrum, and rendering both — is pure Groovy and the JDK.
+
+== A dependency-free variant
+
+Reaching for JFreeChart is the pragmatic choice, but the demo also works with *no external dependency
+at all* — the JDK's own Java2D can paint the line plot straight into a `BufferedImage`, which is
+exactly what `/img` consumes. It is more code, but it ships with the JVM, so there is no `/grab`: just
+`/load mmu_java2d.groovy`.
 
 [source,groovy]
 ----
@@ -129,66 +235,16 @@ chart = spectrumPlot(pts)
 println "galaxy ${galaxy.width}x${galaxy.height}, spectrum ${pts.size()} pts -> chart ${chart.width}x${chart.height}"
 ----
 
-A few things worth pointing out:
+Two things worth noting:
 
-* The whole data-access layer is a one-line closure. `JsonSlurper` parses the HTTP response, and
-Groovy's GDK gives us `decodeBase64()` on the PNG string for free.
-* `transpose()` zips the three parallel arrays (`lambda`, `flux`, `mask`) together so we can
-`findAll` the unmasked samples in one readable expression.
-* Note the `import module java.desktop` on line 3. This is a
-https://openjdk.org/jeps/494[JDK module import] (JEP 494), supported in Groovy 6, that pulls in every
-package the `java.desktop` module exports (`java.awt`, `java.awt.geom`, `java.awt.image`, and more) in
-a single line — handy for a script that reaches into a few AWT corners.
-
-== Running it
-
-Start `groovysh`, load the script, and view each result with `/img`:
-
-[source,subs="none"]
-----
-groovy> /load mmu.groovy
-galaxy 256x256, spectrum 3713 pts -> chart 820x520
-Loaded: mmu.groovy
-groovy> /img $galaxy
-groovy> /img $chart
-----
-
-Here is the script itself, viewed through the shell's built-in `/less` pager (which syntax-highlights
-Groovy):
-
-image:img/mmu-groovysh-source.png[The mmu.groovy script in the groovysh pager,800]
-
-And here is the payoff — a galaxy and its spectrum, drawn directly in the terminal:
-
-image:img/mmu-groovysh-output.png[groovysh rendering a galaxy image and its spectrum inline,600]
-
-== What are we looking at?
-
-The top image is a single galaxy from the Galaxy Zoo / DECaLS set: a bright central bulge with
-fainter spiral structure around it, sitting in a field speckled with foreground stars and other
-faint sources (the little coloured dots). It is a true-colour composite assembled from the survey's
-imaging bands.
-
-The lower plot is that same class of object's SDSS optical spectrum: **flux on the vertical axis
-against wavelength (in &#8491;ngstr&ouml;ms) on the horizontal axis**, from about 3800&#8491; on the
-left to 9200&#8491; on the right. The characteristic shape — low and noisy in the blue, rising to a
-broad, fairly flat continuum toward the red — is the combined light of the galaxy's stellar
-populations, with narrow spikes where emission lines and residual sky features poke through. We drew
-it in magenta to match the original demo; the thin black vertical hairs you can see are simply the
-plot connecting rapidly varying adjacent samples. We removed the flagged (`mask`ed) pixels first, so
-3713 good samples remain out of the original ~3850.
-
-The point isn't the plot's polish — it's that a few lines of Groovy pulled a real galaxy and a real
-spectrum out of an 80TB, 30-survey collection, over plain HTTP, and painted them in a terminal, with
-no local data download and no heavyweight plotting dependency.
-
-== What we didn't reproduce
-
-The original video's headline feat is the *cross-match* itself — joining `gz10` (imagery) against
-`sdss` (spectra), or SDSS against Gaia, using LSDB's HATS-partitioned catalogs. That machinery is
-Python-native and has no direct JVM equivalent, so here we simply grabbed a representative row from
-each dataset rather than computing the spatial join. Everything downstream of the match — decoding
-the image, cleaning the spectrum, and rendering both — is pure Groovy and the JDK.
+* No `/grab` this time — the plot is hand-drawn with Java2D in the `spectrumPlot` closure, so we scale
+the axes, draw the ticks, and stroke the line ourselves instead of getting them for free. That is the
+cost of dropping the dependency.
+* The `import module java.desktop` on line 3 is a https://openjdk.org/jeps/494[JDK module import]
+(JEP 494), supported in Groovy 6: it pulls in every package the `java.desktop` module exports
+(`java.awt`, `java.awt.geom`, `java.awt.image`, and more) in a single line — handy here because the
+hand-rolled plot reaches into several AWT corners (`BufferedImage`, `Path2D`, `BasicStroke`,
+`RenderingHints`, `Color`).
 
 == More information
 
