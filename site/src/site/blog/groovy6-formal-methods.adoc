@@ -19,9 +19,15 @@ methods* — has long felt like a separate world: a different language
 you drive by hand (Isabelle, Lean).
 
 This post is about how much of that world is reachable from ordinary
-Groovy 6 — and it is more than you might expect as this image shows:
+Groovy 6 — and it is more than you might expect. As a taste: that is
+runtime metaclass programming below, *verified against an exact
+specification at compile time* — and when the spec is wrong, the compiler
+answers with the input that breaks it:
 
-image:img/fizzbuzz_verified.png[can you verify dynamic groovy?]
+image:img/fizzbuzz_verified.png["metaclass FizzBuzz — verified, and refuted with a counterexample, at compile time",width=800]
+
+(How a metaclass method can be type-checked at all, let alone proved, is a
+story for <<dynamic-groovy,later in the post>>.)
 
 Two things matter, and
 it is worth being precise about which is which:
@@ -737,6 +743,7 @@ accepts a larger overdraft verifies as substitutable; a `RestrictedAccount`
 that demands a minimum balance is refuted, with the input that breaks
 substitutability.
 
+[[dynamic-groovy]]
 *Even (some) dynamic Groovy.* Everything above lives in Groovy's statically
 checkable subset — `@TypeChecked` is the front door, so runtime
 metaprogramming has been out of scope by construction. But Groovy's type
@@ -753,12 +760,15 @@ Groovy and emojis] verify against exact specifications this way:
 
 [source,groovy]
 ----
-static {
-    Integer.metaClass.multiply = { String s -> delegate == 0 ? s : '' }
-}
-@Ensures({ result == (n % 3 == 0 && n % 5 == 0 ? '🥤🐝' : n % 3 == 0 ? '🥤' : n % 5 == 0 ? '🐝' : '') })
+Integer.metaClass.multiply = { String s -> delegate == 0 ? s : '' }
+
+@Ensures({ result == (n % 15 == 0 ? '🥤🐝' : n % 3 == 0 ? '🥤' : n % 5 == 0 ? '🐝' : '') })
 static String fizzbuzz(int n) { (n % 3) * '🥤' + (n % 5) * '🐝' }               // VERIFIED
 ----
+
+(That's a script: the registration is a plain top-level statement — only the
+method is `@TypeChecked`, and the pack finds the registration in the script
+body.)
 
 The gate is deliberately narrow and evidence-backed: no visible registration,
 no blessing — the code stays a compile error, exactly as `@TypeChecked`
@@ -846,7 +856,13 @@ repro (JUnit):
 +
 The test is green _while the bug is live_ (the call really throws), so it
 confirms the compile-time counterexample is a genuine runtime failure; fix
-the code and flip it into a regression.
+the code and flip it into a regression. On the metaclass FizzBuzz from the
+introduction, the same knob pairs the generated test with the other half of
+the graceful-degradation story — run _without_ the verifier,
+`groovy-contracts` enforces the same broken spec and power-asserts the
+violation at the solver's counterexample:
++
+image:img/fizzbuzz_junit.png["the counterexample as a runnable JUnit test, plus the runtime power assert",width=800]
 * `VERIFY_SUGGEST=contract` abduces the missing precondition — for the
 unguarded `g`, it suggests `+@Requires({ 0 <= i && i < a.size() })+`, in your
 own spelling, ready to paste.
