@@ -1,6 +1,6 @@
 = Groovy 6 features for formal method advocates
 Paul King <paulk-asert|PMC_Member>
-:revdate: 2026-06-25T08:00:00+00:00
+:revdate: 2026-07-03T20:00:00+00:00
 :keywords: formal methods, design by contract, verification, SMT, Z3, contracts, type checker, invariants, concurrency, rely-guarantee, information flow
 :description: Groovy 6 ships design-by-contract & type-checking extensions. The groovy-verify project turns those contracts into Dafny-style proofs with counterexamples.
 
@@ -19,7 +19,11 @@ methods* — has long felt like a separate world: a different language
 you drive by hand (Isabelle, Lean).
 
 This post is about how much of that world is reachable from ordinary
-Groovy 6 — and it is more than you might expect. Two things matter, and
+Groovy 6 — and it is more than you might expect as this image shows:
+
+image:img/fizzbuzz_verified.png[can you verify dynamic groovy?]
+
+Two things matter, and
 it is worth being precise about which is which:
 
 * *Shipping in Groovy 6 today* are two complementary, production-ready
@@ -753,7 +757,7 @@ static {
     Integer.metaClass.multiply = { String s -> delegate == 0 ? s : '' }
 }
 @Ensures({ result == (n % 3 == 0 && n % 5 == 0 ? '🥤🐝' : n % 3 == 0 ? '🥤' : n % 5 == 0 ? '🐝' : '') })
-static String emoji(int n) { (n % 3) * '🥤' + (n % 5) * '🐝' }               // VERIFIED
+static String fizzbuzz(int n) { (n % 3) * '🥤' + (n % 5) * '🐝' }               // VERIFIED
 ----
 
 The gate is deliberately narrow and evidence-backed: no visible registration,
