@@ -435,17 +435,54 @@ snapshot; run the debugger step/breakpoint scenarios for both closures and lambd
 common coverage and decompiler tools; and document the flag as the back-out for any tool not yet
 updated. This tooling verification is a first-class deliverable of the GEP, not an afterthought.
 
+=== Codegen-level verification (done for the SAM-lambda first step)
+
+The prototype hoisted method carries the debug metadata a debugger relies on, verified both by
+inspecting `javap -p -l` output and by an automated test (`LambdaHoistTest`) that reads the class
+bytes with ASM and asserts the following on every hoisted `$lambda$...` method:
+
+* *`LineNumberTable` with one entry per body line.* A multi-line lambda body yields a line-number
+  entry for each source statement, so line breakpoints, single-step, and "step into" land on the
+  correct source lines — and stack frames report accurate line numbers.
+* *Populated `LocalVariableTable` with the original names.* The captured values (now leading
+  parameters, e.g. `base`), the SAM parameters (e.g. `x`), and locals declared inside the body
+  (e.g. `a`, `b`) all appear by name, so the debugger's variables view is complete. This is on par
+  with — arguably better than — the old `doCall` frame, because the frame now names the enclosing
+  class.
+* *`ACC_SYNTHETIC` on the impl method.* The hoisted method is `private static synthetic`, so it is
+  correctly excluded from public-API views (Groovydoc, IDE member lists, stub generation).
+
+Because the hoisted body reuses the original AST statements, source positions propagate
+unchanged; there is no separate line-mapping step that could drift.
+
+=== Remaining human-only verification (cannot be scripted)
+
+The following must be exercised interactively in the reference IDEs and cannot be asserted from a
+build, so they remain open items before the flag defaults on:
+
+* IntelliJ IDEA and Eclipse: set a breakpoint inside a hoisted lambda body, confirm it binds and
+  stops; "step into" a call whose target is a hoisted lambda; inspect captured values, parameters,
+  and body locals in the variables view; confirm the frame names the enclosing class sensibly.
+* JDWP / remote-debug parity with the above against a stock JDK debugger.
+* Coverage tools (JaCoCo) and popular decompilers/bytecode viewers: confirm they attribute the
+  hoisted method to the enclosing class without error and do not rely on the old nested-class name.
+
 == Reference implementation
 
 A proof-of-concept exists as a spike in the code generator, exercised through this proposal's
 development:
 
-* *Lambda first step (Groovy 6 candidate).* Implemented in `StaticTypesLambdaWriter`:
-  non-capturing SAM lambda classes eliminated, impl hoisted to `private static` methods on the
-  enclosing class, metafactory singleton and behaviour verified, class-count reductions measured
-  as above. The existing lambda tests that assert the old bytecode shape need updating to the new
-  structure (behaviour is unchanged); that test migration is the bulk of the remaining first-step
-  work.
+* *Lambda first step (Groovy 6 candidate).* Implemented in `StaticTypesLambdaWriter`: both
+  non-capturing *and* read-only-capturing SAM lambda classes are eliminated, with the impl hoisted
+  to `private static` methods on the enclosing class (captured values become leading parameters)
+  and the metafactory bootstrapped directly against them — the non-capturing case yielding a
+  zero-alloc singleton. Behaviour and class-count reductions are verified as above, and the hoisted
+  methods are confirmed to carry full debug metadata (see _IDE and tooling considerations_). Cases
+  that need the shared `Reference` or closure identity — mutated captures, instance access,
+  serializable and nested-function lambdas — correctly decline and keep their class. The whole
+  first step sits behind the `groovy.target.lambda.hoist` flag. The existing lambda tests that
+  assert the old bytecode shape need updating to the new structure (behaviour is unchanged); that
+  test migration is the bulk of the remaining first-step work.
 * *Closure packing (Groovy 7 direction).* A `ClosureWriter`-based spike (with a `PackedClosure`
   runtime adapter) demonstrates hoisting closures — captures, arbitrary-depth nesting, written
   captures via `Reference`, implicit `it` — under both compilation modes, with correct declines
