@@ -212,9 +212,10 @@ _provably safe_ and _valuable_.
   already routes a SAM-targeted expression to the lighter (metafactory) writer; it is the
   programmer saying "treat me as a function." A brace closure and an arrow lambda targeting the
   _same_ functional interface compile differently today for exactly this reason.
-* *An opt-in annotation* (working name `@Packed`) is the same kind of thing: a programmer
-  assertion that a closure needs no external delegate, supplied where the compiler cannot prove
-  it (i.e. under dynamic compilation).
+* *The `@PackedClosures` annotation* is the same kind of thing: a programmer assertion that a
+  closure needs no external delegate, supplied where the compiler cannot prove it (i.e. under
+  dynamic compilation). It is named for what it packs — closures; a dynamic arrow-lambda is itself
+  a closure, and there is no separate dynamic-lambda packing, so the closures-specific name is exact.
 * *SAM vs not* is the target-type _upper bound_ on capability: a SAM target permits the
   object-free metafactory path; a `Closure`/`Object` target caps at the adapter.
 * *Capturing vs not* is a _cost dial_ (allocation vs singleton) within whatever strategy is
@@ -247,7 +248,7 @@ closure / lambda body
         v
  hoist to a method on the enclosing class      <-- shared backend
         |
-   capability inference  (target type; arrow/@Packed declarations;
+   capability inference  (target type; arrow/@PackedClosures declarations;
         |                  static-only escape + @DelegatesTo + serialization analysis)
         v
    +----+----+----------------------+---------------------+
@@ -296,7 +297,7 @@ it can land first.
 === Guarding the dynamic trust assertion
 
 Under `@CompileStatic` the escape analysis _proves_ delegate-independence and declines the rest,
-so the boundary is enforced by construction. Under dynamic compilation `@Packed` is a *trust
+so the boundary is enforced by construction. Under dynamic compilation `@PackedClosures` is a *trust
 assertion* the compiler cannot verify — so the design must protect a user who annotates in good
 faith and gets it wrong. Two mechanisms do this, and they deliberately cover *different* failure
 modes:
@@ -315,18 +316,21 @@ modes:
   so throwing is the only honest response. In the `@CompileStatic` case the guard should never fire
   (those closures are proven and declined), but keeping it is cheap defense-in-depth and documents
   the contract uniformly.
-* *`@Packed(strict = true)` (compile-time visibility, *not* a safety net).* Errors at compile time
-  if any closure in scope cannot be packed, so a decline is reported rather than silently yielding
-  a class. It surfaces the *visible* declines the compiler already knows about (local
-  `delegate`/`resolveStrategy` use, serialization, syntactic escape). It deliberately does *not*
-  protect against the wrong-assumption case above — an externally-set delegate is invisible at the
-  closure's definition site (that is the very reason dynamic packing needs a trust assertion), so
-  `strict` will report "packed" on exactly the closure the runtime guard later has to catch.
+* *`@PackedClosures(mode = ...)` (compile-time visibility, *not* a safety net).* Packing declines
+  are otherwise silent, so the annotation's `mode` element surfaces them: `LENIENT` (the default)
+  stays silent, `WARN` emits a compiler warning per unpacked closure naming the source position and
+  the reason, and `STRICT` turns any decline in scope into a compile error. It surfaces the *visible*
+  declines the compiler already knows about (a closure that resolves against a delegate, escapes its
+  method, or needs a real `Closure`). It deliberately does *not* protect against the wrong-assumption
+  case above — an externally-set delegate is invisible at the closure's definition site (the very
+  reason dynamic packing needs a trust assertion), so `WARN`/`STRICT` will report "packed" on exactly
+  the closure the runtime guard later has to catch. Only the annotation opts in; the automatic
+  `groovy.target.closure.pack` path is always lenient.
 
 [cols="1,1,3",options="header"]
 |===
 |Mechanism |When |Catches
-|`@Packed(strict = true)` |compile time |_visible_ declines — "did I pack what I intended?"
+|`@PackedClosures(mode = WARN or STRICT)` |compile time |_visible_ declines — "did I pack what I intended?"
 |`PackedClosure` throws on `setDelegate`/`setResolveStrategy` |runtime |the _invisible_ wrong assumption — "did anyone misuse what I packed?"
 |===
 
@@ -334,7 +338,7 @@ A conservative *escape gate* shrinks the runtime surface further and is implemen
 closure literal that visibly escapes its method — stored into a field/property/index (the Grails
 `static constraints = { … }` shape), returned, appended with `<<`, or placed in a collection literal
 — is declined at compile time and kept as a class. This moves the clearest delegate-risk cases from
-a runtime throw to a compile-time non-event; those declines are also what `strict` would report.
+a runtime throw to a compile-time non-event; those declines are also what `WARN`/`STRICT` report.
 Because syntactic escape analysis cannot prove that, say, a custom `each` does not set a delegate,
 the runtime guard remains the essential backstop under dynamic compilation. (A closure that is
 fully self-contained — every free name binds to the owner or its own parameters — is
@@ -402,8 +406,8 @@ shared `Reference`, including `+=`/`++`), *arbitrary-depth nested closures*, imp
 both `@CompileStatic` and dynamic compilation, correctly declining closures that use
 `delegate`/`owner`/`super`. The dynamic opt-in's two runtime/compile safety mechanisms from
 _Guarding the dynamic trust assertion_ are already implemented and validated in the spike: the
-mandatory `PackedClosure` runtime guard and the compile-time escape decline (the optional
-`@Packed(strict = true)` enforcement is designed but not yet wired). What remains for a real feature
+mandatory `PackedClosure` runtime guard, the compile-time escape decline, and the
+`@PackedClosures(mode = WARN | STRICT)` decline diagnostics. What remains for a real feature
 is the *capability/escape analysis* that makes packing provably sound and therefore automatic under
 `@CompileStatic` (no annotation), falling back to S0 otherwise; and the owner-correct retargeting
 that lets self-contained nested closures (e.g. Grails `validator` blocks) be hoisted — see
@@ -440,14 +444,15 @@ means byte-for-byte today's behaviour.
 |Concern |Flag (proposed) |Default
 
 |Non-capturing SAM lambda hoisting (Groovy 6) |`groovy.target.lambda.hoist.disabled` |off (i.e. hoisting *on*), opt-out
-|Closure packing under `@CompileStatic` (Groovy 7) |`groovy.target.closure.pack` (+ per-scope `@Packed`) |to be decided per release
-|Closure packing under dynamic compilation |`@Packed` opt-in only |off unless annotated
+|Closure packing under `@CompileStatic` (Groovy 7) |`groovy.target.closure.pack` (+ per-scope `@PackedClosures`) |to be decided per release
+|Closure packing under dynamic compilation |`@PackedClosures` opt-in only |off unless annotated
 |===
 
-Under dynamic compilation `@Packed` carries an optional `strict` element
-(`@Packed(strict = true)`) that turns any *decline* in scope into a compile error, and every
-packed closure is backed by the `PackedClosure` runtime guard; see _Guarding the dynamic trust
-assertion_ for what each does and does not catch.
+`@PackedClosures` carries a `mode` element (`LENIENT` | `WARN` | `STRICT`, default `LENIENT`) that
+reports closures it could not pack — silently, as a compiler warning, or as a compile error; the
+automatic `groovy.target.closure.pack` path is always lenient. Every packed closure is backed by the
+`PackedClosure` runtime guard; see _Guarding the dynamic trust assertion_ for what each does and does
+not catch.
 
 The default *direction* is a policy decision independent of the mechanism: a feature can ship
 *on* with an opt-out flag (deliver the win immediately, keep a back-out valve), or *off* with an
@@ -545,7 +550,7 @@ development:
   assert the old bytecode shape need updating to the new structure (behaviour is unchanged); that
   test migration is the bulk of the remaining first-step work.
 * *Closure packing (Groovy 7 direction).* A `ClosureWriter`-based spike (with a shared
-  `PackedClosure` runtime adapter), opt-in via `@Packed`, demonstrates hoisting closures — captures,
+  `PackedClosure` runtime adapter), opt-in via `@PackedClosures`, demonstrates hoisting closures — captures,
   arbitrary-depth nesting, written captures via `Reference`, implicit `it` — under both compilation
   modes. It confirms the writer is the right home (no `@CompileStatic` boundary, unlike an
   AST-transform approach), establishes the soundness cliff empirically, and confirms what is
@@ -611,7 +616,7 @@ suite before it lands.
 
 |1 |Non-capturing SAM lambda class elimination + flag + test migration + IDE/tooling check |Java-parity lambda codegen for the common SAM case; back-out flag |Groovy 6.0
 |2 |Read-only-capturing SAM lambdas (metafactory-captured static impl) |Removes the class, `Closure` alloc, and `Reference` wrapping for read-only capturing SAM lambdas (mutated captures decline) |Groovy 6.0
-|3 |Closure packing (S1) + capability/escape analysis + `@Packed` |Sound closure packing: automatic under `@CompileStatic`, opt-in (with runtime guard + escape decline) under dynamic |Groovy 7.0
+|3 |Closure packing (S1) + capability/escape analysis + `@PackedClosures` |Sound closure packing: automatic under `@CompileStatic`, opt-in (with runtime guard + escape decline) under dynamic |Groovy 7.0
 |4 |Typed static dispatch of hoisted bodies |Packed `@CompileStatic` closures are faster, not just smaller |Groovy 7.0
 |5 |Object elision (S3) + unify the writers |No object for non-escaping call-once bodies; one backend for closures and lambdas |Groovy 7.0
 |===
@@ -629,8 +634,8 @@ on the shared backend proven in phases 1–2.
 |Packing closures that use externally-set `delegate`/`resolveStrategy` |Not planned |These require a real per-closure representation; they are detected (statically) or declined and fall back to S0.
 |Serializable closure/lambda hoisting |Deferred |Kept on the class-based path initially; hoisting them requires carrying the deserialisation machinery to the enclosing class.
 |Object elision (S3) |Deferred (Groovy 7) |The most aggressive step; needs escape proof and, for iteration, callee knowledge.
-|Dynamic-mode automatic packing |Not planned |Cannot be proven sound without types; dynamic packing is opt-in via `@Packed` only.
-|A user-visible switch between S1/S2/S3 per closure |Not planned |The compiler picks the lightest sound representation; users influence it only via target type, arrow syntax, and `@Packed`.
+|Dynamic-mode automatic packing |Not planned |Cannot be proven sound without types; dynamic packing is opt-in via `@PackedClosures` only.
+|A user-visible switch between S1/S2/S3 per closure |Not planned |The compiler picks the lightest sound representation; users influence it only via target type, arrow syntax, and `@PackedClosures`.
 |===
 
 == Compatibility and impact
