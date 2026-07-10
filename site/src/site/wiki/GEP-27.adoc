@@ -325,7 +325,9 @@ modes:
   case above — an externally-set delegate is invisible at the closure's definition site (the very
   reason dynamic packing needs a trust assertion), so `WARN`/`STRICT` will report "packed" on exactly
   the closure the runtime guard later has to catch. Only the annotation opts in; the automatic
-  `groovy.target.closure.pack` path is always lenient.
+  `groovy.target.closure.pack` path is always lenient. A fourth value, `DISABLED`, is the opposite —
+  a fine-grained *opt-out* that packs nothing in its scope; the most-specific declaration wins, so a
+  `DISABLED` method opts out of a packed class (and `DISABLED` overrides the flag too).
 
 [cols="1,1,3",options="header"]
 |===
@@ -448,9 +450,12 @@ means byte-for-byte today's behaviour.
 |Closure packing under dynamic compilation |`@PackedClosures` opt-in only |off unless annotated
 |===
 
-`@PackedClosures` carries a `mode` element (`LENIENT` | `WARN` | `STRICT`, default `LENIENT`) that
-reports closures it could not pack — silently, as a compiler warning, or as a compile error; the
-automatic `groovy.target.closure.pack` path is always lenient. Every packed closure is backed by the
+`@PackedClosures` carries a `mode` element (`LENIENT` | `WARN` | `STRICT` | `DISABLED`, default
+`LENIENT`) that reports closures it could not pack — silently, as a compiler warning, or as a compile
+error — or, with `DISABLED`, opts the scope out of packing entirely. The most-specific declaration
+wins (a `DISABLED` method beats a packed class), and `DISABLED` also overrides the flag; the
+WARN/STRICT diagnostics apply only to the annotation, never to the automatic
+`groovy.target.closure.pack` path. Every packed closure is backed by the
 `PackedClosure` runtime guard; see _Guarding the dynamic trust assertion_ for what each does and does
 not catch.
 
