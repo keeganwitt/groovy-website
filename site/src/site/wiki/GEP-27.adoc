@@ -14,7 +14,7 @@
 *Comment*:: Reduces the per-closure/per-lambda generated-class explosion by hoisting bodies onto the enclosing class. A small, sound-by-construction slice potentially targets Groovy 6; the broader closure work targets Groovy 7. Strictly additive; gated by a flag for back-out.
 *Leader*:: Paul King
 *Created*:: 2026-07-09
-*Last modification*:: 2026-07-09
+*Last modification*:: 2026-07-10
 ****
 
 [width="80%",align="center"]
@@ -52,8 +52,8 @@ actually needs:
 * where a value neither escapes nor needs closure identity, the object can be elided entirely.
 
 The proposal is deliberately phased. A **small, sound-by-construction slice — eliminating the
-generated class for non-capturing SAM lambdas — targets Groovy 6.0**. The **broader closure work,
-which needs a soundness analysis and a performance path, targets Groovy 7.0**. The change is
+generated class for non-capturing and read-only-capturing SAM lambdas — targets Groovy 6.0**. The
+**broader closure work, which needs a soundness analysis and a performance path, targets Groovy 7.0**. The change is
 strictly additive, defaults can be flipped via a flag for back-out, and it is gated so that any
 tooling that reflects on generated-class names has an escape hatch.
 
@@ -293,10 +293,59 @@ resolution — a `Function` has no `delegate`. And a SAM-typed lambda is, by its
 that SAM. So the entire soundness cliff is defined away for the SAM case, which is precisely why
 it can land first.
 
+=== Guarding the dynamic trust assertion
+
+Under `@CompileStatic` the escape analysis _proves_ delegate-independence and declines the rest,
+so the boundary is enforced by construction. Under dynamic compilation `@Packed` is a *trust
+assertion* the compiler cannot verify — so the design must protect a user who annotates in good
+faith and gets it wrong. Two mechanisms do this, and they deliberately cover *different* failure
+modes:
+
+* *Runtime guard (the safety net).* A `PackedClosure` throws — with an actionable message naming
+  the hoisted method — when asked for a configuration it cannot honour: `setDelegate(x)` to anything
+  other than the owner, or `setResolveStrategy(...)` to any non-owner mode (`DELEGATE_FIRST`,
+  `DELEGATE_ONLY`, or `TO_SELF` — which would resolve against the memberless shared adapter). This
+  is *fail-fast at the exact point the wrong assumption is exercised*,
+  rather than the silent alternative (free names quietly resolve against the owner, surfacing as a
+  confusing `MissingMethodException` frames away). Almost all delegate-dependent usage funnels
+  through these setters — explicit assignment, `with`/`tap` (which set `delegate` +
+  `DELEGATE_FIRST` internally), and builder DSLs — so the guard catches the realistic paths.
+  Setting `delegate` to the owner stays a no-op, so benign/defensive framework code is unaffected.
+  There is no runtime de-opt option: the hoisted body is already compiled to owner-bound bytecode,
+  so throwing is the only honest response. In the `@CompileStatic` case the guard should never fire
+  (those closures are proven and declined), but keeping it is cheap defense-in-depth and documents
+  the contract uniformly.
+* *`@Packed(strict = true)` (compile-time visibility, *not* a safety net).* Errors at compile time
+  if any closure in scope cannot be packed, so a decline is reported rather than silently yielding
+  a class. It surfaces the *visible* declines the compiler already knows about (local
+  `delegate`/`resolveStrategy` use, serialization, syntactic escape). It deliberately does *not*
+  protect against the wrong-assumption case above — an externally-set delegate is invisible at the
+  closure's definition site (that is the very reason dynamic packing needs a trust assertion), so
+  `strict` will report "packed" on exactly the closure the runtime guard later has to catch.
+
+[cols="1,1,3",options="header"]
+|===
+|Mechanism |When |Catches
+|`@Packed(strict = true)` |compile time |_visible_ declines — "did I pack what I intended?"
+|`PackedClosure` throws on `setDelegate`/`setResolveStrategy` |runtime |the _invisible_ wrong assumption — "did anyone misuse what I packed?"
+|===
+
+A conservative *escape gate* shrinks the runtime surface further and is implemented in the spike: a
+closure literal that visibly escapes its method — stored into a field/property/index (the Grails
+`static constraints = { … }` shape), returned, appended with `<<`, or placed in a collection literal
+— is declined at compile time and kept as a class. This moves the clearest delegate-risk cases from
+a runtime throw to a compile-time non-event; those declines are also what `strict` would report.
+Because syntactic escape analysis cannot prove that, say, a custom `each` does not set a delegate,
+the runtime guard remains the essential backstop under dynamic compilation. (A closure that is
+fully self-contained — every free name binds to the owner or its own parameters — is
+delegate-independent and safe to pack even where it escapes; exploiting that for nested closures
+needs owner-correct retargeting, see _Reference implementation_.)
+
 == Groovy 6.0 deliverables (pending discussion and findings)
 
-The Groovy 6 target is the sound-by-construction slice. One piece is proposed as the primary
-deliverable, with a second offered as an option.
+The Groovy 6 target is the sound-by-construction slice: eliminating the generated class for SAM
+lambdas. Both pieces below are implemented on the first-step branch behind a single flag; the
+mutated-capture and serializable cases correctly stay on the class-based path.
 
 === Piece 1 (primary): eliminate the class for non-capturing SAM lambdas
 
@@ -329,14 +378,16 @@ method onto the enclosing class). It requires no change to the `invokedynamic`/m
 bootstrap other than the implementation method's owner class, and does not require the
 class-visitor changes the closure work needs.
 
-=== Piece 2 (option): capturing SAM lambdas
+=== Piece 2 (implemented): read-only-capturing SAM lambdas
 
 A capturing SAM lambda today instantiates its lambda class to hold the captured values (Groovy
-even `Reference`-wraps them). The Java-style form uses a `static` implementation method taking
-the captured values as leading arguments, with the metafactory capturing them directly — which
-_also_ removes the `Closure` allocation and the `Reference` wrapping. This is a larger change
-than Piece 1 (the impl signature and bootstrap arguments change), so it is offered as a Groovy 6
-*stretch* or an early Groovy 7 item rather than a commitment.
+even `Reference`-wraps them). The Java-style form uses a `static` implementation method taking the
+captured values as leading arguments, with the metafactory capturing them directly — which _also_
+removes the `Closure` allocation and the `Reference` wrapping. This is implemented on the same
+first-step branch for the *read-only* capture case (the common one): captured values are passed as
+typed leading parameters. A lambda that *mutates* a capture still needs the shared `Reference`, so
+it correctly declines and keeps its class. This lands the bulk of the capturing benefit in Groovy 6
+behind the same flag; only mutated-capture lambdas remain on the class-based path.
 
 == Groovy 7.0 deliverables
 
@@ -349,9 +400,14 @@ closures rather than lambdas. A proof-of-concept in the code generator already d
 mechanism across the hard cases: no-capture and captured closures (by value; written captures via
 shared `Reference`, including `+=`/`++`), *arbitrary-depth nested closures*, implicit `it`, under
 both `@CompileStatic` and dynamic compilation, correctly declining closures that use
-`delegate`/`owner`/`super`. What remains for a real feature is the *capability/escape analysis*
-described above, so packing is chosen only when it is provably sound (automatic under
-`@CompileStatic`; opt-in via `@Packed` under dynamic), falling back to S0 otherwise.
+`delegate`/`owner`/`super`. The dynamic opt-in's two runtime/compile safety mechanisms from
+_Guarding the dynamic trust assertion_ are already implemented and validated in the spike: the
+mandatory `PackedClosure` runtime guard and the compile-time escape decline (the optional
+`@Packed(strict = true)` enforcement is designed but not yet wired). What remains for a real feature
+is the *capability/escape analysis* that makes packing provably sound and therefore automatic under
+`@CompileStatic` (no annotation), falling back to S0 otherwise; and the owner-correct retargeting
+that lets self-contained nested closures (e.g. Grails `validator` blocks) be hoisted — see
+_Reference implementation_.
 
 === Typed static dispatch (making it fast, not just small)
 
@@ -387,6 +443,11 @@ means byte-for-byte today's behaviour.
 |Closure packing under `@CompileStatic` (Groovy 7) |`groovy.target.closure.pack` (+ per-scope `@Packed`) |to be decided per release
 |Closure packing under dynamic compilation |`@Packed` opt-in only |off unless annotated
 |===
+
+Under dynamic compilation `@Packed` carries an optional `strict` element
+(`@Packed(strict = true)`) that turns any *decline* in scope into a compile error, and every
+packed closure is backed by the `PackedClosure` runtime guard; see _Guarding the dynamic trust
+assertion_ for what each does and does not catch.
 
 The default *direction* is a policy decision independent of the mechanism: a feature can ship
 *on* with an opt-out flag (deliver the win immediately, keep a back-out valve), or *off* with an
@@ -483,19 +544,64 @@ development:
   first step sits behind the `groovy.target.lambda.hoist` flag. The existing lambda tests that
   assert the old bytecode shape need updating to the new structure (behaviour is unchanged); that
   test migration is the bulk of the remaining first-step work.
-* *Closure packing (Groovy 7 direction).* A `ClosureWriter`-based spike (with a `PackedClosure`
-  runtime adapter) demonstrates hoisting closures — captures, arbitrary-depth nesting, written
-  captures via `Reference`, implicit `it` — under both compilation modes, with correct declines
-  for delegate/owner/super. It confirms the writer is the right home (no `@CompileStatic`
-  boundary, unlike an AST-transform approach) and empirically establishes the soundness cliff and
-  what is preserved. It does *not* yet include the capability/escape analysis or typed dispatch;
-  those are the Groovy 7 work.
+* *Closure packing (Groovy 7 direction).* A `ClosureWriter`-based spike (with a shared
+  `PackedClosure` runtime adapter), opt-in via `@Packed`, demonstrates hoisting closures — captures,
+  arbitrary-depth nesting, written captures via `Reference`, implicit `it` — under both compilation
+  modes. It confirms the writer is the right home (no `@CompileStatic` boundary, unlike an
+  AST-transform approach), establishes the soundness cliff empirically, and confirms what is
+  preserved (`curry`/`memoize`/`trampoline` all keep working on the adapter). Two of the three
+  safety layers from _Guarding the dynamic trust assertion_ are now implemented and validated:
+** the *runtime guard* — `PackedClosure` rejects `setDelegate`/`setResolveStrategy` set to any
+   non-owner configuration. Probing confirmed every delegate-redirect path (`with`/`tap`,
+   `rehydrate`, builder DSLs, DGM) funnels through those two setters, so the guard turns what was a
+   silent wrong answer (owner-resolved where a delegate was expected) into a fail-fast error at the
+   point of misuse; owner-based `each`/`collect` closures stay byte-identical.
+** the *compile-time escape decline* — a closure literal that visibly escapes its method (stored
+   into a field/property/index, returned, appended with `<<`, or placed in a collection literal) is
+   kept as a class, moving the clearest delegate-risk cases from a runtime throw to a compile-time
+   non-event.
 
-One supporting change surfaced by the closure spike is worth noting: hoisting nested closures
+The remaining Groovy 7 work is the *capability/escape analysis* for the `@CompileStatic` automatic
+path (proving packing sound so no annotation is needed) and typed static dispatch.
+
+=== Measured impact
+
+Closure classes are dominated by scaffolding, not logic. On a class reproducing seven real
+`FormTagLib` closure patterns, packing eliminated all seven closure classes (8 class files → 1;
+23.8 KB → 7.3 KB, ~69% fewer bytes); the hoisted method bodies added only 1.8 KB, so roughly *90%
+of a closure class's bytes were `Closure` scaffolding* — constructor, metaclass init,
+`serialVersionUID`, `Reference` fields — rather than the closure's own code. Grails domain classes
+are the extreme case: a representative `RemarkCriteria` domain generated *24 closure classes
+totalling 80 KB* — more bytecode than the entire rest of the class (1.19×).
+
+=== Grails artefact DSLs and nested closures
+
+The delegate DSLs Grails relies on — `static constraints = { … }`, `static mapping`,
+`namedQueries`, old-style `def action = { … }` — are field-assigned, which is exactly the escape
+gate's decline signal, so they are kept as real closure classes and their delegate resolution is
+unchanged (verified end-to-end against a builder delegate). Because Grails *discovers* these blocks
+by their being fields, the whole family lands on the safe side by construction rather than by
+special-casing; and the Groovy 6 SAM-lambda work never touches them at all (they are `Closure`s, not
+lambdas).
+
+The value left on the table in a domain class is the many *self-contained* nested closures — the
+`validator: { val, obj -> … }` blocks inside `constraints`, which reference only their own
+parameters and owner statics, not the constraints delegate. A spike that relaxed the nested-closure
+decline for these confirmed the class-count prize (the shown `RemarkCriteria` subset dropped
+6 → 2 closure classes) but proved the naive form *unsound*: the hoisted body was added to the
+enclosing closure class as an instance method, while a `static constraints` block's owner resolves
+to the domain *class*, so dispatch attempted a non-existent static method (`MissingMethodException`),
+and where it did dispatch, owner-static references resolved against the wrong owner. Hoisting a
+nested closure therefore requires *retargeting* the method onto the correct outermost owner,
+rebinding its free names to that owner, and emitting static-vs-instance dispatch to match — the
+owner-correct capability work already scoped to Groovy 7. This makes domain classes the single
+highest-value target for that phase, and the reason it is Groovy 7 and not a cheap gate change.
+
+A supporting change surfaced by the closure spike is worth noting: hoisting nested closures also
 requires the class visitor to visit methods added _during_ code generation to a fixpoint (the
-current two-round `visitMethods` misses methods added while compiling a method that was itself
-added during compilation). That change is general and low-risk but must be validated against the
-full suite before it lands.
+current two-round `visitMethods` misses methods added while compiling a method that was itself added
+during compilation). That change is general and low-risk but must be validated against the full
+suite before it lands.
 
 === Phased delivery
 
@@ -504,8 +610,8 @@ full suite before it lands.
 |Phase |What ships |What works |Target
 
 |1 |Non-capturing SAM lambda class elimination + flag + test migration + IDE/tooling check |Java-parity lambda codegen for the common SAM case; back-out flag |Groovy 6.0
-|2 |Capturing SAM lambdas (metafactory-captured static impl) |Removes the class, `Closure` alloc, and `Reference` wrapping for capturing SAM lambdas |Groovy 6.0 stretch / 7.0
-|3 |Closure packing (S1) + capability/escape analysis + `@Packed` |Sound closure packing: automatic under `@CompileStatic`, opt-in under dynamic |Groovy 7.0
+|2 |Read-only-capturing SAM lambdas (metafactory-captured static impl) |Removes the class, `Closure` alloc, and `Reference` wrapping for read-only capturing SAM lambdas (mutated captures decline) |Groovy 6.0
+|3 |Closure packing (S1) + capability/escape analysis + `@Packed` |Sound closure packing: automatic under `@CompileStatic`, opt-in (with runtime guard + escape decline) under dynamic |Groovy 7.0
 |4 |Typed static dispatch of hoisted bodies |Packed `@CompileStatic` closures are faster, not just smaller |Groovy 7.0
 |5 |Object elision (S3) + unify the writers |No object for non-escaping call-once bodies; one backend for closures and lambdas |Groovy 7.0
 |===
