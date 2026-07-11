@@ -14,7 +14,7 @@
 *Comment*:: Reduces the per-closure/per-lambda generated-class explosion by hoisting bodies onto the enclosing class. A small, sound-by-construction slice potentially targets Groovy 6; the broader closure work targets Groovy 7. Strictly additive; gated by a flag for back-out.
 *Leader*:: Paul King
 *Created*:: 2026-07-09
-*Last modification*:: 2026-07-10
+*Last modification*:: 2026-07-11
 ****
 
 [width="80%",align="center"]
@@ -347,13 +347,13 @@ fully self-contained — every free name binds to the owner or its own parameter
 delegate-independent and safe to pack even where it escapes; exploiting that for nested closures
 needs owner-correct retargeting, see _Reference implementation_.)
 
-== Groovy 6.0 deliverables (pending discussion and findings)
+== Groovy 6.0 deliverables (merged)
 
 The Groovy 6 target is the sound-by-construction slice: eliminating the generated class for SAM
-lambdas. Both pieces below are implemented on the first-step branch behind a single flag; the
-mutated-capture and serializable cases correctly stay on the class-based path.
+lambdas. Both pieces below are merged (GROOVY-12143), behind the opt-in `groovy.target.lambda.hoist`
+flag; the mutated-capture and serializable cases correctly stay on the class-based path.
 
-=== Piece 1 (primary): eliminate the class for non-capturing SAM lambdas
+=== Piece 1 (merged): eliminate the class for non-capturing SAM lambdas
 
 For a statically compiled, *non-capturing*, non-serializable lambda targeting a functional
 interface, do what Java does: emit the body as a `private static` synthetic method on the
@@ -384,7 +384,7 @@ method onto the enclosing class). It requires no change to the `invokedynamic`/m
 bootstrap other than the implementation method's owner class, and does not require the
 class-visitor changes the closure work needs.
 
-=== Piece 2 (implemented): read-only-capturing SAM lambdas
+=== Piece 2 (merged): read-only-capturing SAM lambdas
 
 A capturing SAM lambda today instantiates its lambda class to hold the captured values (Groovy
 even `Reference`-wraps them). The Java-style form uses a `static` implementation method taking the
@@ -443,9 +443,9 @@ means byte-for-byte today's behaviour.
 
 [cols="2,2,2"]
 |===
-|Concern |Flag (proposed) |Default
+|Concern |Flag |Default
 
-|Non-capturing SAM lambda hoisting (Groovy 6) |`groovy.target.lambda.hoist.disabled` |off (i.e. hoisting *on*), opt-out
+|SAM lambda hoisting (Groovy 6, merged) |`groovy.target.lambda.hoist` |off (opt-in)
 |Closure packing under `@CompileStatic` (Groovy 7) |`groovy.target.closure.pack` (+ per-scope `@PackedClosures`) |to be decided per release
 |Closure packing under dynamic compilation |`@PackedClosures` opt-in only |off unless annotated
 |===
