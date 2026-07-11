@@ -389,8 +389,8 @@ class-visitor changes the closure work needs.
 A capturing SAM lambda today instantiates its lambda class to hold the captured values (Groovy
 even `Reference`-wraps them). The Java-style form uses a `static` implementation method taking the
 captured values as leading arguments, with the metafactory capturing them directly — which _also_
-removes the `Closure` allocation and the `Reference` wrapping. This is implemented on the same
-first-step branch for the *read-only* capture case (the common one): captured values are passed as
+removes the `Closure` allocation and the `Reference` wrapping. This is merged for the *read-only*
+capture case (the common one): captured values are passed as
 typed leading parameters. A lambda that *mutates* a capture still needs the shared `Reference`, so
 it correctly declines and keeps its class. This lands the bulk of the capturing benefit in Groovy 6
 behind the same flag; only mutated-capture lambdas remain on the class-based path.
@@ -543,7 +543,7 @@ build, so they remain open items before the flag defaults on:
 A proof-of-concept exists as a spike in the code generator, exercised through this proposal's
 development:
 
-* *Lambda first step (Groovy 6 candidate).* Implemented in `StaticTypesLambdaWriter`: both
+* *Lambda first step (Groovy 6, merged).* Implemented in `StaticTypesLambdaWriter`: both
   non-capturing *and* read-only-capturing SAM lambda classes are eliminated, with the impl hoisted
   to `private static` methods on the enclosing class (captured values become leading parameters)
   and the metafactory bootstrapped directly against them — the non-capturing case yielding a
@@ -551,9 +551,9 @@ development:
   methods are confirmed to carry full debug metadata (see _IDE and tooling considerations_). Cases
   that need the shared `Reference` or closure identity — mutated captures, instance access,
   serializable and nested-function lambdas — correctly decline and keep their class. The whole
-  first step sits behind the `groovy.target.lambda.hoist` flag. The existing lambda tests that
-  assert the old bytecode shape need updating to the new structure (behaviour is unchanged); that
-  test migration is the bulk of the remaining first-step work.
+  first step is merged behind the opt-in `groovy.target.lambda.hoist` flag; the lambda tests that
+  assert the old bytecode shape are skipped under the flag, with their migration to the new
+  structure deferred to when the default flips.
 * *Closure packing (Groovy 7 direction).* A `ClosureWriter`-based spike (with a shared
   `PackedClosure` runtime adapter), opt-in via `@PackedClosures`, demonstrates hoisting closures — captures,
   arbitrary-depth nesting, written captures via `Reference`, implicit `it` — under both compilation
