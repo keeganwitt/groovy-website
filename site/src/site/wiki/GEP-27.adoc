@@ -559,8 +559,8 @@ development:
   arbitrary-depth nesting, written captures via `Reference`, implicit `it` — under both compilation
   modes. It confirms the writer is the right home (no `@CompileStatic` boundary, unlike an
   AST-transform approach), establishes the soundness cliff empirically, and confirms what is
-  preserved (`curry`/`memoize`/`trampoline` all keep working on the adapter). Two of the three
-  safety layers from _Guarding the dynamic trust assertion_ are now implemented and validated:
+  preserved (`curry`/`memoize`/`trampoline` all keep working on the adapter). All three safety layers
+  from _Guarding the dynamic trust assertion_ are now implemented and validated:
 ** the *runtime guard* — `PackedClosure` rejects `setDelegate`/`setResolveStrategy` set to any
    non-owner configuration. Probing confirmed every delegate-redirect path (`with`/`tap`,
    `rehydrate`, builder DSLs, DGM) funnels through those two setters, so the guard turns what was a
@@ -570,9 +570,17 @@ development:
    into a field/property/index, returned, appended with `<<`, or placed in a collection literal) is
    kept as a class, moving the clearest delegate-risk cases from a runtime throw to a compile-time
    non-event.
+** the *decline diagnostics* — `@PackedClosures(mode = WARN | STRICT)` surfaces closures that could
+   not be packed (a compiler warning or error, with the reason and source position); `DISABLED` opts
+   a scope out entirely. The automatic flag path stays lenient.
 
-The remaining Groovy 7 work is the *capability/escape analysis* for the `@CompileStatic` automatic
-path (proving packing sound so no annotation is needed) and typed static dispatch.
+Also implemented and validated: the *capability analysis* (STC's delegate-independence proof driving
+automatic packing under `@CompileStatic`, no annotation needed) and *typed static dispatch*
+(statically-compiled hoisted bodies with typed captures/params/return — zero `invokedynamic`), with
+compile-time packing exercised across the core module and several others. The remaining Groovy 7
+work is S3 object elision, unifying the closure and lambda writers, owner-correct retargeting so
+nested closures can hoist, and hardening the automatic path from experimental (opt-in flag) to
+default-on.
 
 === Measured impact
 
