@@ -620,6 +620,13 @@ factories; `ParallelScope.withPool { }` binds a pool for a block.
 | Standalone Java module exposing the same concurrent APIs without
 the Groovy runtime.
 | https://issues.apache.org/jira/browse/GROOVY-11952[GROOVY-11952]
+
+| `Actor` production hardening
+| An `Actor.Stop` sentinel for in-handler self-termination, an `onError`
+callback so `send` failures are no longer silently swallowed, a bounded
+mailbox with `BLOCK` / `DROP_NEWEST` / `FAIL` overflow strategies, and
+per-actor executor selection. All additions are backward compatible.
+| https://issues.apache.org/jira/browse/GROOVY-12033[GROOVY-12033]
 |===
 
 See the user guides for the full APIs and additional examples:
@@ -917,6 +924,26 @@ shrinks, and they can never grow.
 See also the https://groovy.apache.org/blog/loop-invariants[loop invariants blog post]
 for more on how contracts support correctness reasoning.
 
+=== Exceptional behaviour with `@ThrowsIf`
+
+The `@Requires`/`@Ensures`/`@Invariant` trio covers _normal_ behaviour.
+The new gapi:groovy.contracts.ThrowsIf[@ThrowsIf] annotation
+(https://issues.apache.org/jira/browse/GROOVY-12135[GROOVY-12135])
+covers _exceptional_ behaviour -- the guard clause that is otherwise
+written by hand:
+
+[source,groovy]
+----
+@ThrowsIf(value = { b == 0 }, exception = ArithmeticException)
+int divide(int a, int b) { a.intdiv(b) }
+----
+
+It reads as an _iff_: the method throws `ArithmeticException` exactly
+when `b == 0`. With the default `woven = true`, groovy-contracts
+_generates_ the guard at method entry (the same idea as
+gapi:groovy.transform.NullCheck[@NullCheck] for the null-check special
+case); `woven = false` keeps it as machine-readable documentation only.
+
 === Feature summary
 
 [cols="1,3,1", options="header"]
@@ -957,6 +984,25 @@ is also available there, but -- since a static method has no instance state --
 rejected.
 | https://issues.apache.org/jira/browse/GROOVY-12052[GROOVY-12052],
 https://issues.apache.org/jira/browse/GROOVY-12078[GROOVY-12078]
+
+| gapi:groovy.contracts.ThrowsIf[@ThrowsIf]
+| Guard-clause (exceptional-behaviour) contract: throw a given exception
+_exactly when_ a condition holds. With `woven = true` (default) the guard
+is generated at method entry; `woven = false` records it as documentation.
+Violations throw `ThrowsIfViolation`. Targets: `METHOD`, `CONSTRUCTOR`.
+| https://issues.apache.org/jira/browse/GROOVY-12135[GROOVY-12135]
+
+| `@Decreases` on methods
+| Beyond loop variants, `@Decreases` may now be placed on a method as a
+call-stack/recursion termination measure, giving confidence that a
+recursive method terminates.
+| https://issues.apache.org/jira/browse/GROOVY-12060[GROOVY-12060]
+
+| `@Requires(woven = false)`
+| A precondition can opt out of weaving to act as machine-readable
+documentation only -- useful when an existing library already performs
+the validation and you want that intent clearer than javadoc alone.
+| https://issues.apache.org/jira/browse/GROOVY-12136[GROOVY-12136]
 |===
 
 [[monadic-comprehensions]]
@@ -1752,6 +1798,11 @@ and `@Modifies` frame conditions -- remain incubating for this release.
 * The `RegexChecker` and `FormatStringChecker` type-checking extensions
 are *promoted out of incubation in Groovy 6.0*
 (https://issues.apache.org/jira/browse/GROOVY-12039[GROOVY-12039]).
+`RegexChecker` now also validates the pattern argument of `String#matches`
+at compile time -- alongside its existing checks for the `=~`/`==~`
+operators and `Pattern.compile`/`Pattern.matches` -- so an invalid regex
+such as `'foo'.matches(/?/)` is flagged as a compile-time error
+(https://issues.apache.org/jira/browse/GROOVY-12081[GROOVY-12081]).
 
 * The macro framework -- the `@Macro` annotation and related classes --
 is *promoted out of incubation in Groovy 6.0*
@@ -1872,6 +1923,28 @@ assert [major, minor, patch, qualifier] == ['6', '0', '0', 'beta-2']
 def (_all, ma, mi, pa, q) = '4.0.28'.findGroups(semver)
 assert [ma, mi, pa, q] == ['4', '0', '28', null]
 ----
+
+=== Locale-aware number formatting
+
+The GDK gains locale-aware currency and percent formatting, plus
+locale-aware parsing, wrapping `java.text.NumberFormat` to cover cases
+that `sprintf`/`String.format` structurally cannot -- currency conversion
+and percent scaling/placement
+(https://issues.apache.org/jira/browse/GROOVY-12147[GROOVY-12147]):
+
+[source,groovy]
+----
+assert 1234.5.toCurrencyString(Locale.US) == '$1,234.50'
+assert '$1,234.50'.toCurrencyNumber(Locale.US) == 1234.5
+----
+
+The formatting methods are `Number.toCurrencyString([Locale])` and
+`Number.toPercentString([Locale])`; the parsing methods are
+`CharSequence.toNumber(Locale)`, `toCurrencyNumber([Locale])`, and
+`toPercentNumber([Locale])`, each returning a `Number`. The overloads
+without a `Locale` use the default locale, so a localized percent such
+as German `94,5 %` round-trips via `toPercentString()` /
+`toPercentNumber(Locale.GERMANY)`.
 
 === Sliding pairs and consecutive runs
 
@@ -2036,6 +2109,13 @@ pairs naturally with Elvis/safe-navigation, e.g.
 results. The older `toList(Stream)` shim is deprecated in favour of the
 native JDK `Stream.toList()`.
 | https://issues.apache.org/jira/browse/GROOVY-12037[GROOVY-12037]
+
+| `each { }` on primitive arrays
+| `Closure` overloads of `each` for `boolean[]`/`byte[]`/`char[]`/`short[]`/
+`int[]`/`long[]`/`float[]`/`double[]` complement the existing `*Consumer`
+variants, keeping element-type inference for the closure parameter under
+static type checking.
+| https://issues.apache.org/jira/browse/GROOVY-12100[GROOVY-12100]
 |===
 
 [[g6-extension-disable]]
@@ -2418,6 +2498,12 @@ appropriate.
 a requested XML parser security feature cannot be set, instead of failing
 silently, making hardened-parser misconfigurations visible.
 | https://issues.apache.org/jira/browse/GROOVY-12120[GROOVY-12120]
+
+| Markup builder injection hardening
+| The streaming markup builders (`StreamingMarkupBuilder`,
+`StreamingDOMBuilder`) now reject processing-instruction and comment
+terminators across all output paths, closing XML-injection gaps.
+| https://issues.apache.org/jira/browse/GROOVY-12103[GROOVY-12103]
 |===
 
 [[markdown]]
@@ -3357,6 +3443,21 @@ instead of the default locale, so keyword, identifier and format
 handling no longer varies by platform locale (e.g. the Turkish
 dotless-`i`). Case conversion in your own code is unaffected
 (https://issues.apache.org/jira/browse/GROOVY-12055[GROOVY-12055]).
+* Dynamic property writes now compile to `invokedynamic` call sites by
+default (when `invokedynamic` is in use). The `groovy.indy.setproperty`
+flag flips from opt-in to opt-out; set `-Dgroovy.indy.setproperty=false`
+to restore the previous static `ScriptBytecodeAdapter.setProperty`
+codegen. Runtime behaviour is unchanged -- this is a code-generation and
+performance change that brings property _writes_ in line with property
+_reads_
+(https://issues.apache.org/jira/browse/GROOVY-12138[GROOVY-12138]).
+* `groovyc` now prints collected warnings to `stderr` after a
+_successful_ compilation, making the long-documented `-w` /
+`--warningLevel` option effective (previously collected warnings were
+shown only when compilation failed). This also applies to Ant's
+`<groovyc>` in-process compiles; the `groovy` script runner is
+deliberately left unchanged
+(https://issues.apache.org/jira/browse/GROOVY-12132[GROOVY-12132]).
 
 == Other Module Changes
 
