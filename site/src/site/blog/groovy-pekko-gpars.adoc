@@ -1,9 +1,9 @@
-= Using Apache Pekko actors and GPars actors with Groovy&trade;
+= Using Apache Pekko actors and Groovy&trade; 6 actors
 Paul King
 :revdate: 2023-07-17T23:24:56+00:00
-:updated: 2024-09-28T04:59:00+00:00
-:keywords: concurrency, groovy, actors, pekko, gpars
-:description: This post looks at using Apache Pekko Actors and GPars Actors with Groovy.
+:updated: 2026-07-12T00:00:00+00:00
+:keywords: concurrency, groovy, actors, pekko, groovy.concurrent, gpars
+:description: This post looks at using Apache Pekko Actors and Groovy 6's built-in groovy.concurrent Actors.
 
 image:https://pekko.apache.org/assets/images/pekko_logo.png[pekko logo,100,float="right"]
 https://pekko.apache.org/[Apache Pekko] is an Apache-licensed fork of the Akka project (based on Akka version 2.6.x) and provides a
@@ -13,13 +13,22 @@ as well as additional libraries for persistence, streams, HTTP, and more.
 It provides Scala and Java APIs/DSLs for writing your applications. We'll be using the latter.
 We'll look at just one example of using Pekko actors.
 
-image:img/gpars_logo.png[gpars,180,float="right"]
-By way of comparison, we'll also be looking at http://www.gpars.org/[GPars],
-a concurrency library for Java and Groovy with support for actors, agents,
-concurrent & parallel map/reduce, fork/join, asynchronous closures, dataflow, and more.
-A https://groovy.apache.org/blog/gpars-meets-virtual-threads[previous blog post]
-looks at additional features of GPars and how to use it with virtual threads.
+By way of comparison, we'll also look at the actor support built into
+*Groovy 6* in the `groovy.concurrent` package (GEP-18). Alongside actors,
+that package provides agents, dataflow variables, Go-style channels, and
+parallel collections — all virtual-thread-first and composable with Groovy's
+https://groovy.apache.org/blog/groovy-async-await[`async`/`await`] support.
 Here, we'll just look at the comparable actor features for our Pekko example.
+
+[NOTE]
+====
+Before Groovy 6, these actor features weren't built in and the
+http://www.gpars.org/[GPars] library was the popular choice. If you are on an
+earlier Groovy version or maintaining an existing GPars codebase, the
+https://groovy.apache.org/blog/gpars-meets-virtual-threads[GPars meets virtual
+threads] post shows the equivalent GPars examples. The companion repository
+includes a legacy GPars version of this example too.
+====
 
 == The example
 
@@ -45,8 +54,8 @@ to tell it the maximum number of times to echo the message before stopping.
 
 == A Pekko implementation in Groovy
 
-This example uses Groovy 4.0.23 and Pekko 1.1.1.
-It was tested with JDK 11, 17, 21 and 23.
+This example uses Groovy 6.0.0-alpha-2 and Pekko 1.6.0.
+It was tested with JDK 21 and 25.
 
 The Pekko documentation gives Java and Scala implementations.
 You should notice that the Groovy implementation is similar to the Java one
@@ -195,153 +204,144 @@ The log output from running the script will look similar to this:
 [hello-pekko.actor.default-dispatcher-6] INFO org.apache.pekko.actor.CoordinatedShutdown - Running CoordinatedShutdown with reason [ActorSystemTerminateReason]
 ----
 
-== A GPars implementation in Groovy
+== A Groovy 6 implementation using groovy.concurrent
 
-This example uses Groovy 4.0.23 and GPars 1.2.1.
-It was tested with JDK 8, 11, 17, 21 and 23.
+Groovy 6 ships a native concurrency toolkit in the `groovy.concurrent`
+package (GEP-18). Among other features, it provides lightweight,
+virtual-thread-friendly actors that compose with Groovy's
+https://groovy.apache.org/blog/groovy-async-await[`async`/`await`] support.
 
-We'll follow the same conventions for strongly typed messages in our GPars example.
-Here are our three message containers:
+We'll follow the same conventions for strongly typed messages.
+Because our actors reference one another, we parameterize each `Actor` with the
+message type it accepts. Here are our three message records:
 
 [source,groovy]
 ----
-record Greet(String whom, Actor replyTo) { }
+import groovy.concurrent.Actor
 
-record Greeted(String whom, Actor from) {}
+record Greet(String whom, Actor<Greeted> replyTo) { }
+
+record Greeted(String whom, Actor<Greet> from) { }
 
 record SayHello(String name) { }
 ----
 
-Now we'll define our `helloWorld` actor:
+Now we'll define our `greeter` actor. A _reactor_ actor is stateless: its
+closure handles each incoming message. Here we don't need to reply directly,
+so we send a `Greeted` message on to the reply address ourselves:
 
 [source,groovy]
 ----
-greeter = actor {
-    loop {
-        react { Greet command ->
-            println "Hello $command.whom!"
-            command.replyTo << new Greeted(command.whom, greeter)
-        }
-    }
+Actor<Greet> greeter
+greeter = Actor.reactor { Greet command ->
+    println "Hello $command.whom!"
+    command.replyTo.send(new Greeted(command.whom, greeter))
 }
 ----
 
-Here, we are using GPars Groovy continuation-style DSL for defining actors.
-The `loop` indicates that the actor will loop continually.
-When we receive the `Greet` message, we log the details to stdout and
-send the acknowledgement.
-
-If we don't want to use the DSL syntax, we can use the related classes directly.
-Here we'll define a `HelloWorldBot` using this slightly more verbose style.
-It shows adding the state variables we need for tracking the invocation count:
+Our bot needs to remember how many greetings it has seen, so we use a
+_stateful_ actor. We seed it with an initial state of `0`; the handler
+receives the current state and the message, and returns the next state:
 
 [source,groovy]
 ----
-class HelloWorldBot extends DefaultActor {
-    int max
-    private int greetingCounter = 0
-
-    @Override
-    protected void act() {
-        loop {
-            react { Greeted message ->
-                greetingCounter++
-                println "Greeting $greetingCounter for $message.whom"
-                if (greetingCounter < max) message.from << new Greet(message.whom, this)
-                else terminate()
-            }
-        }
+def newBot = { int max ->
+    Actor<Greeted> bot
+    bot = Actor.stateful(0) { int count, Greeted message ->
+        int next = count + 1
+        println "Greeting $next for $message.whom"
+        if (next < max) message.from.send(new Greet(message.whom, bot))
+        else bot.stop()
+        next
     }
+    bot
 }
 ----
 
-Our main actor is very simple. It is waiting for `SayHello` messages, and when it receives one,
-it sends the payload to the helloWorld greeter telling it to reply to a newly created _bot_.
+Our main actor is very simple. It waits for `SayHello` messages, and when it receives one,
+it sends the payload to the greeter, telling it to reply to a newly created _bot_.
 
 [source,groovy]
 ----
-var main = actor {
-    loop {
-        react { SayHello command ->
-            greeter << new Greet(command.name, new HelloWorldBot(max: 3).start())
-        }
-    }
+def main = Actor.reactor { SayHello command ->
+    greeter.send(new Greet(command.name, newBot(3)))
 }
 ----
 
-Finally, we start the system going by sending some initial messages:
+Finally, we start the system going by sending some initial messages,
+give the actors a moment to finish, then stop them:
 
 [source,groovy]
 ----
-main << new SayHello('World')
-main << new SayHello('GPars')
+main.send(new SayHello('World'))
+main.send(new SayHello('Groovy 6'))
+
+sleep 2000
+main.stop()
+greeter.stop()
 ----
 
-The output looks like this:
+The output looks like this (the exact interleaving varies between runs):
 
 ----
 Hello World!
-Hello GPars!
+Hello Groovy 6!
+Greeting 1 for Groovy 6
 Greeting 1 for World
-Greeting 1 for GPars
+Hello Groovy 6!
 Hello World!
-Hello GPars!
+Greeting 2 for Groovy 6
+Hello Groovy 6!
 Greeting 2 for World
+Greeting 3 for Groovy 6
 Hello World!
-Greeting 2 for GPars
-Hello GPars!
 Greeting 3 for World
-Greeting 3 for GPars
 ----
 
 == Discussion
 
-The GPars implementation is less verbose compared to the Pekko implementation but Pekko
-is known for providing additional type safety for actor messages and that is partly what we are seeing.
+The `groovy.concurrent` implementation is less verbose than the Pekko
+implementation. Pekko is known for providing additional type safety for
+actor messages, and that is partly what we saw in the Pekko version, where
+each actor is a `Behavior<T>` for a specific message type. Pekko also brings a
+much larger feature set — clustering, persistence, streams, and distribution —
+so it remains the right choice when you need those capabilities.
 
-GPars supports a mixture of styles, some offering less verbosity at the expense of capturing some
-errors at runtime rather than compile-time. Such code can be useful when wanting very succinct code
-using Groovy's dynamic nature. When using Groovy's static nature or Java, you might consider using
-select parts of the GPars API.
+The core Groovy actors are typed too: an `Actor<Greet>` only accepts `Greet`
+messages, so message sends are checked when you compile statically (for example
+with `@CompileStatic` or `@TypeChecked`) while remaining convenient for dynamic
+Groovy. You choose between a stateless `Actor.reactor` and a stateful
+`Actor.stateful` depending on whether the actor needs to remember anything
+between messages.
 
-For example, we can provide an alternative definition for `HelloWorldBot` like this:
-
-[source,groovy]
-----
-class HelloWorldBot extends StaticDispatchActor<Greeted> {
-    int max
-    private int greetingCounter = 0
-
-    @Override
-    void onMessage(Greeted message) {
-        greetingCounter++
-        println "Greeting $greetingCounter for $message.whom"
-        if (greetingCounter < max) message.from << new Greet(message.whom, this)
-        else terminate()
-    }
-}
-----
-
-The `StaticDispatchActor` dispatches the message solely based on the compile-time information.
-This can be more efficient when dispatching based on message run-time type is not necessary.
-
-We could also provide an alternative definition for `Greet` as follows:
+Because core actors integrate with `async`/`await`, request/reply is
+straightforward. Rather than wiring up an explicit reply address, a reactor can
+simply _return_ a value and the caller can `await` the reply from `sendAndGet`:
 
 [source,groovy]
 ----
-record Greet(String whom, StaticDispatchActor<Greeted> replyTo) { }
+def doubler = Actor.reactor { it * 2 }
+assert await(doubler.sendAndGet(21)) == 42
+doubler.stop()
 ----
 
-With changes like these in place we can code a solution with additional message type safety
-when using Groovy's static nature.
+The same building blocks — agents, dataflow variables, channels, and parallel
+collections — all live in `groovy.concurrent` and compose with the same
+async/await combinators, so you build up solutions from a single, consistent
+toolkit rather than learning separate APIs. See the
+https://groovy.apache.org/blog/groovy-async-await[Async/await for Groovy] post
+for the bigger picture.
 
 == Conclusion
 
-We have had a quick glimpse at using actors with Apache Pekko and GPars.
+We have had a quick glimpse at using actors with Apache Pekko and with Groovy 6's
+built-in `groovy.concurrent` package (with GPars noted as the pre-Groovy-6 option).
 
 The sample code can be found here:
 
 https://github.com/paulk-asert/groovy-pekko-gpars
+
+It contains `pekko`, `groovy6`, and legacy `gpars` versions of the example.
 
 .Update history
 ****
@@ -349,5 +349,6 @@ https://github.com/paulk-asert/groovy-pekko-gpars
 *18/Jul/2023*: Add discussion about type-safe messages. +
 *26/Jul/2023*: Update to Pekko 1.0.1. +
 *25/Jun/2024*: Update to Pekko 1.0.3. +
-*28/Sep/2024*: Update to Pekko 1.1.1.
+*28/Sep/2024*: Update to Pekko 1.1.1. +
+*12/Jul/2026*: Update to Pekko 1.6.0 and Groovy 6; replace the GPars example with the built-in `groovy.concurrent` actors (GPars retained as a legacy reference).
 ****

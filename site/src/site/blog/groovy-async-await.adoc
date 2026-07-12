@@ -1,7 +1,7 @@
 = Async/await for Groovy&trade;
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2026-03-27T16:30:00+00:00
-:updated: 2026-04-06T23:35:00+00:00
+:updated: 2026-07-12T00:00:00+00:00
 :keywords: async, await, concurrency, virtual-threads
 :description: Groovy's async/await: write concurrent code that reads like synchronous code, with virtual thread support, generators, channels, & structured concurrency.
 
@@ -453,24 +453,25 @@ or thread-safe types from `java.util.concurrent`.
 | Transparent `await` / `for await` with Reactor or RxJava types.
 |===
 
-== How it relates to GPars and virtual threads
+== How it relates to groovy.concurrent and GPars
 
-Readers of the
+Async/await is one part of Groovy 6's broader concurrency toolkit. The same
+`groovy.concurrent` package also provides parallel collections, actors, agents,
+dataflow variables, and Go-style channels (GEP-18), and they all compose with
+the `await` and `Awaitable` combinators shown above — so you build solutions
+from one consistent toolkit rather than learning separate APIs.
+
+Before Groovy 6, these features weren't built in and the
+http://www.gpars.org/[GPars] library was the popular choice for parallel
+collections, actors, agents, and dataflow. The
 https://groovy.apache.org/blog/gpars-meets-virtual-threads[GPars meets virtual threads]
-blog post will recall that GPars provides parallel collections,
-actors, agents, and dataflow concurrency.
+post shows those GPars features. If you are on Groovy 6 or later, prefer the
+built-in `groovy.concurrent` equivalents; GPars remains useful for earlier
+Groovy versions and existing GPars codebases. GPars' `callAsync()` and
+`asyncFun()` return futures that work naturally with `await` and the `Awaitable`
+combinators, so you can mix and match both styles during a migration.
 
-Async/await complements GPars rather than replacing it. GPars
-excels at data-parallel operations and actor-based designs.
-Async/await targets sequential-looking code that is actually
-asynchronous, with language-level support for streams, cleanup,
-structured concurrency, and framework bridging.
-
-GPars' `callAsync()` and `asyncFun()` return futures that work
-naturally with `await` and the `Awaitable` combinators, so you
-can mix and match both styles in the same codebase.
-
-Both approaches benefit from virtual threads on JDK 21+.
+All of these approaches benefit from virtual threads on JDK 21+.
 
 == Conclusion
 
@@ -496,5 +497,6 @@ concurrent — not the method signature.
 .Update history
 ****
 *27/Mar/2026*: Initial version. +
-*06/Apr/2026*: Revised version after feedback including numerous simplifications.
+*06/Apr/2026*: Revised version after feedback including numerous simplifications. +
+*12/Jul/2026*: Reframe the GPars section around the built-in `groovy.concurrent` package.
 ****

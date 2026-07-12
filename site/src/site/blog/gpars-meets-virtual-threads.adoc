@@ -1,7 +1,7 @@
 = GPars meets Virtual Threads
 Paul King
 :revdate: 2022-06-15T11:28:56+00:00
-:updated: 2023-04-14T18:23:00+00:00
+:updated: 2026-07-12T00:00:00+00:00
 :keywords: concurrency, groovy, virtual threads, actors, dataflow, agents
 :description: This post looks at using GPars with virtual threads.
 
@@ -22,6 +22,19 @@ many useful features. Let's have a look at a few examples.
 If you want to try these out, use the latest JDK21ea version which has virtual
 thread support as standard. Or use a recent JDK19-20 version
 and enable _preview_ features with your Groovy tooling.
+
+[NOTE]
+====
+*Groovy 6 update:* Since this post was written, Groovy 6 added a native
+concurrency and parallel-processing toolkit in the `groovy.concurrent` package
+(GEP-18) — parallel collections, agents, actors, dataflow variables, and
+Go-style channels — all virtual-thread-first and composable with
+https://groovy.apache.org/blog/groovy-async-await[`async`/`await`]. If you are on
+Groovy 6 or later, prefer those built-in features; a good starting point is the
+https://groovy.apache.org/blog/groovy-async-await[Async/await for Groovy] post.
+This post remains a useful reference if you are on an earlier Groovy version or
+are maintaining an existing GPars codebase.
+====
 
 == Parallel Collections
 
