@@ -14,7 +14,7 @@
 *Comment*:: Reduces the per-closure/per-lambda generated-class explosion by hoisting bodies onto the enclosing class. The sound-by-construction SAM-lambda slice is merged for Groovy 6; closure packing (S1) is implemented and proposed as a Groovy 6 stretch goal (GROOVY-12151); object elision and writer unification remain for Groovy 7. Strictly additive; gated by a flag for back-out.
 *Leader*:: Paul King
 *Created*:: 2026-07-09
-*Last modification*:: 2026-07-12
+*Last modification*:: 2026-07-13
 ****
 
 [width="80%",align="center"]
@@ -410,7 +410,8 @@ closures rather than lambdas — now implemented in the code generator (GROOVY-1
 for Groovy 6.0 as a stretch goal. It covers the hard cases: no-capture and captured closures (by
 value; written captures via shared `Reference`, including `+=`/`++`), *arbitrary-depth nested
 closures*, implicit `it`, under both `@CompileStatic` and dynamic compilation, correctly declining
-closures that use `delegate`/`owner`/`super`. All three safety mechanisms from _Guarding the
+closures that use `delegate`/`owner`/`super`, or that carry default parameter values (multi-arity —
+see _Excluded and deferred features_). All three safety mechanisms from _Guarding the
 dynamic trust assertion_ are implemented and validated: the mandatory `PackedClosure` runtime
 guard, the compile-time escape decline, and the `@PackedClosures(mode = WARN | STRICT)` decline
 diagnostics. The two headline capabilities are done:
@@ -458,6 +459,16 @@ proof and, for iteration intrinsics, knowledge of the callee.
 
 Fold the lambda and closure code paths behind the single hoist backend, so the SAM and
 `Closure` cases are one mechanism selecting different wrappers.
+
+A related follow-up surfaced in review: `MethodClosure` (from `.&` method references) is the same
+shape — a `Closure` whose target is a known method that cannot honour a delegate — but it dispatches
+by name with runtime overload selection and *silently ignores* a caller-set delegate, whereas
+`PackedClosure` binds a fixed `MethodHandle` and *rejects* one. The two are worth _contract_-aligning
+(a shared "known-target, delegate-inert" marker and consistent delegate handling), and both could
+share the per-arity handle-selection primitive that default-parameter packing (see _Excluded and
+deferred features_) also needs. Their dispatch models differ enough, though — a fixed handle versus
+runtime overload selection — that fully merging them into one path is not a goal; this is tracked as a
+separate initiative.
 
 === Default-on hardening
 
@@ -693,6 +704,7 @@ stretch goal) builds on the shared backend proven in phases 1–2; phases 4–5 
 |Changing closure/lambda _semantics_ |Not planned |This is a codegen/packaging optimisation only. Eligible closures compute identical results and keep their reachable `Closure` API; ineligible ones are compiled exactly as today.
 |Packing closures that use externally-set `delegate`/`resolveStrategy` |Not planned |These require a real per-closure representation; they are detected (statically) or declined and fall back to S0.
 |Serializable closure/lambda hoisting |Deferred |Kept on the class-based path initially; hoisting them requires carrying the deserialisation machinery to the enclosing class.
+|Packing default-parameter (multi-arity) closures |Deferred |A single hoisted method cannot reproduce the arity-overloaded dispatch a default parameter generates, so these decline to S0 today. A future slice would hoist one method per arity (reusing the existing default-fill codegen) and have the adapter select a `MethodHandle` per arity at call time — the same primitive the _MethodClosure_ alignment above would share.
 |Object elision (S3) |Deferred (Groovy 7) |The most aggressive step; needs escape proof and, for iteration, callee knowledge.
 |Dynamic-mode automatic packing |Not planned |Cannot be proven sound without types; dynamic packing is opt-in via `@PackedClosures` only.
 |A user-visible switch between S1/S2/S3 per closure |Not planned |The compiler picks the lightest sound representation; users influence it only via target type, arrow syntax, and `@PackedClosures` — including opting a scope out entirely with `@PackedClosures(mode = DISABLED)`, but never selecting *which* packed representation is used.
