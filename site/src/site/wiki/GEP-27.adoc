@@ -466,7 +466,8 @@ by name with runtime overload selection and *silently ignores* a caller-set dele
 `PackedClosure` binds a fixed `MethodHandle` and *rejects* one. The two are worth _contract_-aligning
 (a shared "known-target, delegate-inert" marker and consistent delegate handling), and both could
 share the per-arity handle-selection primitive that default-parameter packing (see _Excluded and
-deferred features_) also needs. Their dispatch models differ enough, though — a fixed handle versus
+deferred features_) needs — the same mechanism that would close the remaining dynamic-dispatch
+throughput gap (see _Performance_). Their dispatch models differ enough, though — a fixed handle versus
 runtime overload selection — that fully merging them into one path is not a goal; this is tracked as a
 separate initiative.
 
@@ -740,6 +741,18 @@ the compatibility valve while tools are updated.
   `MethodHandle` constant (`invokeExact`) behind a lean `doCall` fast path. Measured per `call()`, a
   naive shared adapter is ~7–9× slower; the shipped one is at parity under `@CompileStatic` and ~2×
   under dynamic compilation (so the dynamic path stays opt-in).
+* Capturing closures (the common case, e.g. `{ it + base }`) used to pay an extra per-call cost — the
+  adapter allocated an argument array prepending the captures on every invocation. Binding the captures
+  into the handle once at construction removes that allocation (GROOVY-12151). Measured per `call()`
+  against the generated closure class it replaces, a capturing closure improved from dynamic ~3.2× /
+  `@CompileStatic` ~1.75× to dynamic ~1.9× / `@CompileStatic` ~0.78× (faster than a normal closure under
+  `@CompileStatic`), matching the non-capturing figures above.
+* The remaining ~2× dynamic gap is the argument-array spreader plus the dynamic MOP `call`→`doCall`
+  selection (`PackedClosure` is not a `GeneratedClosure`) — no longer allocation. A typed per-arity
+  `invokeExact` path would remove the spreader for the common `each`/`collect` arities: the *same*
+  per-arity handle-selection primitive that default-parameter packing and the MethodClosure alignment
+  need (see _Unify the two writers_ and _Excluded and deferred features_), so that throughput work and
+  those follow-ons build one shared mechanism.
 
 === Security
 
