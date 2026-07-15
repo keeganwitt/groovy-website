@@ -706,6 +706,37 @@ out under real work (further lane micro-tuning was assessed against those shapes
 in-situ effect). Ratios are measured against a current baseline that includes the `Closure.call`
 fast-path improvements (GROOVY-12164/12165), i.e. against generated classes at their fastest.
 
+==== Self-hosting: a whole Groovy module built with the flag
+
+As an end-to-end check, Groovy's own `groovy-macro` module was compiled with
+`groovy.target.closure.pack` on — no source change, since its hot files are already
+`@CompileStatic`, so packing is automatic — and its test suite run against the packed classes:
+
+[cols="3,1,1"]
+|===
+|`groovy-macro` module |Baseline |Packed
+
+|Classes in the module |148 |*44* (−70%)
+|Closure classes |115 |*11* (104 packed, 90%)
+|Compiled bytecode |520 KB |*228 KB* (−56%)
+|Module test suite |— |*66 / 66 pass* against the packed classes
+|===
+
+The 11 residual closure classes are exactly the expected declines: five are one nested-closure
+family (the Groovy 7 owner-retargeting case), two are in the single non-`@CompileStatic` file (a
+builder, so the automatic flag correctly skips it), and four are flat closures that visibly escape.
+The dominant source is `ASTMatcher` (113 → 9 closure classes), whose packed form load-verifies
+under `-Xverify:all`.
+
+Two timings on this real module, both controlled (interleaved runs, medians): the *cold* test suite
+ran ~6% **faster** packed in 5/5 rounds — the class-count reduction showing up directly as less
+class loading and verification in a fresh JVM — and a *steady-state* hot loop of `ASTMatcher.matches`
+(a full AST walk per call) measured at **parity** (≈0.98×, inside the run-to-run noise). So on
+shipping code the pattern from the microbenchmarks holds: packing's runtime is parity-to-favourable,
+and its real product is the class-count, bytecode and cold-start reduction. (This also demonstrates
+the internal-adoption path: once default-on, Groovy's own `@CompileStatic` modules — AST, macro,
+GINQ — would each shed most of their closure classes from the distribution jars.)
+
 === Grails artefact DSLs and nested closures
 
 The delegate DSLs Grails relies on — `static constraints = { … }`, `static mapping`,
