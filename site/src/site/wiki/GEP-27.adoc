@@ -481,6 +481,14 @@ proof and, for iteration intrinsics, knowledge of the callee.
 Fold the lambda and closure code paths behind the single hoist backend, so the SAM and
 `Closure` cases are one mechanism selecting different wrappers.
 
+Convergence also runs the other way: generated closure classes (S0 — everything packing declines)
+can adopt the packed dispatch discipline without being packed. The compiler knows every `doCall`
+signature at emission time, so it can emit a `call(Object...)` override on the closure class that
+arity-switches directly to the right `doCall` (with the MOP-transparency guard inlined). The
+Java/GDK path then becomes plain virtual dispatch — capability-clean under JPMS, no reflection —
+and the runtime's reflective `doCall` cache in `Closure.call` demotes to serving only legacy jars
+and hand-written subclasses. That cache is a bridge, not a destination.
+
 A related follow-up surfaced in review: `MethodClosure` (from `.&` method references) is the same
 shape — a `Closure` whose target is a known method that cannot honour a delegate — but it dispatches
 by name with runtime overload selection and *silently ignores* a caller-set delegate, whereas
@@ -784,6 +792,11 @@ the compatibility valve while tools are updated.
   dispatch of closure classes does not: the hosting class's own `invokedynamic` bootstrap captures
   its lookup — the capability model Java lambdas use — and handing the closure across a module
   boundary is the grant. This deliberately moves enforcement from invocation time to creation time.
+* Packing is independent of Groovy's call-site strategy: its `invokedynamic`/constant-dynamic usage
+  is JDK bootstrap machinery (the same category as `LambdaMetafactory` for statically compiled
+  lambdas), emitted regardless of the `indy` setting — verified byte-identical class counts and
+  behaviour under classic (`indy=false`) compilation, where the dynamic path flows through the
+  classic call-site caches to the same dispatch tables.
 
 === Security
 
