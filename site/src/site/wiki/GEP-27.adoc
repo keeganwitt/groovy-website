@@ -342,6 +342,7 @@ modes:
 |Mechanism |When |Catches
 |`@PackedClosures(mode = WARN or STRICT)` |compile time |_visible_ declines — "did I pack what I intended?"
 |`PackedClosure` throws on `setDelegate`/`setResolveStrategy` |runtime |the _invisible_ wrong assumption — "did anyone misuse what I packed?"
+|`PackedClosure` fails fast on serialization (`writeObject`), naming the hoisted body and the opt-out |runtime |the _invisible_ serialization route (a local later serialized, a callee that serializes its argument); visible routes decline at compile time instead
 |===
 
 A conservative *escape gate* shrinks the runtime surface further and is implemented in the S1 slice: a
@@ -349,6 +350,11 @@ closure literal that visibly escapes its method — stored into a field/property
 `static constraints = { … }` shape), returned, appended with `<<`, or placed in a collection literal
 — is declined at compile time and kept as a class. This moves the clearest delegate-risk cases from
 a runtime throw to a compile-time non-event; those declines are also what `WARN`/`STRICT` report.
+A sibling gate applies the same discipline to the serialization boundary: a literal that is visibly
+serialization-bound — cast or coerced to a `Serializable` type, or passed directly to a
+`writeObject` call — declines and keeps its class (so it serializes as before), with transitive
+routes left to the adapter's fail-fast `writeObject`, exactly as transitive escapes are left to the
+delegate guard.
 Because syntactic escape analysis cannot prove that, say, a custom `each` does not set a delegate,
 the runtime guard remains the essential backstop under dynamic compilation. (A closure that is
 fully self-contained — every free name binds to the owner or its own parameters — is
@@ -569,9 +575,11 @@ debuggers, and other tooling before the defaults are turned on broadly:
   enclosing class), but "step into closure", breakpoints on a closure body, and lambda/closure
   display in variable views should be checked in IntelliJ IDEA and Eclipse, and against JDWP
   expectations.
-* *Serialization.* Serializable closures/lambdas continue on the class-based path in the first
-  step; any future extension to hoist them must carry the `$deserializeLambda$` machinery to the
-  enclosing class (as Java does) and be validated for round-trip and versioning.
+* *Serialization.* Serializable lambdas and visibly serialization-bound closures continue on the
+  class-based path (and so serialize as before); a packed closure serialized via a transitive route
+  fails fast with a message naming the closure and the opt-out. Any future extension to hoist the
+  serializable cases must carry the `$deserializeLambda$` machinery to the enclosing class (as Java
+  does) and be validated for round-trip and versioning.
 * *Stub generation / joint compilation and Groovydoc.* Synthetic hoisted methods must remain
   invisible to public API views (they are `private synthetic`), and stub generation must not
   surface them.
@@ -600,6 +608,12 @@ bytes with ASM and asserts the following on every hoisted `$lambda$...` method:
 
 Because the hoisted body reuses the original AST statements, source positions propagate
 unchanged; there is no separate line-mapping step that could drift.
+
+The packed-closure leg has the equivalent automated coverage (`PackedClosureDebugMetadataTest`):
+line-number entries per body line and named locals — including captured values (a written capture
+threaded as a shared `Reference` still appears under its original name), typed and implicit-`it`
+parameters, and body locals — on the `$packed$closure$` methods under both compilation modes, plus
+`ACC_SYNTHETIC` on the hoisted bodies and on all generated dispatch machinery.
 
 === Remaining human-only verification (cannot be scripted)
 
@@ -745,7 +759,7 @@ stretch goal) builds on the shared backend proven in phases 1–2; phases 4–5 
 
 |Changing closure/lambda _semantics_ |Not planned |This is a codegen/packaging optimisation only. Eligible closures compute identical results and keep their reachable `Closure` API; ineligible ones are compiled exactly as today.
 |Packing closures that use externally-set `delegate`/`resolveStrategy` |Not planned |These require a real per-closure representation; they are detected (statically) or declined and fall back to S0.
-|Serializable closure/lambda hoisting |Deferred |Kept on the class-based path initially; hoisting them requires carrying the deserialisation machinery to the enclosing class.
+|Serializable closure/lambda hoisting |Deferred |Serializable lambdas and _visibly_ serialization-bound closures (cast/coerced to a `Serializable` type, or passed directly to `writeObject`) are kept on the class-based path; a packed closure reached by a transitive serialization route fails fast at runtime with an actionable message. Hoisting the serializable cases would require carrying the deserialisation machinery to the enclosing class.
 |Packing default-parameter (multi-arity) closures |Deferred |A single hoisted method cannot reproduce the arity-overloaded dispatch a default parameter generates, so these decline to S0 today. A future slice would hoist one method per arity (reusing the existing default-fill codegen) and claim one dispatch-table id per arity — the per-arity tables the shipped adapter already uses, and the same primitive the _MethodClosure_ alignment above would share.
 |Object elision (S3) |Deferred (Groovy 7) |The most aggressive step; needs escape proof and, for iteration, callee knowledge.
 |Dynamic-mode automatic packing |Not planned |Cannot be proven sound without types; dynamic packing is opt-in via `@PackedClosures` only.
