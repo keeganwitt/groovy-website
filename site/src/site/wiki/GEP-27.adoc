@@ -14,7 +14,7 @@
 *Comment*:: Reduces the per-closure/per-lambda generated-class explosion by hoisting bodies onto the enclosing class. The sound-by-construction SAM-lambda slice is merged for Groovy 6; closure packing (S1) is implemented and proposed as a Groovy 6 stretch goal (GROOVY-12151); object elision and writer unification remain for Groovy 7. Strictly additive; gated by a flag for back-out.
 *Leader*:: Paul King
 *Created*:: 2026-07-09
-*Last modification*:: 2026-07-13
+*Last modification*:: 2026-07-15
 ****
 
 [width="80%",align="center"]
@@ -54,9 +54,9 @@ actually needs:
 
 The proposal is deliberately phased. A **small, sound-by-construction slice — eliminating the
 generated class for non-capturing and read-only-capturing SAM lambdas — is merged for Groovy 6.0**.
-**Closure packing (S1), including its soundness analysis and a `MethodHandle`-based dispatch path that
-reaches `@CompileStatic` call-parity, is now implemented and proposed as a Groovy 6.0 stretch goal
-(GROOVY-12151)**; the remaining, more
+**Closure packing (S1), including its soundness analysis, a per-class dispatch-table path that
+outruns the generated classes it replaces on capturing shapes, and full MOP transparency, is now
+implemented and proposed as a Groovy 6.0 stretch goal (GROOVY-12151)**; the remaining, more
 aggressive work — object elision and unifying the two writers — targets Groovy 7.0. The change is
 strictly additive, defaults can be flipped via a flag for back-out, and it is gated so that any
 tooling that reflects on generated-class names has an escape hatch.
@@ -181,13 +181,17 @@ hoisted method is still a real `Closure`, so it preserves almost everything: it 
 has per-instance identity, and `curry`/`rcurry`/`ncurry`, `memoize*`, `trampoline`,
 `compose`, and iteration all continue to work (they operate through `call()`).
 
-A hoisted representation loses exactly two things relative to a normal generated closure:
+A hoisted representation loses exactly three things relative to a normal generated closure:
 
 * *Externally-set `delegate`/`resolveStrategy`.* A hoisted body binds free names at compile
   time against the owner; a normal closure resolves free names against a `delegate` set at
   runtime. This is the one true soundness boundary (see _The soundness boundary_).
-* *Serialization.* A method-handle/dispatch-backed adapter is not portably serializable the way
-  a generated closure class is.
+* *Serialization.* A dispatch-table-backed adapter is not portably serializable the way a
+  generated closure class is.
+* *Per-literal class identity.* All packed closures share one adapter class, so
+  `closure.getClass()` no longer distinguishes literals, and class-level metaclass changes on
+  the adapter are global to packed closures (per-instance `setMetaClass` is fully honoured —
+  see _MOP transparency_).
 
 So "needs closure identity" is not a broad lattice; it is essentially the predicate *"does
 externally-set delegate/resolveStrategy or serialization reach this value?"*
@@ -422,12 +426,29 @@ diagnostics. The two headline capabilities are done:
   `@PackedClosures`, backed by the runtime guard.
 * *Fast dispatch* — two parts. The hoisted body is typed from the inferred types the type checker
   already computed and compiles statically (typed captures/params/return, zero `invokedynamic` in the
-  body). And the shared adapter reaches that body through a `MethodHandle` constant to the private
-  hoisted method, invoked with `invokeExact` (no reflection), behind a `doCall` fast path that skips
-  argument adaptation on the common exact-arity call. Measured per `call()` against the generated
-  closure class it replaces: a naive shared adapter is ~7–9× slower, whereas the shipped one reaches
-  `@CompileStatic` parity and ~2× under dynamic compilation — so packing is a class-count win at no
-  dispatch-speed penalty under `@CompileStatic`.
+  body). And the shared adapter reaches that body through compiler-generated per-class *dispatch
+  tables*: a general `(int id, Object[])` table covering every hoisted target plus array-free
+  per-arity tables for targets taking one or two values beyond the receiver (captures count as
+  values — the overwhelmingly common shapes), each case casting to the declared parameter types and
+  invoking the target directly. One `invokedynamic` accessor per class links the tables into a
+  constant bundle lazily on first use, and each literal's parameter-type `Class[]` is a
+  constant-dynamic resolved once per site. The whole chain is ordinary, JIT-friendly bytecode — no
+  reflection, and no per-instance `MethodHandle` (not constant-foldable, hence many times slower).
+  Measured with JMH against the generated classes it replaces (same build, both compilations):
+  capturing shapes run **1.4–1.9× faster packed** — the win holding under megamorphic dispatch across
+  many classes — while the tightest non-capturing `collect` trails at ~0.6×; on Grails-shaped
+  in-situ workloads (domain pipelines, validation cycles) the blend nets **+17–23% packed** with
+  identical outputs, so the adverse micro-shape dilutes out under real work.
+* *MOP transparency* — the direct dispatch path is semantically invisible: it is taken only when the
+  instance's metaclass is stock and no category is active (one latched-boolean check, the same
+  conditions the classic call-site caches test), and anything MOP-relevant routes through
+  `invokeMethod`. Interception via a per-instance metaclass is honoured identically on the dynamic
+  and Java/GDK paths, matching generated closure classes. The adapter has its own registered stock
+  metaclass, `PackedClosureMetaClass` — the analog of `ClosureMetaClass` for generated closures —
+  giving reflection-free `call`/`doCall` dispatch on the MOP route, `respondsTo` answers faithful to
+  the instance's declared parameter types, and the same category stance as `ClosureMetaClass`. (The
+  `GeneratedClosure` marker is deliberately not used: its metaclass machinery assumes an inner class
+  of the owner, which a shared top-level adapter is not.)
 
 The API surface (`@PackedClosures`, `PackMode`) is marked `@Incubating`. What keeps this a stretch
 goal rather than a committed 6.0 deliverable is that it is opt-in only (the automatic path is not
@@ -463,20 +484,22 @@ Fold the lambda and closure code paths behind the single hoist backend, so the S
 A related follow-up surfaced in review: `MethodClosure` (from `.&` method references) is the same
 shape — a `Closure` whose target is a known method that cannot honour a delegate — but it dispatches
 by name with runtime overload selection and *silently ignores* a caller-set delegate, whereas
-`PackedClosure` binds a fixed `MethodHandle` and *rejects* one. The two are worth _contract_-aligning
-(a shared "known-target, delegate-inert" marker and consistent delegate handling), and both could
-share the per-arity handle-selection primitive that default-parameter packing (see _Excluded and
-deferred features_) needs — the same mechanism that would close the remaining dynamic-dispatch
-throughput gap (see _Performance_). Their dispatch models differ enough, though — a fixed handle versus
-runtime overload selection — that fully merging them into one path is not a goal; this is tracked as a
-separate initiative.
+`PackedClosure` dispatches through a fixed table entry and *rejects* one. The two are worth
+_contract_-aligning (a shared "known-target, delegate-inert" marker and consistent delegate
+handling), and statically resolved method pointers could claim ids in the same per-class dispatch
+tables the packed adapter already uses — dispatching with the host class's own bytecode rights,
+which also gives caller-sensitivity-correct semantics. Their dispatch models differ enough, though —
+a fixed table entry versus runtime overload selection — that fully merging them into one path is not
+a goal; this is tracked as a separate initiative.
 
 === Default-on hardening
 
 Flip closure packing from experimental (opt-in `groovy.target.closure.pack`) to default-on. This is
 a policy decision gated on the remaining human-only tooling verification (see _IDE and tooling
 considerations_) and on migrating the tests that assert the old bytecode shape — not on further
-mechanism work.
+mechanism work: the dispatch and MOP-transparency mechanisms are complete and verified (interception,
+categories, and introspection behave identically to generated closure classes on every path), and the
+remaining documented residuals are those listed under _The one that matters: required capability_.
 
 == Configuration and flags
 
@@ -620,16 +643,19 @@ stretch goal:
    a scope out entirely. The automatic flag path stays lenient.
 
 Also implemented and validated: the *capability analysis* (STC's delegate-independence proof driving
-automatic packing under `@CompileStatic`, no annotation needed) and the *dispatch path* — a
-statically-compiled, typed hoisted body reached through a `MethodHandle` constant to the private
-hoisted method (`invokeExact`, no reflection) behind a lean `doCall` fast path — exercised across the
-core module and several others. Measured per `call()` against the generated closure class it replaces,
-a naive shared adapter is ~7–9× slower; the shipped adapter reaches `@CompileStatic` parity and ~2×
-under dynamic compilation. (Marking the adapter `GeneratedClosure` for the metaclass fast path was
-evaluated and found perf-neutral once `doCall` was lean, so it is not applied.) This implemented slice
-is proposed as a Groovy 6.0 stretch goal (GROOVY-12151). The remaining Groovy 7 work is owner-correct
-retargeting so self-contained nested closures can hoist, S3 object elision, unifying the closure and
-lambda writers, and hardening the automatic path from experimental (opt-in flag) to default-on.
+automatic packing under `@CompileStatic`, no annotation needed); the *dispatch path* — a
+statically-compiled, typed hoisted body reached through the per-class dispatch tables described under
+_Groovy 6.0 deliverables_, behind lean adapter lanes sized to the JIT's inlining budgets — exercised
+across the core module and several others; and the *MOP integration* — the stock-metaclass/category
+guard shared with `Closure.call`'s own fast-path cache, and the registered `PackedClosureMetaClass`
+(reflection-free MOP dispatch, instance-faithful `respondsTo`), with the interception matrix verified
+identical to generated closure classes on both the dynamic and Java/GDK paths. Measured with JMH
+against the generated classes it replaces, capturing shapes run 1.4–1.9× faster packed and
+Grails-shaped in-situ workloads net +17–23%, with byte-identical corpus transcripts. This implemented
+slice is proposed as a Groovy 6.0 stretch goal (GROOVY-12151). The remaining Groovy 7 work is
+owner-correct retargeting so self-contained nested closures can hoist, S3 object elision, unifying
+the closure and lambda writers, and hardening the automatic path from experimental (opt-in flag) to
+default-on.
 
 === Measured impact
 
@@ -643,13 +669,20 @@ totalling 80 KB* — more bytecode than the entire rest of the class (1.19×).
 
 Dispatch speed matters as much as class count, because a shared adapter is invoked through the
 `Closure` machinery rather than being its own class. A naive adapter (reflective invoke plus per-call
-argument adaptation) measured ~7–9× slower to `call()` than the generated closure class it replaces —
-smaller but slower. The shipped adapter closes that gap with a compile-time `MethodHandle` constant
-invoked via `invokeExact` and a `doCall` fast path that skips adaptation on the common exact-arity
-call: a packed `@CompileStatic` closure then dispatches at parity with a normal closure, and a packed
-dynamic closure at ~2×. So `@CompileStatic` packing is strictly a win (fewer classes, same call
-speed), while dynamic packing trades ~2× call cost for the class-count reduction — which is why the
-dynamic path stays opt-in.
+argument adaptation) measures ~7–9× slower to `call()` than the generated closure class it replaces —
+smaller but slower — and a per-instance `MethodHandle` fares little better (the JIT cannot
+constant-fold it, so every call runs the method-handle invoker). The shipped design avoids both: the
+per-class dispatch tables execute as ordinary bytecode the JIT inlines through, the per-arity tables
+pass arguments as plain parameters (no array to allocate or escape), and constant-dynamic
+parameter-type arrays remove the last per-creation allocation. Measured with JMH on the same build,
+capturing closures — the shapes GEP-27 exists for — run **1.4–1.9× faster packed than as generated
+classes**, holding under megamorphic dispatch; the tightest non-capturing `collect` trails at ~0.6×,
+the cost being the MOP-transparency guard (loop-invariant checks the JIT hoists when the chain
+inlines — the same checks the classic call-site caches make). On Grails-shaped in-situ workloads the
+blend nets **+17–23% packed** with identical outputs, so the adverse micro-shape is real but dilutes
+out under real work (further lane micro-tuning was assessed against those shapes and found to have no
+in-situ effect). Ratios are measured against a current baseline that includes the `Closure.call`
+fast-path improvements (GROOVY-12164/12165), i.e. against generated classes at their fastest.
 
 === Grails artefact DSLs and nested closures
 
@@ -674,11 +707,11 @@ rebinding its free names to that owner, and emitting static-vs-instance dispatch
 owner-correct capability work already scoped to Groovy 7. This makes domain classes the single
 highest-value target for that phase, and the reason it is Groovy 7 and not a cheap gate change.
 
-A supporting change surfaced by the closure spike is worth noting: hoisting nested closures also
-requires the class visitor to visit methods added _during_ code generation to a fixpoint (the
-current two-round `visitMethods` misses methods added while compiling a method that was itself added
-during compilation). That change is general and low-risk but must be validated against the full
-suite before it lands.
+A supporting change is worth noting: hoisting nested closures requires the class visitor to visit
+methods added _during_ code generation to a fixpoint (a two-round `visitMethods` misses methods
+added while compiling a method that was itself added during compilation). That change is implemented
+in the packing slice — an identity-based fixpoint, also fixing an O(n²) scan against
+method-generating visitors — and is validated against the full suite.
 
 === Phased delivery
 
@@ -688,7 +721,7 @@ suite before it lands.
 
 |1 |Non-capturing SAM lambda class elimination + flag + test migration + IDE/tooling check |Java-parity lambda codegen for the common SAM case; back-out flag |Groovy 6.0 (merged)
 |2 |Read-only-capturing SAM lambdas (metafactory-captured static impl) |Removes the class, `Closure` alloc, and `Reference` wrapping for read-only capturing SAM lambdas (mutated captures decline) |Groovy 6.0 (merged)
-|3 |Closure packing (S1) + capability/escape analysis + `MethodHandle` dispatch + `@PackedClosures` |Sound closure packing: automatic under `@CompileStatic` at call-parity dispatch, opt-in (with runtime guard + escape decline) under dynamic |Groovy 6.0 (stretch, GROOVY-12151)
+|3 |Closure packing (S1) + capability/escape analysis + per-class dispatch tables + MOP transparency + `@PackedClosures` |Sound closure packing: automatic under `@CompileStatic`, faster than the classes it replaces on capturing shapes, opt-in (with runtime guard + escape decline) under dynamic |Groovy 6.0 (stretch, GROOVY-12151)
 |4 |Owner-correct retargeting so self-contained nested closures hoist |Grails domain `validator` blocks and other nested closures pack |Groovy 7.0
 |5 |Object elision (S3) + unify the writers + default-on hardening |No object for non-escaping call-once bodies; one backend for closures and lambdas; packing default-on |Groovy 7.0
 |===
@@ -705,7 +738,7 @@ stretch goal) builds on the shared backend proven in phases 1–2; phases 4–5 
 |Changing closure/lambda _semantics_ |Not planned |This is a codegen/packaging optimisation only. Eligible closures compute identical results and keep their reachable `Closure` API; ineligible ones are compiled exactly as today.
 |Packing closures that use externally-set `delegate`/`resolveStrategy` |Not planned |These require a real per-closure representation; they are detected (statically) or declined and fall back to S0.
 |Serializable closure/lambda hoisting |Deferred |Kept on the class-based path initially; hoisting them requires carrying the deserialisation machinery to the enclosing class.
-|Packing default-parameter (multi-arity) closures |Deferred |A single hoisted method cannot reproduce the arity-overloaded dispatch a default parameter generates, so these decline to S0 today. A future slice would hoist one method per arity (reusing the existing default-fill codegen) and have the adapter select a `MethodHandle` per arity at call time — the same primitive the _MethodClosure_ alignment above would share.
+|Packing default-parameter (multi-arity) closures |Deferred |A single hoisted method cannot reproduce the arity-overloaded dispatch a default parameter generates, so these decline to S0 today. A future slice would hoist one method per arity (reusing the existing default-fill codegen) and claim one dispatch-table id per arity — the per-arity tables the shipped adapter already uses, and the same primitive the _MethodClosure_ alignment above would share.
 |Object elision (S3) |Deferred (Groovy 7) |The most aggressive step; needs escape proof and, for iteration, callee knowledge.
 |Dynamic-mode automatic packing |Not planned |Cannot be proven sound without types; dynamic packing is opt-in via `@PackedClosures` only.
 |A user-visible switch between S1/S2/S3 per closure |Not planned |The compiler picks the lightest sound representation; users influence it only via target type, arrow syntax, and `@PackedClosures` — including opting a scope out entirely with `@PackedClosures(mode = DISABLED)`, but never selecting *which* packed representation is used.
@@ -736,23 +769,21 @@ the compatibility valve while tools are updated.
 * Fewer generated classes: less classloading, verification, JIT profiling, and metaspace.
 * Non-capturing SAM lambdas keep their zero-allocation metafactory singleton (the class removed
   is dead weight, not an allocation).
-* Closure packing under `@CompileStatic` is a class-count win at dispatch parity with a normal
-  closure: the typed hoisted body compiles statically, and the adapter reaches it through a
-  `MethodHandle` constant (`invokeExact`) behind a lean `doCall` fast path. Measured per `call()`, a
-  naive shared adapter is ~7–9× slower; the shipped one is at parity under `@CompileStatic` and ~2×
-  under dynamic compilation (so the dynamic path stays opt-in).
-* Capturing closures (the common case, e.g. `{ it + base }`) used to pay an extra per-call cost — the
-  adapter allocated an argument array prepending the captures on every invocation. Binding the captures
-  into the handle once at construction removes that allocation (GROOVY-12151). Measured per `call()`
-  against the generated closure class it replaces, a capturing closure improved from dynamic ~3.2× /
-  `@CompileStatic` ~1.75× to dynamic ~1.9× / `@CompileStatic` ~0.78× (faster than a normal closure under
-  `@CompileStatic`), matching the non-capturing figures above.
-* The remaining ~2× dynamic gap is the argument-array spreader plus the dynamic MOP `call`→`doCall`
-  selection (`PackedClosure` is not a `GeneratedClosure`) — no longer allocation. A typed per-arity
-  `invokeExact` path would remove the spreader for the common `each`/`collect` arities: the *same*
-  per-arity handle-selection primitive that default-parameter packing and the MethodClosure alignment
-  need (see _Unify the two writers_ and _Excluded and deferred features_), so that throughput work and
-  those follow-ons build one shared mechanism.
+* Closure packing dispatches through per-class tables that execute as ordinary, JIT-inlinable
+  bytecode; the per-arity tables pass the receiver, captures and arguments as plain parameters, so
+  the hot shapes allocate no argument array at all, and allocation sits at or below the
+  closure-class baseline on capturing shapes.
+* Measured with JMH against the generated classes on the same build: capturing shapes 1.4–1.9×
+  faster packed (holding under megamorphic dispatch); tight non-capturing `collect` ~0.6× — the
+  MOP-transparency guard's loop-invariant checks, hoisted to zero when the chain inlines. On
+  Grails-shaped in-situ workloads the blend nets +17–23% packed with identical outputs.
+* MOP transparency has the same cost model as the classic call-site caches: one latched-boolean and
+  one category-counter read decide between direct dispatch and the full `invokeMethod` route, so
+  interception, categories and `respondsTo` behave identically to generated closure classes.
+* Under strict JPMS (named modules, no `--add-opens`), packed dispatch works where reflective
+  dispatch of closure classes does not: the hosting class's own `invokedynamic` bootstrap captures
+  its lookup — the capability model Java lambdas use — and handing the closure across a module
+  boundary is the grant. This deliberately moves enforcement from invocation time to creation time.
 
 === Security
 
