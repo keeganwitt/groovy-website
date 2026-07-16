@@ -412,6 +412,39 @@ owner-correct retargeting (Groovy 7) — but the trivial subset need not wait fo
 `{ x -> x + 1 }` cannot misbehave — but exploiting that for nested closures needs owner-correct
 retargeting, see _Reference implementation_.)
 
+=== The packability decision procedure
+
+The complete boundary, as implemented (`ClosureWriter#chooseStrategy`; any decline keeps the
+closure a generated class exactly as today, and is what `WARN`/`STRICT` — or
+`groovy.target.closure.pack.report=true` on the flag path — reports with a reason):
+
+. *Real-`Closure` semantics?* References `owner`/`delegate`/`thisObject`/`resolveStrategy`/
+  `metaClass`/`super`, has default parameter values, or contains an anonymous inner class → decline.
+. *Scope opted out?* The most-specific `@PackedClosures` mode wins (method over class);
+  `DISABLED` beats an enclosing opt-in and the flag → decline.
+. *Triggered and sound?* One of: the annotation (dynamic trust + runtime guard); the flag plus the
+  syntactic no-free-name proof (dynamic — any implicit-this call or property, field/property-bound
+  or dynamic bare name, or explicit `this`-property declines); the flag or annotation plus the type
+  checker's delegate-independence proof (`@CompileStatic` — which also declines names a
+  type-checking extension left to runtime resolution, and `this`-properties of `Map`-implementing
+  owners). Otherwise → decline.
+. *Structural position:* written directly in a method of the owner class; nested closures await
+  owner-correct retargeting (Groovy 7) → decline.
+. *Visible escape:* stored to a field/property/index, returned, appended with `<<`, or placed in a
+  collection literal → decline.
+. *Visibly serialization-bound:* cast/coerced to a `Serializable` type, or passed to `writeObject`
+  directly or via a literal-holding local → decline.
+. *Field initialiser:* a class-level `def x = { … }` (a field store outside any method's visible
+  code) → decline.
+. *Intersection cast:* the generated class would need per-literal marker interfaces → decline.
+. *Trait body:* trait methods live in `$Trait$Helper` with a synthetic receiver → decline.
+. *Constructor special call:* an argument to `this(...)`/`super(...)`, where `this` is not yet
+  initialised → decline.
+
+Everything that passes packs. The matrix is pinned as executable documentation by
+`PackedClosureBoundariesTest` (18 shapes × both compilation modes, plus the special-context
+shapes), and each gate has focused behavioural tests besides.
+
 == Groovy 6.0 deliverables
 
 Groovy 6 lands in two parts: the *merged* sound-by-construction SAM-lambda slice (pieces 1–2), and
@@ -616,6 +649,7 @@ means byte-for-byte today's behaviour.
 |Closure packing under `@CompileStatic` (Groovy 6 stretch, GROOVY-12151) |`groovy.target.closure.pack` (+ per-scope `@PackedClosures`) |off (opt-in); default-on is Groovy 7
 |Closure packing under dynamic compilation, free-name closures |`@PackedClosures` opt-in only |off unless annotated
 |Closure packing under dynamic compilation, no-free-name subset |`groovy.target.closure.pack` (syntactic proof) |off (opt-in)
+|Decline reporting on the flag path |`groovy.target.closure.pack.report` — every non-packed closure gets a compiler warning naming the gate that declined it |off
 |===
 
 `@PackedClosures` carries a `mode` element (`LENIENT` | `WARN` | `STRICT` | `DISABLED`, default
