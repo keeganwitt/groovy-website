@@ -1,0 +1,352 @@
+= GEP-28: Dot Shorthands (Context-Typed Member Access)
+
+:icons: font
+
+.Metadata
+****
+[horizontal,options="compact"]
+*Number*:: GEP-28
+*Title*:: Dot Shorthands (Context-Typed Member Access)
+*Version*:: 1
+*Type*:: Feature
+*Status*:: Draft
+*Target*:: Groovy 7.0
+*Comment*:: A leading-dot shorthand (`.RED`) that resolves a member against the type expected by the surrounding context, following Dart 3.10's dot shorthands and Swift's implicit member expressions. Closes the remaining "enum values without imports" gaps that neither unqualified switch-case constants (GROOVY-8444) nor String-to-enum coercion can reach — method arguments, annotation attributes, `==` comparisons, typed collection literals, and dynamic-mode case labels — while adding compile-time member checking everywhere it is used. Strictly additive: every proposed form is a syntax error today.
+*Leader*:: Paul King
+*Created*:: 2026-07-25
+*Last modification*:: 2026-07-25
+****
+
+[width="80%",align="center"]
+|===
+a| NOTE: _WARNING:_
+Material on this page is still under development!
+This proposal targets Groovy 7.0 and is an early outline. The final version may differ
+significantly from the current draft, but having this draft available allows us to gather
+early feedback and iterate on the design. We welcome feedback and discussion, but please
+keep in mind that the details are not yet finalized.
+|===
+
+== Abstract
+
+When the type expected at some position in an expression is known, repeating that type's name
+to reference one of its members is ceremony:
+
+[source,groovy]
+----
+logMessage('Failed to connect', LogLevel.ERROR)     // the parameter already says LogLevel
+Color c = Color.RED                                 // the declaration already says Color
+@Retention(RetentionPolicy.RUNTIME)                 // the attribute already says RetentionPolicy
+----
+
+This GEP proposes a *dot shorthand*: a leading `.` followed by a member name, resolved against
+the *context type* — the type the surrounding position expects:
+
+[source,groovy]
+----
+logMessage('Failed to connect', .ERROR)
+Color c = .RED
+@Retention(.RUNTIME)
+----
+
+The shorthand compiles to an ordinary qualified reference (`LogLevel.ERROR`) at compile time, so
+a misspelt member is a compile error in every compilation mode — unlike today's String-to-enum
+coercion, where `Color c = 'RED'` is convenient but `Color c = 'GRN'` compiles and fails at
+runtime, even under `@CompileStatic`.
+
+The feature is deliberately staged: enum constants first, then `static final` fields of the
+context type, then (optionally) static factory methods and constructors, following the scope
+Dart 3.10 shipped. It is strictly additive — `.name` in expression position is a syntax error in
+every current Groovy version — and it works in *all* compilation modes where a context type is
+syntactically available, which notably includes dynamic code, annotations, and switch case
+labels on declared-enum-typed subjects.
+
+== Motivation
+
+=== Where Groovy stands today
+
+Groovy already has three mechanisms for referencing enum constants without a static import, and
+after the `@TypeChecked` switch-case fix (GROOVY-12190, a GROOVY-11614 follow-up regression, fixed for
+Groovy 5.0.x/6.0) the current landscape is:
+
+[cols="3,1,1,1,1",options="header"]
+|===
+|Context (no import of constants) |Java |Groovy dynamic |`@TypeChecked` |`@CompileStatic`
+
+|Bare constant in switch case (statement and expression forms) |✅ |❌ runtime `MissingPropertyException` |✅ |✅
+|Bare constant, inferred subject (`switch([e][0])`, `def` local) |n/a |❌ |✅ via flow typing |✅
+|String literal → declaration / field / return / default param / ternary / array |❌ |✅ |✅ |✅
+|String literal → typed method argument |❌ |❌ |❌ |❌
+|Enum in annotation attribute |❌ (needs static import) |❌ |❌ |❌
+|`c == CONST` without qualification |❌ |❌ |❌ |❌
+|`List<Color>` from unqualified constants |❌ |❌ |❌ |❌
+|===
+
+(The Java column is stable across JDK 17–25; Java's only unqualified context is the switch case
+label, though since Java 21 the qualified form is also permitted there — JLS §14.11.1.)
+
+Each existing mechanism has a structural limit:
+
+* *Unqualified switch-case constants* (GROOVY-8444, Groovy 3.0.0) ride on the static type
+  checker's inference, so they cannot work in dynamic code, and they apply to case labels only.
+* *String-to-enum coercion* (`Color c = 'RED'`, via `ShortTypeHandling#castToEnum` at runtime
+  and `StaticTypeCheckingSupport` under STC) works in every mode but only in assignment-like
+  positions, only for enums, and — being value-blind at compile time — defers typos to a runtime
+  `IllegalArgumentException` even under `@CompileStatic`.
+* *Static imports* work everywhere but are the manual ceremony this family of features exists to
+  remove, and they pollute the namespace for the whole file.
+
+=== The gaps a context-typed shorthand closes
+
+A dot shorthand is resolved from the *expected type of the position*, not from the switch
+subject or the assignment target specifically, so one mechanism covers every position that has
+an expected type:
+
+[cols="3,3",options="header"]
+|===
+|Gap today |With dot shorthand
+
+|Typed method argument (`m('RED')` fails in all modes) |`m(.RED)` — ✅ under STC (parameter type is the context, as with SAM/lambda target typing); dynamic mode has no known target and stays out of scope
+|Annotation attribute (no mode, no mechanism) |`@Ann(.RED)` — ✅ *in all modes*: attribute types are declared, and annotations are resolved at compile time. No other proposal reaches this cell.
+|`List<Color> l = [...]` (STC rejects strings; dynamic silently keeps them) |`[.RED, .BLUE]` — ✅ under STC via the generic element type
+|`c == 'RED'` is silently `false` |`c == .RED` — ✅ under STC from the other operand's static type
+|Dynamic-mode switch on a declared-enum-typed subject |`case .RED:` — ✅ resolvable at compile time from the *declared* parameter/variable type, no flow typing needed; subsumes the proposed dynamic-mode extension of GROOVY-8444 with explicit, unambiguous syntax
+|Typo safety of the coercion contexts |`Color c = .RED` — a misspelt member is a compile error in every mode, unlike `'RED'` coercion
+|===
+
+What remains genuinely unclosable, and is explicitly out of scope: positions where no context
+type exists even syntactically — dynamic-mode arguments to a dynamically dispatched call, and
+dynamic `==` where neither operand has a declared type.
+
+=== Precedent
+
+Languages have been converging on exactly this feature:
+
+* *Swift* has had implicit member expressions (`.red`) since Swift 1, in a language that — like
+  Groovy and unlike Dart — also supports leading-dot method-chain continuation lines, proving the
+  grammar coexistence is tractable.
+* *Dart 3.10* (2025) shipped dot shorthands for enum values, static fields, static methods and
+  constructors, resolved against the context type.
+* *Kotlin 2.2* is previewing the bare-name variant ("context-sensitive resolution", KEEP-379),
+  where unqualified enum entries resolve in expected-type positions.
+
+Java has no equivalent and none proposed; this is a place where Groovy would extend Java
+ergonomics rather than catch up, consistent with the language's history.
+
+== Proposal
+
+=== Syntax
+
+A *dot shorthand* is a leading `.` immediately followed by an identifier, in expression
+position:
+
+[source,groovy]
+----
+.IDENTIFIER            // stage 1/2: constant or static field access
+.IDENTIFIER(args)      // stage 3 (optional): static method / factory invocation
+----
+
+It is valid only where a *context type* is available (below); anywhere else it is a
+compile-time error ("no context type for dot shorthand").
+
+=== Context types
+
+The context type is determined syntactically (dynamic mode) or from inference (STC), in the
+positions below. This list is the design surface for review; the intent is to match the
+positions where Groovy already applies target typing for SAM coercion or String-to-enum
+coercion, plus case labels and annotation attributes:
+
+[cols="3,2,2",options="header"]
+|===
+|Position |Dynamic mode |STC modes
+
+|Variable declaration with explicit type: `Color c = .RED` |✅ declared type |✅
+|Field/property initializer, return statement from a typed method, default parameter value, ternary/Elvis branches in the above |✅ declared type |✅
+|Switch case label: `case .RED:` / `case .RED ->` |✅ when the subject has a declared enum type |✅ including inferred subjects (flow typing, as GROOVY-8444 today)
+|Method/constructor call argument |❌ no known target (compile error) |✅ from the resolved parameter type
+|Annotation attribute: `@Ann(.RED)` |✅ (attribute types are compile-time-declared) |✅
+|`==`, `!=`, `in` against a typed other operand |❌ |✅
+|Typed collection/array literals: `Color[] a = [.RED]`, `List<Color> l = [.RED]` |✅ arrays (declared component type); ❌ generic lists |✅ both
+|Explicit target: `x as Color`, `(Color) x` applied to a shorthand |✅ |✅
+|===
+
+=== Resolvable members (staged)
+
+[cols="1,3,2",options="header"]
+|===
+|Stage |Member set |Notes
+
+|1 |Enum constants of the context type |The core use case; smallest surface
+|2 |`static final` fields whose type is (assignable to) the context type — e.g. `Duration d = .ZERO`, `BigDecimal b = .ONE` |Mirrors Dart/Swift; requires the assignability rule to be pinned down
+|3 (optional) |Static methods and constructors whose return type is the context type — `.of(3)`, `.parse(s)` |Dart parity; largest surface, deferred until 1–2 prove out
+|===
+
+Stage 1 alone closes every gap in the motivation table.
+
+=== Semantics
+
+A dot shorthand is *compile-time rewritten* to the equivalent qualified reference
+(`propX(classX(contextType), name)` — the same rewrite GROOVY-8444's case-label support
+performs today in `VariableExpressionTransformer` and, since the GROOVY-12190 regression fix,
+`StaticTypesTransformation`). Consequences:
+
+* *No runtime machinery.* The emitted bytecode is identical to writing `Color.RED` by hand; the
+  MOP sees an ordinary qualified static reference. Dynamic metaprogramming that intercepts
+  `Color.RED` intercepts `.RED` identically.
+* *Fail-fast.* An unresolvable member ("no such constant `.GRN` on `Color`") and a missing
+  context type are compile errors in *every* mode — no deferred `MissingPropertyException` or
+  `IllegalArgumentException`.
+* *STC ordering.* Under STC, shorthand resolution participates in overload selection the same
+  way lambda/SAM target typing does today: candidate parameter types supply candidate context
+  types; a shorthand that resolves under exactly one applicable overload disambiguates it; one
+  that resolves under several ambiguous overloads is an error naming the candidates.
+
+== The two grammar hazards
+
+Both were verified empirically against Groovy 5.0.6 and both need an explicit rule; neither is
+believed fatal (Swift lives with both properties).
+
+=== Leading-dot line continuation
+
+Groovy attaches a line starting with `.` to the previous expression:
+
+[source,groovy]
+----
+def t = s
+.toUpperCase()      // today: parsed as s.toUpperCase() — and this must not change
+----
+
+*Proposed rule:* chain continuation wins. A leading `.name` on a new line following a complete
+expression remains member access on that expression, exactly as today; a dot shorthand is only
+recognised where the grammar is *inside* an unfinished expression position (after `=`, `(`, `,`,
+`[`, `->`, `case`, `==`, `return`, an annotation member, etc.). This makes the feature
+whitespace-sensitive in one narrow way — `Color c =` followed by `.RED` on the next line *is* a
+shorthand because the `=` leaves the expression unfinished — and parser error messages for the
+genuinely ambiguous shapes must be written deliberately. This is the same resolution Swift uses.
+
+=== `.5` float literals
+
+`println .5` is `0.5` today and must stay so. The lexer already distinguishes on the character
+following the dot; `.DIGIT` remains a numeric literal, `.IDENT` becomes a shorthand candidate.
+Mechanical, but the interaction with *command expressions* needs a decision: `println .RED`
+would become grammatically plausible while (dynamic `println(Object)`) never has a context
+type. Proposal: dot shorthands are *not* recognised in command-expression argument position
+(parenthesised calls only), keeping the command-syntax grammar untouched.
+
+=== Smaller interactions
+
+`?.`, `*.`, `.&`, `..`/`..<` ranges, and slashy strings do not collide with a leading-dot
+identifier in expression position, but each needs a grammar test; `[.RED]` vs the (invalid
+today) `[..RED]` range shapes should produce clear errors. Chaining off a shorthand
+(`.RED.next()`) parses naturally once `.RED` reduces to an expression; whether Stage 1 allows
+it or defers it is an open question (Swift allows chains whose final type re-enters the context
+type; Dart restricts more tightly).
+
+== Design principles
+
+* *Resolve at compile time, in every mode.* The value of the feature is fail-fast semantics
+  from declared types; a runtime-resolved variant would just be a second string coercion.
+* *New syntax, no reinterpretation.* Bare names (Kotlin-style) are not given new meaning
+  anywhere; only the currently-invalid `.name` form carries the new semantics. Existing
+  programs cannot change meaning.
+* *One mechanism, not per-position magic.* Case labels, arguments, annotations and initializers
+  all resolve through the same "context type" definition, so the mental model is a single rule.
+* *Stay aligned with the coercion positions.* Wherever `Color c = 'RED'` works today, `.RED`
+  works and is preferred; documentation should present the shorthand as the checked successor
+  without deprecating the coercion (which remains for genuinely dynamic string values).
+
+== Groovy 7.0 deliverables
+
+[cols="1,3,4",options="header"]
+|===
+|Phase |What ships |Notes
+
+|1 |Grammar (lexer + antlr4 rules + continuation-line rule), Stage 1 members (enum constants), declared-type contexts (declarations, fields, returns, defaults, ternaries, case labels, annotation attributes, arrays), all compilation modes |Closes the dynamic-case-label, annotation and typo-safety gaps; no STC dependency beyond what exists
+|2 |STC-inferred contexts: method/constructor arguments with overload interplay, `==`/`in`, generic collection literals |Reuses the SAM target-typing machinery; the hard design item is overload interaction
+|3 |Stage 2 members (`static final` fields of the context type) |Small increment once 1–2 are stable
+|4 (stretch) |Stage 3 members (static factories/constructors, `.of(...)`) |Dart parity; only if 1–3 land early enough for a full release cycle of feedback
+|===
+
+A prototype of the Phase 1 lexer/grammar work (the continuation-line rule in particular) should
+precede GEP acceptance, since parser feasibility is the main technical risk.
+
+== Excluded and deferred features
+
+[cols="2,1,3",options="header"]
+|===
+|Feature |Status |Rationale
+
+|Shorthands in positions with no context type (dynamic call arguments, dynamic `==`, GString interpolation, `def` targets) |Not planned |Nothing to resolve against; explicit compile error keeps the model crisp
+|Bare-name resolution outside switch cases (Kotlin KEEP-379 style) |Not planned |Ambiguous with property access under the MOP in dynamic code; the dot form exists precisely to avoid reinterpreting valid syntax
+|Runtime-resolved shorthands |Not planned |Would reintroduce the deferred-failure problem the feature exists to fix
+|Command-expression argument position |Deferred |Grammar risk outweighs benefit; revisit with usage data
+|Chained member access off a shorthand (`.RED.next()`) |Open question |Parses naturally; semantic rule (does the chain result need to re-enter the context type?) to be settled in review
+|Deprecating String-to-enum coercion |Not planned |Remains correct for dynamic string values; shorthand is documented as the preferred literal form
+|===
+
+== Compatibility and impact
+
+=== Backwards compatibility
+
+Strictly additive. Every proposed form is a syntax error in Groovy 5/6, so no existing program
+changes meaning or compilation result. The continuation-line rule is defined so that all
+currently-valid leading-dot chains parse exactly as today. No runtime library surface is added;
+the rewrite emits ordinary qualified references.
+
+=== Binary compatibility
+
+None affected — the feature is purely a compile-time rewrite; no new classes, markers, or
+call-site shapes.
+
+=== Tooling
+
+The grammar change is the visible surface: IntelliJ IDEA (its own Groovy parser) and Eclipse
+need parser support before the feature is usable in IDEs, and `groovy-console`/`groovysh`
+highlighting follows the shipped grammar. This is the same adoption path every grammar addition
+(e.g. switch expressions, `?[]`) has taken, but it should be flagged to JetBrains early. Stub
+generation and Groovydoc are unaffected (rewrite happens before those consume the AST — to be
+verified for joint compilation in Phase 1).
+
+=== Documentation
+
+The Groovy documentation's enum section should present the full ladder in one place: qualified
+reference → static import → switch-case bare constants → dot shorthands → string coercion
+(dynamic values only), with the mode/position matrix from this GEP's motivation section.
+
+== Alternatives considered
+
+* *Extend bare-name resolution to more contexts (Kotlin KEEP-379 model).* Works for the static
+  modes (it is what case labels do today) but is a dead end for dynamic Groovy: a bare `RED` is
+  indistinguishable from a property access, so static resolution would silently change program
+  meaning and fight the MOP. Rejected in favour of new, unambiguous syntax that can carry the
+  same semantics in every mode.
+* *Widen String-to-enum coercion (method args, annotations, generics).* Closes fewer cells
+  (annotations and `==` stay closed), remains enum-only, and doubles down on value-blind
+  compile-time checking — the typo problem grows with every new position. Rejected.
+* *Do nothing; recommend static imports.* Static imports remain the universal fallback, but the
+  ceremony objection stands, the file-wide namespace pollution is real for enums with generic
+  constant names (`ON`, `OFF`, `LEFT`), and peer languages are all moving; measured against the
+  small grammar cost, the status quo leaves easy ergonomics unclaimed.
+* *Sigil variants (`#RED`, `@RED`, `:RED`).* Avoid the two grammar hazards but are alien to the
+  Java/Dart/Swift family, collide with existing Groovy meanings (`@` annotations, `#` shebang,
+  method-pointer proximity), and forgo the "reads as the qualified form with the type elided"
+  property that makes the dot form self-explanatory. Rejected.
+
+== References
+
+* https://dart.dev/blog/announcing-dart-3-10[Announcing Dart 3.10] — dot shorthands as shipped
+  (enum values, static fields/methods, constructors, context-type resolution)
+* https://github.com/dart-lang/language/blob/main/accepted/future-releases/dot-shorthands/proposal.md[Dart dot shorthands feature specification]
+* https://docs.swift.org/swift-book/documentation/the-swift-programming-language/expressions/#Implicit-Member-Expression[Swift implicit member expressions] — the longest-standing precedent, in a language with leading-dot chain continuation
+* https://github.com/Kotlin/KEEP/blob/master/proposals/context-sensitive-resolution.md[Kotlin KEEP-379: context-sensitive resolution] — the bare-name alternative this GEP rejects for dynamic-mode reasons
+* https://issues.apache.org/jira/browse/GROOVY-8444[GROOVY-8444] — unqualified enum constants in switch cases (Groovy 3.0.0)
+* https://issues.apache.org/jira/browse/GROOVY-11614[GROOVY-11614] — switch-expression case constants; its follow-up refactor caused the `@TypeChecked` regression
+* https://issues.apache.org/jira/browse/GROOVY-12190[GROOVY-12190] — the `@TypeChecked` regression fix that restores the baseline this GEP builds on
+* `org.codehaus.groovy.transform.sc.transformers.VariableExpressionTransformer`,
+  `org.codehaus.groovy.transform.StaticTypesTransformation`,
+  `org.codehaus.groovy.transform.stc.EnumTypeCheckingExtension` — the existing enum-constant
+  rewrite this proposal generalises
+* `org.codehaus.groovy.runtime.typehandling.ShortTypeHandling#castToEnum`,
+  `org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport` — the String-to-enum coercion
+  whose positions (and value-blindness) motivate the design
+* link:GEP-27.html[GEP-27: Compact Closure and Lambda Compilation] — companion GEP in the same series
