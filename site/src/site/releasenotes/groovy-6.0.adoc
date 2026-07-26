@@ -3947,17 +3947,6 @@ Groovy 6 has been tested on JDK versions 17 through 27.
 version, ahead of that JDK's general release
 (https://issues.apache.org/jira/browse/GROOVY-12028[GROOVY-12028]).
 
-== Known issues
-
-The following issues were noticed after alpha-1 was released:
-
-* Missing `groovy.val.enabled` flag
-(https://issues.apache.org/jira/browse/GROOVY-11994[GROOVY-11994])
-* `groovydoc` CLI fails with "Unsupported Java Version: false" when `--javaVersion` omitted
-(https://issues.apache.org/jira/browse/GROOVY-11987[GROOVY-11987])
-
-These will be fixed in the next pre-release and are already fixed in the most recent snapshots.
-
 [[Groovy6.0-more-info]]
 == More information
 
