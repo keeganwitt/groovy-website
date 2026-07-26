@@ -13,7 +13,7 @@ In addition, it incorporates numerous new features and streamlines various legac
 |===
 a| NOTE: _WARNING:_
 Material on this page is still under development!
-We are currently working on alpha versions of Groovy 6.0 with a goal of gathering feedback on the language changes from our community. In addition, early versions assist other projects and tool vendors within the Groovy ecosystem to begin assessing the impact of moving to/supporting Groovy 6.0. Caution should be exercised if using new features as the details may change before final release.
+We are currently working on beta versions of Groovy 6.0 with a goal of gathering feedback on the language changes from our community. In addition, early versions assist other projects and tool vendors within the Groovy ecosystem to begin assessing the impact of moving to/supporting Groovy 6.0. Caution should be exercised if using new features as the details may change before final release.
 Some features described here as "incubating" may become stable before 6.0.0 final is released, others are expected to remain incubating for version 6. We don’t recommend using alpha versions or incubating features for production systems.
 |===
 
@@ -106,6 +106,14 @@ Keeps Groovy a first-class citizen on today's JVM: current JDK support, one-line
 
 - Tested across JDK 17–27; <<Groovy6.0-requirements,JDK 17>> is now the minimum supported runtime. Module import already mentioned.
 - <<joint-compilation-stubs,Joint Compilation Stub Improvements>>: AST-transform-generated members (`@Immutable`, `@Builder`, `@TupleConstructor`, `@Delegate`, ...) are now visible in generated stubs. Java code in mixed-language projects can finally call constructors and methods contributed by transforms.
+
+*_Security & Hardening_*
+
+This is the safest Groovy yet — a broad sweep of security hardening across the core and modules, secure-by-default where it counts.
+
+- <<xml-processing,Secure-by-default XML>> parsing (XXE/DTD protections) across the XML APIs.
+- SQL-injection defence in depth: the <<sql-injection-checker,`SqlInjectionChecker`>> at compile time plus `groovy-sql` rejection at runtime.
+- <<regex-timeout,Regex timeouts>> (`@SafeRegex`) guard against ReDoS, alongside JSON nesting-depth limits and stricter Grape coordinate validation.
 
 [[g6-new-modules]]
 == New Modules
@@ -788,6 +796,11 @@ Groovy 6: `def data = await api.getDataAsync('42')`.
 | `create { clientConfig { ... } }`
 |===
 
+For safety, requests -- and any redirects they follow -- are confined to
+the configured base URI, so a redirect cannot silently escape to a
+different host
+(https://issues.apache.org/jira/browse/GROOVY-12182[GROOVY-12182]).
+
 See the dochome6:http-builder.html[HTTP client user guide]
 for the full API and configuration options.
 
@@ -1003,6 +1016,36 @@ recursive method terminates.
 documentation only -- useful when an existing library already performs
 the validation and you want that intent clearer than javadoc alone.
 | https://issues.apache.org/jira/browse/GROOVY-12136[GROOVY-12136]
+
+| Multiple `@Ensures` per method
+| All postconditions on a method now fire; previously only the first
+`@Ensures` was woven. Postconditions are also honoured for a braceless
+`if` return (and under `@TailRecursive`), where they were previously
+dropped.
+| https://issues.apache.org/jira/browse/GROOVY-12083[GROOVY-12083],
+https://issues.apache.org/jira/browse/GROOVY-12079[GROOVY-12079]
+
+| Nested closures in conditions
+| Contract conditions may now contain nested closures (e.g.
+`every`/`collect` inside a pre/postcondition), which previously failed
+to compile or weave. Generic type parameters on closure parameters are
+also preserved, keeping type checking accurate inside conditions.
+| https://issues.apache.org/jira/browse/GROOVY-12059[GROOVY-12059],
+https://issues.apache.org/jira/browse/GROOVY-12071[GROOVY-12071]
+
+| Loop annotations under `@TypeChecked`
+| `@Invariant`/`@Decreases` on loops now compile under `@TypeChecked`
+(and `@CompileStatic`) instead of failing type checking. Loop invariants
+also resolve normal and `static` imports, and loop checks fire at points
+consistent with loop semantics.
+| https://issues.apache.org/jira/browse/GROOVY-12053[GROOVY-12053],
+https://issues.apache.org/jira/browse/GROOVY-12072[GROOVY-12072],
+https://issues.apache.org/jira/browse/GROOVY-12128[GROOVY-12128]
+
+| `@Synchronized` + contracts
+| A `@Synchronized` method carrying `@Ensures`/`@Invariant` (but no
+`@Requires`) no longer throws `ClassCastException` during weaving.
+| https://issues.apache.org/jira/browse/GROOVY-12084[GROOVY-12084]
 |===
 
 [[monadic-comprehensions]]
@@ -1300,6 +1343,33 @@ backed by tests -- and because the law is fully specified by the annotation,
 those tests are <<human-ai-reasoning,machine-actionable>> and can be
 auto-derived from the declaration.
 
+[[sql-injection-checker]]
+=== SqlInjectionChecker
+
+The `SqlInjectionChecker` extension
+(https://issues.apache.org/jira/browse/GROOVY-12187[GROOVY-12187])
+flags a common SQL-injection smell at compile time: a `GString` whose
+interpolated value is placed inside string quotes in a SQL query. Such a
+value is concatenated into the query text rather than bound as a
+`PreparedStatement` parameter, so quoting it defeats `groovy-sql`'s
+placeholder handling (CWE-89):
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.SqlInjectionChecker')
+void findUser(Sql sql, String name) {
+    sql.rows("SELECT * FROM users WHERE name = '$name'")  // flagged
+    sql.rows("SELECT * FROM users WHERE name = $name")    // OK -- bound as a parameter
+}
+----
+
+Like the other bundled checkers it lives in the `groovy-typecheckers`
+module and is activated via `@TypeChecked(extensions = ...)` or a global
+`ASTTransformationCustomizer`. It complements the runtime hardening in
+`groovy-sql`, which rejects the same quoted-interpolation pattern when a
+query executes (see <<Groovy6.0-breaking,Breaking changes>> and
+https://issues.apache.org/jira/browse/GROOVY-12118[GROOVY-12118]).
+
 === Feature summary
 
 [cols="1,3,1", options="header"]
@@ -1349,7 +1419,33 @@ Also recognises `@SideEffectFree`, `@Contract(pure = true)`, and `@Memoized`.
 require. Recognises `@Associative`/`@Reducer` declarations and
 `Monoid`/`Semigroup` carriers; configurable lenient/`strict` mode.
 | https://issues.apache.org/jira/browse/GROOVY-12013[GROOVY-12013]
+
+| gapi:groovy.typecheckers.SqlInjectionChecker[SqlInjectionChecker]
+| Flags a `GString` interpolation placed inside string quotes in a SQL
+query -- a value that is concatenated into the query text rather than
+bound as a parameter (SQL-injection risk, CWE-89).
+| https://issues.apache.org/jira/browse/GROOVY-12187[GROOVY-12187]
 |===
+
+[[regex-timeout]]
+== Regex Timeout Facility
+
+Catastrophic backtracking can make an otherwise innocuous regular
+expression run for a very long time on hostile input (ReDoS). The new
+gapi:groovy.transform.SafeRegex[@SafeRegex] transform
+(https://issues.apache.org/jira/browse/GROOVY-12122[GROOVY-12122]) bounds
+regex evaluation with a wall-clock timeout, throwing
+`groovy.util.regex.RegexTimeoutException` when a match exceeds it:
+
+[source,groovy]
+----
+@SafeRegex(millis = 250)
+def match(String input) {
+    input ==~ /(a+)+$/   // guarded -- throws RegexTimeoutException if it runs too long
+}
+----
+
+`millis` defaults to `1000`. Matching semantics are otherwise unchanged.
 
 [[human-ai-reasoning]]
 == Designed for Human and AI Reasoning
@@ -1884,6 +1980,12 @@ assert result.exitValue == 0
 var result = 'sleep 60'.execute().waitForResult(5, TimeUnit.SECONDS)
 ----
 
+Process output streams are now decoded using the system's native encoding
+rather than the JVM default charset, which is what most command-line
+tools actually emit. Set `-Dgroovy.process.encoding=<charset>` to override
+it explicitly
+(https://issues.apache.org/jira/browse/GROOVY-12155[GROOVY-12155]).
+
 === Asynchronous file I/O
 
 The `groovy-nio` module adds async file operations on `Path` that return
@@ -1922,6 +2024,17 @@ assert [major, minor, patch, qualifier] == ['6', '0', '0', 'beta-2']
 // so the same destructuring works whether or not it matched
 def (_all, ma, mi, pa, q) = '4.0.28'.findGroups(semver)
 assert [ma, mi, pa, q] == ['4', '0', '28', null]
+----
+
+For the balanced, properly-nested case that a plain regex cannot match on
+its own, the new `findBalancedGroups` GDK method returns the spans between
+a matching open/close pair (parentheses, brackets, tags, ...)
+(https://issues.apache.org/jira/browse/GROOVY-12133[GROOVY-12133]):
+
+[source,groovy]
+----
+'f(g(x), h(y))'.findBalancedGroups(/\(/, /\)/)
+// -> the outer group 'g(x), h(y)' and its nested groups
 ----
 
 === Locale-aware number formatting
@@ -2538,6 +2651,13 @@ The document exposes convenience properties -- `headings`,
 so nodes nested inside list items or block quotes are still found.
 A `text` property gives a plain-text projection of the whole
 document with formatting markers stripped.
+
+The slurper is resilient to malformed input, capping nesting depth
+(default `1000`) to avoid stack overflow on pathological documents. The
+limit is configurable per parser via `setMaxNestingDepth(int)` (a value
+`<= 0` disables the check) or globally with the
+`groovy.markdown.maxNestingDepth` system property
+(https://issues.apache.org/jira/browse/GROOVY-12183[GROOVY-12183]).
 
 === Extracting code blocks
 
@@ -3402,6 +3522,7 @@ lambda:
 def r = { println 'hello' } as (Runnable & Serializable)
 ----
 
+[[g6-other-core-api]]
 == Other Core API Changes
 
 * `ASTTransformationCustomizer` now supports annotations whose
@@ -3458,6 +3579,59 @@ shown only when compilation failed). This also applies to Ant's
 `<groovyc>` in-process compiles; the `groovy` script runner is
 deliberately left unchanged
 (https://issues.apache.org/jira/browse/GROOVY-12132[GROOVY-12132]).
+* The Parrot parser gains an optional *error-recovery* mode: instead of
+aborting at the first syntax error it collects multiple diagnostics and
+returns a partial AST, improving the IDE/tooling experience. A partial
+module is only returned when the error collector actually holds
+diagnostics, so a failed parse can never surface as silent success.
+Enable it with `CompilerConfiguration.setErrorRecoveryEnabled(true)` or
+`-Dgroovy.parser.error.recovery=true`
+(https://issues.apache.org/jira/browse/GROOVY-9192[GROOVY-9192]).
+* Compiler diagnostics for unbalanced delimiters are clearer: missing
+`)`, `]` and `}` now produce more descriptive messages with accurate
+caret positions
+(https://issues.apache.org/jira/browse/GROOVY-12169[GROOVY-12169]), and a
+`$` that is not followed by a valid interpolation inside a `GString`
+gives a targeted error rather than a generic one
+(https://issues.apache.org/jira/browse/GROOVY-12171[GROOVY-12171]).
+* Bytecode generation now runs a *peephole optimization* pass that
+rewrites short, local instruction sequences into cheaper equivalents,
+producing smaller and slightly faster bytecode with no behavioural change
+(https://issues.apache.org/jira/browse/GROOVY-12065[GROOVY-12065],
+https://issues.apache.org/jira/browse/GROOVY-12162[GROOVY-12162]).
+* *Experimental (link:../wiki/GEP-27.html[GEP-27])*: statically-compiled
+lambdas and eligible closures can be _hoisted_ to a method on the
+enclosing class instead of generating a per-instance class, reducing
+class count and allocation. Lambda hoisting is opt-in via
+`-Dgroovy.target.lambda.hoist=true`
+(https://issues.apache.org/jira/browse/GROOVY-12143[GROOVY-12143]);
+closure packing is opt-in via `@PackedClosures` or
+`-Dgroovy.target.closure.pack=true` under `@CompileStatic`
+(https://issues.apache.org/jira/browse/GROOVY-12151[GROOVY-12151]). Both
+default off; ineligible or escaping closures are unchanged, and the value
+stays a real `groovy.lang.Closure`. Adding
+`-Dgroovy.target.closure.pack.report=true` reports each closure that is
+declined for packing, with the reason.
+* *Reproducible builds*: several code-generation paths that previously
+emitted members in JVM hash order -- which varies across runs and
+platforms -- now emit them in a deterministic, source-encounter order.
+This covers method selection during static compilation
+(https://issues.apache.org/jira/browse/GROOVY-12156[GROOVY-12156]),
+covariant bridge methods
+(https://issues.apache.org/jira/browse/GROOVY-12157[GROOVY-12157]),
+`@AutoImplement` methods
+(https://issues.apache.org/jira/browse/GROOVY-12158[GROOVY-12158]),
+synthetic class-literal fields and accessors
+(https://issues.apache.org/jira/browse/GROOVY-12159[GROOVY-12159]),
+`@AnnotationCollector` members
+(https://issues.apache.org/jira/browse/GROOVY-12160[GROOVY-12160]) and
+annotation member ordering generally
+(https://issues.apache.org/jira/browse/GROOVY-12146[GROOVY-12146],
+https://issues.apache.org/jira/browse/GROOVY-12149[GROOVY-12149]), so
+identical sources now yield byte-identical class files.
+* Closure deserialization is hardened against a crafted owner/delegate
+reference cycle that could otherwise cause unbounded recursion
+(https://issues.apache.org/jira/browse/GROOVY-12109[GROOVY-12109]).
 
 == Other Module Changes
 
@@ -3515,6 +3689,13 @@ different encoding
 through to the JMX connector server/client rather than discarding it, so
 connector-specific options are honoured
 (https://issues.apache.org/jira/browse/GROOVY-12119[GROOVY-12119]).
+* *groovy-datetime*: `TimeCategory` gains two modern flavours -- a
+`java.time`-based category producing `Duration`/`Period` values for the
+modern date/time API, and a "dequirked" `java.util.Date` category that
+keeps the familiar DSL while smoothing over the legacy `Date`/`Calendar`
+rough edges. The original `groovy.time.TimeCategory` remains for backwards
+compatibility
+(https://issues.apache.org/jira/browse/GROOVY-12124[GROOVY-12124]).
 
 [[Groovy6.0-breaking]]
 == Breaking changes
@@ -3633,8 +3814,121 @@ effects that relied on the previous order may behave differently.
 `PreparedStatement` placeholder and is a SQL-injection risk, CWE-89) is
 now rejected with a `SQLException` rather than only warned about. Set
 `-Dgroovy.sql.injection.lenient=true` to restore the previous
-(less secure) behaviour as a porting aid.
+(less secure) behaviour as a porting aid. The same pattern can be caught
+earlier, at compile time, with the <<sql-injection-checker,SqlInjectionChecker>>
+type-checking extension
+(https://issues.apache.org/jira/browse/GROOVY-12187[GROOVY-12187]).
 (https://issues.apache.org/jira/browse/GROOVY-12118[GROOVY-12118])
+
+[[g6-system-properties]]
+== System Property Reference
+
+Groovy 6 introduces or changes a number of runtime feature switches. Each
+is a JVM system property, set on the command line with
+`-D<name>=<value>` (or via `System.setProperty` before the relevant code
+runs). This table collects the switches added or changed in this release;
+it does not repeat the compiler options already listed in the
+gapi:org.codehaus.groovy.control.CompilerConfiguration[CompilerConfiguration]
+javadoc.
+
+[cols="2,1,3,1", options="header"]
+|===
+| Property | Default | Effect | Ticket
+
+| `groovy.val.enabled`
+| `true`
+| `false` reverts the `val` contextual keyword to prior behaviour
+(porting aid -- see <<val-keyword>>).
+| https://issues.apache.org/jira/browse/GROOVY-9308[GROOVY-9308],
+https://issues.apache.org/jira/browse/GROOVY-11994[GROOVY-11994]
+
+| `groovy.truth.file.exists.enabled`
+| `true`
+| `false` makes any non-`null` `File`/`Path` truthy (Groovy 4 behaviour)
+instead of the existence-aware Groovy 5+ semantics.
+| https://issues.apache.org/jira/browse/GROOVY-11996[GROOVY-11996]
+
+| `groovy.parser.error.recovery`
+| off
+| `true` enables Parrot parser error recovery: collect multiple syntax
+errors and return a partial AST (also
+`CompilerConfiguration.setErrorRecoveryEnabled`).
+| https://issues.apache.org/jira/browse/GROOVY-9192[GROOVY-9192]
+
+| `groovy.indy.setproperty`
+| `true`
+| `false` restores static `ScriptBytecodeAdapter.setProperty` codegen
+instead of `invokedynamic` property writes.
+| https://issues.apache.org/jira/browse/GROOVY-12138[GROOVY-12138]
+
+| `groovy.indy.callsite.cleaner.inline`
+| `false`
+| `true` performs inline-cache cleanup on the calling thread instead of
+the background `PIC-Cleaner` daemon (useful for tests and deterministic
+concurrency checkers).
+| https://issues.apache.org/jira/browse/GROOVY-12092[GROOVY-12092]
+
+| `groovy.target.lambda.hoist`
+| `false`
+| _Experimental (GEP-27)_: hoist eligible statically-compiled lambdas to
+a method on the enclosing class (see <<g6-other-core-api,Other Core API
+Changes>>).
+| https://issues.apache.org/jira/browse/GROOVY-12143[GROOVY-12143]
+
+| `groovy.target.closure.pack`
+| `false`
+| _Experimental (GEP-27)_: pack eligible closures under `@CompileStatic`
+into a shared adapter.
+| https://issues.apache.org/jira/browse/GROOVY-12151[GROOVY-12151]
+
+| `groovy.target.closure.pack.report`
+| `false`
+| Diagnostic companion to closure packing: report each closure declined
+for packing, with the reason.
+| https://issues.apache.org/jira/browse/GROOVY-12151[GROOVY-12151]
+
+| `groovy.sql.injection.lenient`
+| `false`
+| `true` restores warn-only handling of quoted `GString` interpolation in
+`groovy-sql` (less secure -- see <<Groovy6.0-breaking,Breaking changes>>).
+| https://issues.apache.org/jira/browse/GROOVY-12118[GROOVY-12118]
+
+| `groovy.json.maxNestingDepth`
+| `1000`
+| Maximum nesting depth for `JsonSlurper`; a value `<= 0` disables the
+check.
+| https://issues.apache.org/jira/browse/GROOVY-12064[GROOVY-12064]
+
+| `groovy.markdown.maxNestingDepth`
+| `1000`
+| Maximum nesting depth for `MarkdownSlurper`; a value `<= 0` disables the
+check.
+| https://issues.apache.org/jira/browse/GROOVY-12183[GROOVY-12183]
+
+| `groovy.process.encoding`
+| native encoding
+| Charset used to decode subprocess output streams (`text`, `in`, ...);
+defaults to the system's native encoding.
+| https://issues.apache.org/jira/browse/GROOVY-12155[GROOVY-12155]
+
+| `groovy.async.parallelism`
+| `256`
+| Maximum threads in the async/await cached daemon pool (the JDK 17--20
+fallback path used when virtual threads are unavailable).
+| https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381],
+https://issues.apache.org/jira/browse/GROOVY-12181[GROOVY-12181]
+
+| `groovy.extension.disable`
+| --
+| Comma-separated GDK extension-method signatures to disable, e.g.
+`groupBy(MutableList)` (see <<g6-extension-disable,Selectively Disabling
+Extension Methods>>).
+| https://issues.apache.org/jira/browse/GROOVY-11892[GROOVY-11892]
+|===
+
+NOTE: The `SqlInjectionChecker` compile-time check
+(<<sql-injection-checker>>) is not a system property; it can be suppressed
+at a call site with `@SuppressWarnings("groovy.sql.injection")`.
 
 == Under exploration (before GA release)
 
