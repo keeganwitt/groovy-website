@@ -118,12 +118,19 @@ This is the safest Groovy yet — a broad sweep of security hardening across the
 [[g6-new-modules]]
 == New Modules
 
-Groovy 6 ships eight new optional modules, plus a long-standing piece
-of core (Grape's Ivy backend) is split out into its own module:
+Groovy 6 ships eight new optional modules, plus two long-standing pieces
+of core (Grape's Ivy backend and the classic call-site caching runtime)
+split out into their own modules:
 
 [cols="1,3", options="header"]
 |===
 | Module | Purpose
+
+| `groovy-callsite`
+| Classic (non-`invokedynamic`) call-site caching runtime -- previously
+in core, now its own module; only needed when running with
+`invokedynamic` disabled
+(https://issues.apache.org/jira/browse/GROOVY-12185[GROOVY-12185])
 
 | `groovy-concurrent-java`
 | Standalone Java library exposing the `groovy.concurrent` toolkit
@@ -162,7 +169,7 @@ https://github.com/ReactiveX/RxJava[RxJava 3]
 | Groovy runner for JUnit 6 (Jupiter) tests as scripts
 |===
 
-Each module has a dedicated section below covering its public API, examples, and any migration notes.
+Most of these modules have a dedicated section below covering their public API, examples, and any migration notes.
 
 [[async-await]]
 == Native Async/Await (incubating)
@@ -3819,6 +3826,16 @@ earlier, at compile time, with the <<sql-injection-checker,SqlInjectionChecker>>
 type-checking extension
 (https://issues.apache.org/jira/browse/GROOVY-12187[GROOVY-12187]).
 (https://issues.apache.org/jira/browse/GROOVY-12118[GROOVY-12118])
+* A `for`-in (enhanced for-each) loop variable captured by a deferred
+closure, lambda or anonymous inner class now uses a *fresh binding per
+iteration*, so the capture observes the value from the iteration that
+created it (as Java does for enhanced-`for`/lambda capture) rather than
+the loop's final value. Assignments to the loop variable within the same
+iteration remain visible to captures made in that iteration; classic
+`for`/`while` loops are unchanged. To restore the historical single
+shared binding, set `-Dgroovy.forin.per.iteration.capture=false` or call
+`CompilerConfiguration.setForInPerIterationCaptureEnabled(false)`
+(https://issues.apache.org/jira/browse/GROOVY-11792[GROOVY-11792]).
 
 [[g6-system-properties]]
 == System Property Reference
@@ -3847,6 +3864,13 @@ https://issues.apache.org/jira/browse/GROOVY-11994[GROOVY-11994]
 | `false` makes any non-`null` `File`/`Path` truthy (Groovy 4 behaviour)
 instead of the existence-aware Groovy 5+ semantics.
 | https://issues.apache.org/jira/browse/GROOVY-11996[GROOVY-11996]
+
+| `groovy.forin.per.iteration.capture`
+| `true`
+| `false` restores the legacy single shared binding for a `for`-in loop
+variable captured by a closure/lambda/AIC (every capture sees the loop's
+final value) instead of per-iteration capture.
+| https://issues.apache.org/jira/browse/GROOVY-11792[GROOVY-11792]
 
 | `groovy.parser.error.recovery`
 | off
