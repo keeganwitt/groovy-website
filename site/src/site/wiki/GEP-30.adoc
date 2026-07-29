@@ -1,0 +1,407 @@
+= GEP-30: Isolating java.beans and java.desktop from the Groovy Core Runtime
+
+:icons: font
+
+.Metadata
+****
+[horizontal,options="compact"]
+*Number*:: GEP-30
+*Title*:: Isolating java.beans and java.desktop from the Groovy Core Runtime
+*Version*:: 1
+*Type*:: Feature
+*Status*:: Draft
+*Target*:: Groovy 7.0
+*Comment*:: Remove the hard dependency of the always-loaded Groovy core spine (metaclass system,
+compiler, `GroovyObject` hierarchy) on `java.beans` — and hence on the `java.desktop` module that
+contains it — by introducing a small internal bean-introspection abstraction with a
+`java.beans`-backed default and a reflection-only fallback. Features whose *public API* exposes
+`java.beans` types (`@Bindable`/`@Vetoable`, observable collections) keep their API but become
+lazily-loaded leaves that fail fast with a clear message when the platform lacks beans support.
+Benefits three environments at once: Android (today served by a shaded openbeans whose gaps are
+only discovered at runtime), jlink-minimized server runtimes that omit `java.desktop`, and
+GraalVM native-image (smaller closed-world reachability, less reflection metadata). Behavior on
+a full desktop JDK is unchanged.
+*Leader*:: Paul King
+*Created*:: 2026-07-29
+*Last modification*:: 2026-07-29
+****
+
+[width="80%",align="center"]
+|===
+a| NOTE: _WARNING:_
+Material on this page is still under development!
+This proposal targets Groovy 7.0 and is an early outline. The final version may differ
+significantly from the current draft, but having this draft available allows us to gather
+early feedback and iterate on the design. We welcome feedback and discussion, but please
+keep in mind that the details are not yet finalized.
+|===
+
+== Abstract
+
+`java.beans` is a desktop-era API: since JDK 9 it lives in the `java.desktop` module alongside
+AWT and Swing, and platforms that are not desktops — Android, jlink-minimized server images,
+GraalVM native-image closed worlds — either omit it entirely or pay for it disproportionately.
+Groovy core today reaches for `java.beans` in its most load-bearing places: the default
+metaclass implementation, the bytecode `Verifier`, and the record-type transform. In practice,
+*loading Groovy loads java.desktop* and *compiling a record requires java.desktop to be present*.
+
+The dependency is small and fully mapped: exactly **fifteen** `java.beans` types (verified at
+the member level against the grooid jar during the GROOVY-12199 packaging work) plus two direct
+desktop stragglers (`java.awt.Image` in the record transform's generated `BeanInfo` companion,
+and a Swing-based lexer debugging tool inside the core jar). Because the surface is this small,
+the modern answer is not to shade a substitute implementation underneath it (the Android
+approach since 2014, via relocated openbeans) but to *retire the dependency from the core
+spine*: a minimal internal introspection abstraction, `java.beans`-backed where the platform has
+it, reflection-only where it does not, and lazily-isolated leaves for the few features whose
+public API is inherently beans-shaped.
+
+The one-line pitch: *Groovy core should run — and compile records — on any JVM subset that can
+run `java.base`.*
+
+== Motivation
+
+=== Where Groovy stands today: the verified inventory
+
+The complete `java.beans`/`java.desktop` surface of the core jar (Groovy 6 master, 2026-07-29),
+grouped by how it is reached:
+
+[cols="3,3,2,2",options="header"]
+|===
+|Usage site |Types used |When it executes |Severity without java.desktop
+
+|`groovy.lang.MetaClassImpl`, `o.c.g.runtime.metaclass.ClosureMetaClass`
+|`Introspector`, `BeanInfo`, `PropertyDescriptor`, `MethodDescriptor`, `EventSetDescriptor`
+|Runtime — metaclass initialization and JavaBeans event-support detection
+|*Spine.* The default MOP cannot initialize
+
+|`o.c.g.runtime.InvokerHelper`
+|`Introspector.flushFromCaches`
+|Runtime — class-info cache eviction
+|*Spine.* Loaded by essentially every Groovy program
+
+|`o.c.g.classgen.Verifier`
+|`java.beans.Transient` — a *class literal in a static initializer* (`TRANSIENT_ANNOTATION`,
+from GROOVY-8284)
+|Compile time — every class compilation
+|*Spine.* The compiler cannot load; on Android this has silently meant "no on-device
+compilation" since 2020, because the relocated `groovyjarjaropenbeans.Transient` does not exist
+in openbeans 1.0.2
+
+|`groovy.lang.GroovyObjectSupport`
+|`@Transient` annotation on `getMetaClass()`
+|Class-file metadata only
+|Benign — reflection silently drops unresolvable annotation types, but the marker is then
+invisible to introspectors
+
+|`o.c.g.transform.RecordTypeASTTransformation`
+|`SimpleBeanInfo`, `BeanDescriptor`, `MethodDescriptor`, `PropertyDescriptor`,
+`EventSetDescriptor`, *`java.awt.Image`* — class literals in static finals; generates a
+`BeanInfo` companion class for records
+|Compile time — any record declaration
+|*Spine-adjacent.* Compiling a record hard-requires java.desktop
+
+|`o.c.g.transform.BuilderASTTransformation`
+|`Introspector`, `BeanInfo`, `PropertyDescriptor`, `IntrospectionException`
+|Compile time — only when `@Builder` is applied
+|Leaf — but the failure would be a raw `NoClassDefFoundError`
+
+|`groovy.beans.BindableASTTransformation` / `VetoableASTTransformation` (+ stubbers)
+|`PropertyChangeSupport`, `PropertyChangeListener`, `VetoableChangeSupport`,
+`VetoableChangeListener`, `PropertyVetoException`
+|Compile time when `@Bindable`/`@Vetoable` applied; *generated user code* calls the support
+classes at runtime
+|Leaf — note these live in *core*, not groovy-swing
+
+|`groovy.util.ObservableList` / `ObservableMap` / `ObservableSet`
+|`PropertyChangeSupport`, `PropertyChangeEvent`, `PropertyChangeListener` — *in public
+signatures*
+|Runtime, only if instantiated
+|Leaf with API exposure — signatures cannot change compatibly
+
+|`org.apache.groovy.antlr.LexerFrame`
+|`javax.swing.*`, `java.awt.*` — a Swing debugging UI
+|Only when explicitly launched
+|Leaf — but it ships inside the core jar
+|===
+
+Everything else that touches `java.beans` (groovy-swing bindings, groovy-console, groovydoc
+tooling) lives in modules whose whole purpose is desktop UI; they are out of scope and correct
+as-is.
+
+Two facts make this inventory actionable. First, it is *complete and member-verified*: during
+the GROOVY-12199 shadow-migration review, every class *and every method/field reference* from
+Groovy code into the beans namespace was resolved against openbeans 1.0.2 — fourteen of the
+fifteen types resolve fully; only `java.beans.Transient` is missing. Second, it is *small*: the
+spine portion is five files, and the beans API they actually consume (property/event
+descriptors, `decapitalize`, cache flush, a marker annotation) is a fraction of `java.beans`.
+
+=== Three environments pay for this today
+
+*Android.* Android has never shipped `java.beans` (beyond a vestigial `PropertyChange*` subset).
+The grooid jar therefore bundles openbeans relocated to `groovyjarjaropenbeans.*` and rewrites
+every `java.beans` reference — machinery that GROOVY-12199 just migrated from ant-jarjar to
+shadow, where a string-relocation subtlety (`Java9.JAVA8_PACKAGES()`) already required a
+targeted `skipStringConstants` carve-out. Shading *works*, but its failure mode is silent: the
+`Transient` gap sat unnoticed for six years because nothing verifies the relocated world is
+closed. Retiring the spine dependency removes the need for the relocation (and openbeans) for
+every app that does not itself use the beans-shaped leaves.
+
+*Minimized server runtimes.* `jlink`-built images routinely omit `java.desktop` — it is one of
+the heaviest platform modules, and headless services have no use for it. Groovy on such an image
+fails at metaclass initialization. There is no workaround short of adding the module back;
+Groovy is the reason a headless service ships AWT.
+
+*GraalVM native-image.* `Introspector`-based introspection needs reflection metadata for every
+introspected type, and reachability of `java.beans` pulls desktop classes into the closed-world
+analysis. A reflection-only introspector on a documented internal seam is easier to supply
+metadata for, easier to initialize at build time, and shrinks images. (This GEP does not promise
+full native-image support — dynamic Groovy has larger obstacles there — but it removes one
+structural one, and `@CompileStatic`-heavy applications benefit immediately.)
+
+=== Why now
+
+The `java.beans` usage predates the module system; when it was written, "the JDK" was one
+indivisible thing. Post-JDK-9, `java.desktop` is severable and increasingly severed. Meanwhile
+the historical reasons Groovy leaned on `Introspector` have weakened: the MOP's own
+property/method model (`MetaClass`, `MetaProperty`, `CachedClass`) has long been the primary
+mechanism, with `java.beans` supplying supplementary event-set detection and descriptor
+compatibility. The remaining coupling is habit plus a thin slice of genuine function — exactly
+the shape an internal abstraction handles well.
+
+== Proposal
+
+=== A three-tier classification
+
+Every current usage falls into one of three tiers, with different obligations:
+
+[cols="1,3,3",options="header"]
+|===
+|Tier |Definition |Obligation
+
+|*Spine*
+|Code loaded by essentially every Groovy program or compilation: `MetaClassImpl`,
+`ClosureMetaClass`, `InvokerHelper`, `Verifier`, `GroovyObjectSupport`,
+`RecordTypeASTTransformation`
+|Must neither load nor link against `java.beans`/`java.desktop` types when they are absent.
+Full behavior preserved when they are present
+
+|*Leaf*
+|Opt-in features whose implementation (`@Builder` introspection strategy) or public API
+(`@Bindable`/`@Vetoable`, `Observable*` collections) is beans-shaped
+|API unchanged. Classes remain lazily loaded; when used on a platform without beans support they
+fail fast with a *clear, documented* error naming the feature and the missing module — never a
+raw `NoClassDefFoundError` from deep inside generated code
+
+|*Desktop tooling*
+|`LexerFrame` and anything else that is a UI
+|Moved out of the core jar (to groovy-console or a dev-tools artifact), or failing that, loaded
+only reflectively
+|===
+
+=== The introspection seam
+
+Introduce a minimal internal abstraction — working name
+`org.apache.groovy.beans.IntrospectionService` (final naming during implementation; hanging it
+off `VMPlugin`, which already abstracts platform variance, is the natural alternative) — with
+exactly the operations the spine consumes:
+
+* property descriptors for a class (name, type, read/write methods), honouring the transient
+  marker;
+* event-set detection (the `add*Listener`/`remove*Listener` pair recognition `MetaClassImpl`
+  performs today);
+* `decapitalize` and cache-flush hooks (`InvokerHelper.flushFromCaches`);
+* transient-marker recognition (see below).
+
+Two implementations:
+
+* *`java.beans`-backed* (default when `java.desktop` is present): delegates to `Introspector`
+  and friends, preserving today's behavior bit-for-bit, including interop with user-supplied
+  custom `BeanInfo` classes — this is the compatibility anchor.
+* *Reflection-only* (selected automatically when `java.beans` is absent; forceable via a system
+  property for testing): implements the same contract from `java.lang.reflect` alone. It does
+  *not* honour custom `BeanInfo` classes — that is inherent, documented, and irrelevant on the
+  platforms where it activates (they cannot express custom `BeanInfo` today either).
+
+Selection is a one-time reflective probe at startup (`Class.forName("java.beans.Introspector")`
+guarded, never a static link), cached, with the chosen implementation exposed for diagnostics.
+
+=== Spine-specific fixes
+
+* *`Verifier`*: replace the `ClassHelper.make(Transient.class)` class literal with a name-based
+  `ClassHelper.make("java.beans.Transient")` (no class loading), or — preferable if review
+  agrees — introduce `groovy.transform.Transient` as the marker Groovy itself recognises, with
+  `java.beans.Transient` still emitted *additionally* when the platform has it. The choice
+  affects only what annotation generated `getMetaClass()` methods carry; both variants remove
+  the class-load-time link. Either way the emitted marker is preserved on beans-capable
+  platforms because real consumers still honour it: `Introspector`/`XMLEncoder` (the original
+  GROOVY-8284 driver) and Jackson's getter-based property discovery (which respects
+  `@java.beans.Transient` since 2.6). Field-based serializers are unaffected throughout — the
+  generated `metaClass` field already carries `ACC_TRANSIENT`.
+* *`RecordTypeASTTransformation`*: move the `SimpleBeanInfo`/`BeanDescriptor`/`Image` class
+  literals out of static finals into the code path that actually generates the `BeanInfo`
+  companion, and generate that companion only when the introspection seam reports beans support
+  (or when explicitly requested via `@RecordOptions`). Compiling a record then requires only
+  `java.base`; the companion remains generated by default on desktop JDKs.
+* *`MetaClassImpl` / `ClosureMetaClass`*: route descriptor and event-set queries through the
+  seam. This is the delicate migration — the existing `java.beans` path must remain the default
+  implementation precisely so that behavior (including descriptor caching and custom `BeanInfo`
+  honouring) is unchanged where it matters. Golden tests comparing full property/event maps
+  before and after, across a corpus of representative classes, gate this phase.
+* *`GroovyObjectSupport`*: annotation usage may stay (annotations are metadata; they do not
+  force loading), aligned with whichever marker decision `Verifier` lands on.
+* *`BuilderASTTransformation`*: replace compile-time `Introspector` use with the seam or with
+  Groovy's own AST-level property enumeration (which the other builder strategies already use).
+
+=== Verification is part of the proposal
+
+The GROOVY-12199 lesson is that this class of dependency regresses *silently*. Two standing
+guards:
+
+* a CI job that runs the core spine test subset on a `jlink` runtime built *without*
+  `java.desktop` — compiling classes and records, initializing metaclasses, exercising the MOP;
+* an ArchUnit-style structural test over the core jar asserting that no class outside an
+  allowlist (the leaf tier) references `java.beans`/`java.awt`/`javax.swing` types in its
+  constant pool — the same constant-pool analysis used to produce this GEP's inventory,
+  made permanent.
+
+== Design principles
+
+* *Behavior-identical where java.desktop exists.* The default path stays `java.beans`-backed;
+  desktop and server users on full JDKs see no observable change, including custom `BeanInfo`
+  interop.
+* *Isolate, don't reimplement the world.* The seam's contract is the handful of operations
+  Groovy actually uses — not a general beans replacement, not a public API. Internal (`@Internal`,
+  `org.apache.groovy.*` namespace), so it can evolve.
+* *Leaves keep their API; failures name the feature.* No signature of `ObservableList` or
+  `@Bindable`-generated code changes. The compatibility cost of purging beans types from public
+  APIs is out of all proportion to the benefit, and lazy class loading already gives the
+  isolation — what is missing is only the *diagnostic quality* when the platform cannot support
+  the feature.
+* *No new modules, no new artifacts, no packaging redesign.* Android variant publishing, grooid
+  retirement, and native-image metadata shipping are follow-on opportunities this GEP enables
+  but does not undertake.
+
+== Groovy 7.0 deliverables
+
+[cols="1,3,4",options="header"]
+|===
+|Phase |What ships |Notes
+
+|1
+|Spine link-severing: `Verifier` marker fix, `RecordTypeASTTransformation` lazy/conditional
+`BeanInfo` companion, `InvokerHelper` guard; the desktop-less `jlink` CI job proving "core
+loads, classes and records compile"
+|Small, independent, low-risk changes; the CI job locks them in. The `Verifier` fix also repairs
+on-device compilation for Android (broken since 2020)
+
+|2
+|The introspection seam: interface, `java.beans`-backed default, reflection-only fallback,
+selection probe; `MetaClassImpl`/`ClosureMetaClass`/`BuilderASTTransformation` migrated onto it;
+golden-equivalence test corpus
+|The bulk of the work and review attention; behavior-identical default is the acceptance
+criterion
+
+|3
+|Leaf hygiene: fail-fast diagnostics for `@Bindable`/`@Vetoable`/`Observable*` on beans-less
+platforms; `LexerFrame` relocated out of core; the constant-pool structural test made permanent
+|Mechanical once tiers are agreed
+
+|4 (stretch)
+|Grooid packaging simplification: relocation and openbeans bundling become leaf-only (or drop
+entirely with leaves documented as unsupported on Android); GraalVM reachability-metadata for
+the reflection-only introspector
+|Follow-on value; can trail into 7.x without blocking the GEP
+|===
+
+== Excluded and deferred features
+
+[cols="2,1,3",options="header"]
+|===
+|Feature |Status |Rationale
+
+|Removing `java.beans` types from public APIs (`ObservableList` signatures, `@Bindable`
+semantics) |Not planned |Binary and source compatibility cost vastly exceeds benefit; lazy
+loading already isolates them
+
+|A public bean-introspection API |Not planned |The seam is internal; a public API would freeze
+exactly the surface this GEP exists to keep flexible
+
+|Full GraalVM native-image support |Out of scope |Dynamic Groovy has independent obstacles
+(runtime class generation, reflective dispatch); this GEP removes one structural blocker only
+
+|Android variant publishing via Gradle Module Metadata (replacing the grooid classifier),
+indy-backend-on-ART work |Deferred |Real opportunities revealed by the same analysis, but
+packaging/backend concerns separate from dependency isolation
+
+|Extending openbeans (e.g. adding `Transient` in a 1.0.3) |Superseded |Worth doing
+opportunistically for Groovy 5/6 grooid users, but this GEP removes the reason to need it
+
+|`java.util.logging`, `javax.script` and other non-`java.base` audit work |Deferred |A
+follow-up audit using the same constant-pool tooling may propose more; this GEP deliberately
+stays on the beans/desktop seam where the evidence is complete
+|===
+
+== Compatibility and impact
+
+=== Backwards compatibility
+
+No public API signatures change. On a full JDK, the default implementation preserves current
+behavior including custom `BeanInfo` interop; the golden-equivalence corpus is the gate. The
+only intentionally observable changes are on platforms where the current behavior is *failure*:
+clear diagnostics instead of `NoClassDefFoundError`, and working compilation where it was
+impossible.
+
+=== Binary compatibility
+
+Spine classes keep their public members (per the project's compatibility policy for
+`classgen`/`ast` packages). The `BeanInfo` companion class for records remains generated by
+default on desktop JDKs; a record compiled on a beans-less platform simply lacks the companion —
+code reflectively looking it up must already handle its absence (pre-Groovy-4-record classes
+never had one).
+
+=== Tooling and documentation
+
+joint-compilation stub generation, Groovydoc, and IDEs are unaffected (no syntax or AST-shape
+changes). Documentation gains one page: which Groovy features require `java.desktop`, what the
+failure looks like without it, and how the introspection fallback differs (custom `BeanInfo`
+only). The Android/grooid README notes the phase-4 simplification when it lands.
+
+== Alternatives considered
+
+* *Keep shading (status quo).* Proven for Android, but it addresses only Android, adds a
+  maintenance surface of its own (GROOVY-12199's `skipStringConstants` carve-out; the silent
+  six-year `Transient` gap), and does nothing for jlink or native-image. Rejected as the
+  *primary* mechanism; retained during transition and for leaves.
+* *Depend on openbeans everywhere.* Inverts the problem: desktop users lose custom `BeanInfo`
+  interop and gain a third-party dependency in exchange for uniformity nobody asked for.
+  Rejected.
+* *Ask the JDK/desugaring ecosystem to supply java.beans.* `desugar_jdk_libs` deliberately
+  excludes beans as non-Android API surface, and no JDK effort exists to split beans out of
+  `java.desktop` (JEP 200 fixed the module graph in 2014). Waiting is not a plan. Rejected.
+* *Purge beans from public APIs too (maximal version).* Cleanest end state, Groovy-8-sized
+  compatibility break, and the leaves involved are low-traffic. The tiered design captures ~all
+  of the value at ~none of the cost. Rejected for 7.0; re-evaluable later with usage data.
+
+== References
+
+* https://github.com/apache/groovy/pull/2740[PR #2740 / GROOVY-12199] — jarjar→shadow migration
+  whose review produced the member-level verified inventory this GEP is built on (15 types;
+  openbeans 1.0.2 covers 14; `java.beans.Transient` missing)
+* https://issues.apache.org/jira/browse/GROOVY-8284[GROOVY-8284] — origin of the
+  `java.beans.Transient` class literal in `Verifier` (the current on-device-compilation blocker
+  on Android)
+* https://openjdk.org/jeps/200[JEP 200: The Modular JDK] — `java.beans` placed in
+  `java.desktop`
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/module-summary.html[`java.desktop`
+  module summary] — the module Groovy core currently cannot run without
+* https://developer.android.com/studio/write/java8-support-table[Android core library
+  desugaring coverage] — `java.beans` absent from `desugar_jdk_libs`, confirming no
+  toolchain-side fix is coming
+* https://github.com/melix/openbeans[openbeans] — the Apache-Harmony-derived shim bundled into
+  the grooid jar today (`me.champeau.openbeans:openbeans:1.0.2`)
+* https://www.graalvm.org/latest/reference-manual/native-image/metadata/[GraalVM reachability
+  metadata] — the mechanism the reflection-only introspector simplifies
+* `groovy.lang.MetaClassImpl`, `org.codehaus.groovy.classgen.Verifier`,
+  `org.codehaus.groovy.transform.RecordTypeASTTransformation`,
+  `groovy.beans.BindableASTTransformation`, `groovy.util.ObservableList` — the inventory's
+  primary sites in-tree
