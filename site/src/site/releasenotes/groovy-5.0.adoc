@@ -1278,6 +1278,15 @@ our behavior, like Java's, follows the behavior of the `remainder` method.
 In Groovy 5, operator overloading for `%` is now handled by the `remainder` method.
 Fallback behavior is supported and workarounds exist for folks already using the `mod` method.
 (link:https://issues.apache.org/jira/browse/GROOVY-10800[GROOVY-10800])
+* Groovy classes are now compiled with JEP 181 nest host and nest members
+attributes, as Java has done since JDK 11. Outer classes, inner classes,
+and closures within them form a nest and can access each other's private
+members directly, so the synthetic access ("bridge") methods that were
+previously generated to provide that access under static compilation are
+no longer emitted. This should be invisible to typical users, but
+bytecode-level tools, and any code relying on the synthetic accessor
+methods via reflection, may need adjusting.
+(link:https://issues.apache.org/jira/browse/GROOVY-10687[GROOVY-10687])
 * It is now possible to create a custom class loader that extends `GroovyClassLoader` which
 uses a different cache class for the source cache.
 Anyone doing this and relying on the specific type for the protected `sourceCache` field should change their
@@ -1319,7 +1328,7 @@ Groovy 5 has been tested on JDK versions 11 through 25.
 You can browse all the link:../changelogs/changelog-5.0.0-unreleased.html[tickets closed for Groovy 5.0 in JIRA].
 
 [[Groovy5.0releasenotes-5.0.7]]
-== Addendum for 5.0.7 (pending)
+== Addendum for 5.0.7
 
 * The Groovy 5.0 change to `File`/`Path` truthiness -- whereby a
 non-existent file is _falsy_ -- can be reverted as a porting aid by
@@ -1328,3 +1337,14 @@ to `false`, any non-`null` `File` or `Path` reference is truthy
 (matching Groovy 4 behaviour); the default (`true`) preserves the
 Groovy 5 existence-aware semantics
 (https://issues.apache.org/jira/browse/GROOVY-11996[GROOVY-11996]).
+
+[[Groovy4.0releasenotes-5.0.8]]
+== Addendum for 5.0.8
+
+* Groovy 5.0.8 bumped the ASM version so that it now will read classes
+created on later JDK versions: JDK26 and 27 (currently in EA).
+Less extensive testing has occurred for Groovy 5 on these
+JDK versions and in particular, the Groovy Console is
+known not to work on JDK26+. Switch to Groovy 6 (currently in beta) or use JDK versions up to 25
+if using the Groovy Console in Groovy 5. A future Groovy 5 version is planned
+to support the Groovy Console.

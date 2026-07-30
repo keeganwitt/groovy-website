@@ -31,7 +31,8 @@ Closes Groovy's biggest concurrency gap: asynchronous code you read top to botto
 
 *_<<concurrency-toolkit,Integrated Concurrency Toolkit>> (incubating)_*
 
-Gathers high-level concurrency — agents, actors, dataflow, channels and parallel collections — into one coherent package, so you pick the right tool for the job instead of hand-rolling threads, and it's callable from Java too.
+Gathers high-level concurrency — agents, actors, dataflow, channels and parallel collections — into one coherent package, so you pick the right tool for the job instead of hand-rolling threads, and it's callable from Java too. Previous users of https://gpars.org/[GPars] will find much of its functionality here, but now aligned with modern paradigms like virtual-thread and structured
+concurrency support.
 
 - Unified `groovy.concurrent` package: agents, actors, dataflow variables, channels, and parallel collections.
 - `@ActiveObject` adds actor semantics to ordinary classes — no message protocols to hand-write.
@@ -3621,6 +3622,15 @@ shown only when compilation failed). This also applies to Ant's
 `<groovyc>` in-process compiles; the `groovy` script runner is
 deliberately left unchanged
 (https://issues.apache.org/jira/browse/GROOVY-12132[GROOVY-12132]).
+* *Check-only compilation*: `CompilerConfiguration` gains a `targetPhase`
+property giving the last phase to be processed when
+`CompilationUnit.compile()` is called without an explicit phase (the
+default remains all phases). Setting an earlier phase such as
+`Phases.INSTRUCTION_SELECTION` reports parse, resolution, and static
+type-checking errors without generating any class files. The new
+`groovyc --check` option is shorthand for exactly that, giving a faster
+feedback loop for editors, CI checks, and coding agents
+(https://issues.apache.org/jira/browse/GROOVY-12204[GROOVY-12204]).
 * The Parrot parser gains an optional *error-recovery* mode: instead of
 aborting at the first syntax error it collects multiple diagnostics and
 returns a partial AST, improving the IDE/tooling experience. A partial
@@ -3674,6 +3684,14 @@ identical sources now yield byte-identical class files.
 * Closure deserialization is hardened against a crafted owner/delegate
 reference cycle that could otherwise cause unbounded recursion
 (https://issues.apache.org/jira/browse/GROOVY-12109[GROOVY-12109]).
+* Type-use (`ElementType.TYPE_USE`) annotations are now ingested when
+reading already compiled Java or Groovy classes, where they reside in
+type-annotation bytecode attributes rather than on member declarations.
+Annotation-driven tooling sees the same annotations whether a class
+comes from source or from a jar -- in particular, the `NullChecker`
+type checking extension now recognises JSpecify-style nullability
+annotations in compiled dependencies on the classpath
+(https://issues.apache.org/jira/browse/GROOVY-12206[GROOVY-12206]).
 
 == Other Module Changes
 

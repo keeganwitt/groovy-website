@@ -1307,3 +1307,12 @@ With the Java plan to phase out security policy framework (link:https://openjdk.
 out this optional support. In the meantime, users could expect warning
 messages if using such features and potentially exceptions in JDK 18 or 19.
 * Of particular note around security exceptions (see previous point), when using `groovysh` on JDK18 or JDK19, users should set `JAVA_OPTS` to `-Djava.security.manager=allow`. The `groovysh` tool uses a security manager to prohibit calls to `System::exit`. Alternative APIs to deal with this scenario are expected to emerge at some point and `groovysh` will move to those when available.
+
+[[Groovy4.0releasenotes-4.0.33]]
+== Addendum for 4.0.33
+
+* Groovy 4.0.33 bumped the ASM version so that it now will read classes
+created on later JDK versions: JDK26 and 27. Less extensive testing has occurred
+for Groovy 4 on these JDK versions and in particular, the Groovy Console is
+known not to work on JDK26+. Switch to Groovy 5/6 or use JDK versions up to 25
+if using the Groovy Console in Groovy 4.
