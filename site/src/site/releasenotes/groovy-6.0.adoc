@@ -1434,6 +1434,41 @@ bound as a parameter (SQL-injection risk, CWE-89).
 | https://issues.apache.org/jira/browse/GROOVY-12187[GROOVY-12187]
 |===
 
+[[classtag]]
+== Compiler-Supplied Class Tokens (incubating)
+
+Erasure forces JVM APIs that need the runtime class of a generic type
+argument to take an explicit `Class` token, even though that token
+repeats a type the compiler already knows. The new
+gapi:groovy.transform.stc.ClassTag[@ClassTag] parameter annotation
+(https://issues.apache.org/jira/browse/GROOVY-12115[GROOVY-12115]) marks
+such a token as compiler-supplied: under `@TypeChecked` or
+`@CompileStatic`, a call that omits the token selects the tagged
+overload and the type checker injects `X.class`, reified from the
+receiver's type argument:
+
+[source,groovy]
+----
+List<String> names = []
+List<String> checked = names.asChecked()   // compiler injects String.class
+----
+
+Injection is normally additive -- it only applies when the call as
+written matches no method, so existing code keeps its meaning. An API
+author may additionally mark an overload `@ClassTag(preempt=true)`,
+letting it transparently upgrade calls that bound a token-less overload
+declared by the same class. Groovy's checked `withDefault` variants
+declare this, closing the type-soundness hole of their lenient sibling
+(https://issues.apache.org/jira/browse/GROOVY-11807[GROOVY-11807]): a
+statically-compiled `map.withDefault{ ... }` on a typed map now returns
+a view that rejects ill-typed keys and values. Preemption is contained
+-- a library can only upgrade calls to its own API, so a jar on the
+compile classpath can never capture calls it does not own -- and the
+consuming build can veto it globally with
+`-Dgroovy.classtag.preemption.disable=true` (or
+`CompilerConfiguration.setClassTagPreemptionDisabled`). Dynamic code is
+unaffected: there, the `Class` token is passed explicitly.
+
 [[regex-timeout]]
 == Regex Timeout Facility
 
@@ -3810,6 +3845,15 @@ former value-truthy semantics, which could even mutate a `withDefault`
 map by materialising the queried key. Code that tested a map's
 *values* should use `map.containsValue(v)` (or `v in map.values()`).
 (https://issues.apache.org/jira/browse/GROOVY-9848[GROOVY-9848])
+* Under static compilation, `withDefault` on a map whose key/value types
+are statically known now binds the type-checked variant (via `@ClassTag`
+preemption): the wrapped map throws `ClassCastException` for ill-typed
+keys and values -- including a wrong-typed key materialised by a `get`
+-- instead of silently violating the map's declared generics. Set
+`-Dgroovy.classtag.preemption.disable=true` to defer the upgrade
+(porting aid -- see <<classtag>>). Dynamic code is unaffected.
+(https://issues.apache.org/jira/browse/GROOVY-12115[GROOVY-12115],
+https://issues.apache.org/jira/browse/GROOVY-11807[GROOVY-11807])
 * Plain subscript assignment evaluates strictly left-to-right again:
 in `a[index] = expr`, the receiver and `index` are evaluated before
 `expr`. A long-standing regression (from GROOVY-2556) had caused `expr`
@@ -3878,6 +3922,14 @@ final value) instead of per-iteration capture.
 errors and return a partial AST (also
 `CompilerConfiguration.setErrorRecoveryEnabled`).
 | https://issues.apache.org/jira/browse/GROOVY-9192[GROOVY-9192]
+
+| `groovy.classtag.preemption.disable`
+| `false`
+| `true` disables `@ClassTag` preemption globally under static
+compilation: calls keep binding their token-less overloads (e.g.
+`withDefault` stays lenient) as before Groovy 6 (porting aid -- see
+<<classtag>>; also `CompilerConfiguration.setClassTagPreemptionDisabled`).
+| https://issues.apache.org/jira/browse/GROOVY-12115[GROOVY-12115]
 
 | `groovy.indy.setproperty`
 | `true`
