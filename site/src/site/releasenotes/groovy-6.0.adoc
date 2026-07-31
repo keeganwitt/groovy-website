@@ -2146,9 +2146,19 @@ lambda or method reference straight through avoids the per-call `Closure`
 allocation -- "fat-free" -- and improves interop with Java APIs that already
 hand you `java.util.function` values. The standard overloads mirror the
 existing `Closure` forms one-for-one, covering `each`/`eachWithIndex`,
-`collect`/`collectEntries`, `groupBy`, `inject`, `any`/`every`,
-`find`/`findAll`, `count`, and the lazy `collecting`/`findingAll` iterator
-variants.
+`collect`/`collectEntries`, `collectMany`, `groupBy`, `countBy`, `split`,
+`takeWhile`/`dropWhile`, `inject`/`injectAll`, `any`/`every`,
+`find`/`findAll`, `count`, and the lazy
+`collecting`/`collectingMany`/`findingAll` iterator variants
+(https://issues.apache.org/jira/browse/GROOVY-12215[GROOVY-12215],
+https://issues.apache.org/jira/browse/GROOVY-12216[GROOVY-12216]).
+Map receivers take the two-argument forms (`BiFunction`/`BiPredicate`),
+and the fold/reduce forms take a `BinaryOperator` when no initial value
+is given, or a `BiFunction` when one is. Array receivers have the same
+twins (https://issues.apache.org/jira/browse/GROOVY-12218[GROOVY-12218]),
+including `any`/`every`/`count` overloads on `int[]`, `long[]` and
+`double[]` accepting `IntPredicate`/`LongPredicate`/`DoublePredicate` --
+giving primitive arrays a predicate form of `count` for the first time.
 
 [source,groovy]
 ----
