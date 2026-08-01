@@ -93,6 +93,7 @@ Groovy 6 spends a lot of effort below the surface: dynamic dispatch that stays f
 - *<<g6-other-core-api,Dynamic property writes go through `invokedynamic`>>* by default, bringing property _writes_ in line with property _reads_.
 - *<<fat-free,Allocation-free higher-order methods>>*: `java.util.function` overloads across the GDK (`each`, `collect`, `findAll`, `inject`, ...) take a lambda or method reference directly, with no per-call `Closure` allocation.
 - *<<compound-assignment-overloading,Compound-assignment operator overloading>>* (`plusAssign`, `minusAssign`, ...) lets `a += b` mutate in place rather than allocate a new object each time.
+- *Faster closure calls from Java*: the `Closure.call` override cache is now an arity-indexed table, so multi-argument closure invocations from Java -- all `Map` iteration, `eachWithIndex`, `inject` -- take the cached fast path instead of full metaclass dispatch (https://issues.apache.org/jira/browse/GROOVY-12164[GROOVY-12164], https://issues.apache.org/jira/browse/GROOVY-12165[GROOVY-12165]).
 - *Smaller bytecode*: a new peephole optimizer rewrites short, local instruction sequences into cheaper equivalents, with no behavioural change.
 - *Fewer closure classes* (experimental, link:../wiki/GEP-27.html[GEP-27]): statically-compiled lambdas can be _hoisted_ to a method on the enclosing class, and eligible closures _packed_, instead of generating a class per closure — cutting class count, jar size and allocation. Both are opt-in, and the value stays a real `groovy.lang.Closure`.
 - *<<nested-copywith,Nested `copyWith`>>* rebuilds only the branches that change, so untouched subtrees keep their identity through structural sharing.
@@ -117,6 +118,47 @@ are `@CompileDynamic`, since that is how the idiom is normally written, while th
 variants are `@CompileStatic`. The dividing line is therefore the compilation mode as much
 as the closure -- as the last `@CompileStatic` row shows, a plain `Closure` routed through
 `Closures.curryWith` is just as allocation-free, and the quickest variant measured.
+
+A few other measured figures, each with the workload it came from:
+
+[cols="3,2", options="header"]
+|===
+| What was measured | Result
+
+| `Map.each` invoked from Java through `Closure.call`, after the arity-indexed
+fast-path cache (GROOVY-12165). Default-on.
+| `each` ~3--3.6x faster, `inject` ~2x, `eachWithIndex` ~1.65x
+
+| A representative Grails `RemarkCriteria` domain class, as compiled today --
+the baseline that motivates GEP-27 rather than a result of it.
+| 24 closure classes totalling 80 KB -- 1.19x the bytecode of the entire rest
+of the class
+
+| A class reproducing seven real Grails `FormTagLib` closure patterns, compiled
+with closure packing (GEP-27). Opt-in.
+| 8 class files -> 1; 23.8 KB -> 7.3 KB of bytecode; ~90% of the bytes removed
+were `Closure` scaffolding rather than closure code
+
+| Groovy's own `groovy-macro` module rebuilt with closure packing on, then its
+test suite run against the packed classes (GEP-27). Opt-in.
+| 148 -> 44 classes, 520 KB -> 228 KB; 66/66 tests pass; cold suite ~6% faster
+|===
+
+Two honesty notes on those. Closure packing is *off by default* in Groovy 6, so its
+rows describe a flag you switch on, not a dividend you get by upgrading; its own JMH
+runs put capturing closures at 1.4--1.9x faster packed but the tightest non-capturing
+`collect` shape at ~0.6x -- that is, *slower* -- with Grails-shaped blended workloads
+netting +17--23%. And the closure-class figures are bytecode size and class count,
+which is a cold-start and jar-size story: on that same `groovy-macro` module a
+steady-state hot loop measured at parity (~0.98x), not faster.
+
+The `RemarkCriteria` row deserves its own caveat, because it is the one figure above
+that Groovy 6 does *not* bank. Those 24 closure classes come from `static constraints`,
+`mapping` and `namedQueries` blocks, which are field-assigned -- precisely the signal
+that makes packing's escape gate decline them, so they stay real closure classes and
+their delegate resolution is untouched. Hoisting nested closures like these needs
+owner-correct retargeting, which is Groovy 7 work. The number is there to show what
+closure scaffolding costs in idiomatic Grails code, not what upgrading recovers.
 
 *_<<g6-extensions,Extension Method Additions>>_*
 
