@@ -923,6 +923,7 @@ contract as class/method/field-level transforms. See
 <<annotation-validation>> for the corresponding compile-time
 validation rules.
 
+[[ast-query]]
 == Fluent AST Query API (incubating)
 
 A small, read-only, fluent query API over the Groovy AST is now available
