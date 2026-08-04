@@ -87,9 +87,9 @@ downloads {
             a(href: 'versioning.html', 'version')
             yield ' of Groovy designed for JDK17+. Alpha releases are not recommended for production use.'
         }
-        version('6.0.0-alpha-2') {
+        version('6.0.0-beta-1') {
             stable false
-//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-alpha-2/'
+//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-beta-1/'
         }
         version('6.0.0-alpha-1') {
             stable false
