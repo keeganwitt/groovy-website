@@ -7,14 +7,14 @@
 [horizontal,options="compact"]
 *Number*:: GEP-28
 *Title*:: Dot Shorthands (Context-Typed Member Access)
-*Version*:: 1
+*Version*:: 2
 *Type*:: Feature
 *Status*:: Draft
 *Target*:: Groovy 7.0
 *Comment*:: A leading-dot shorthand (`.RED`) that resolves a member against the type expected by the surrounding context, following Dart 3.10's dot shorthands and Swift's implicit member expressions. Closes the remaining "enum values without imports" gaps that neither unqualified switch-case constants (GROOVY-8444) nor String-to-enum coercion can reach — method arguments, annotation attributes, `==` comparisons, typed collection literals, and dynamic-mode case labels — while adding compile-time member checking everywhere it is used. Strictly additive: every proposed form is a syntax error today.
 *Leader*:: Paul King
 *Created*:: 2026-07-25
-*Last modification*:: 2026-07-25
+*Last modification*:: 2026-08-04
 ****
 
 [width="80%",align="center"]
@@ -109,14 +109,55 @@ an expected type:
 |Typed method argument (`m('RED')` fails in all modes) |`m(.RED)` — ✅ under STC (parameter type is the context, as with SAM/lambda target typing); dynamic mode has no known target and stays out of scope
 |Annotation attribute (no mode, no mechanism) |`@Ann(.RED)` — ✅ *in all modes*: attribute types are declared, and annotations are resolved at compile time. No other proposal reaches this cell.
 |`List<Color> l = [...]` (STC rejects strings; dynamic silently keeps them) |`[.RED, .BLUE]` — ✅ under STC via the generic element type
-|`c == 'RED'` is silently `false` |`c == .RED` — ✅ under STC from the other operand's static type
+|`c == 'RED'` is silently `false` |`c == .RED` — ✅ *in all modes* when the other operand has a declared type; ✅ under STC when its type is inferred
 |Dynamic-mode switch on a declared-enum-typed subject |`case .RED:` — ✅ resolvable at compile time from the *declared* parameter/variable type, no flow typing needed; subsumes the proposed dynamic-mode extension of GROOVY-8444 with explicit, unambiguous syntax
 |Typo safety of the coercion contexts |`Color c = .RED` — a misspelt member is a compile error in every mode, unlike `'RED'` coercion
 |===
 
 What remains genuinely unclosable, and is explicitly out of scope: positions where no context
 type exists even syntactically — dynamic-mode arguments to a dynamically dispatched call, and
-dynamic `==` where neither operand has a declared type.
+`==` where neither operand has a declared type.
+
+=== The two distinct benefits
+
+The shorthand pays off in two different ways, and they are worth separating because they appeal
+to different readers.
+
+*No import at all.* In an argument position the type name never appears in the calling file, so
+neither an import of the type nor a static import of its constants is needed:
+
+[source,groovy]
+----
+// LogLevel.groovy
+enum LogLevel { DEBUG, INFO, WARN, ERROR }
+
+// Loggers.groovy
+void logPrint(String message, LogLevel level) { … }
+
+// App.groovy — no import of LogLevel, and no static import of INFO
+logPrint('Hello world', .INFO)
+----
+
+This works because the parameter's type is a resolved reference in `logPrint`'s signature; the
+*caller's* import list plays no part in resolving `.INFO`, exactly as it plays no part in
+`def x = foo()` where `foo`'s return type is unimported. This makes the shorthand strictly
+stronger than a static import, which still requires naming the type once (or importing `.*` and
+polluting the file namespace).
+
+*A checked literal.* In a declaration position the type name is still present, one token away, so
+the saving is small — and if brevity were the whole argument this position would be weak. It is
+not the whole argument. The realistic competitor to `Color c = .RED` is not `Color c = Color.RED`
+but the coercion Groovy programmers actually write today:
+
+[source,groovy]
+----
+Color c = 'RED'    // works
+Color c = 'GRN'    // also compiles — under @CompileStatic too — and fails at runtime
+Color c = .GRN     // compile error, in every mode
+----
+
+So the declaration case is about turning a value-blind string into a checked literal; the
+reduction in ceremony is a side benefit, not the point.
 
 === Precedent
 
@@ -132,6 +173,66 @@ Languages have been converging on exactly this feature:
 
 Java has no equivalent and none proposed; this is a place where Groovy would extend Java
 ergonomics rather than catch up, consistent with the language's history.
+
+[#mental-model]
+== Mental model
+
+Programmers already have a mental model for this feature, because Java gave them one for switch
+case labels:
+
+[quote]
+____
+"I already told the compiler the enum type in the switch clause, so I should be able to refer to
+the actual enum values in the case labels."
+____
+
+That sentence is not really about switches. It is about *positions*. Java applies it in exactly
+one position, and applies it invisibly, through a bare name. This GEP applies the same sentence
+to every position that already knows its type, and marks it with a leading dot so it can never be
+confused with a property access. The rule in one line:
+
+[quote]
+____
+*Whatever I already told the compiler at this position, I should not have to say again in order
+to name one of its members. `.X` means "that type's `X`".*
+____
+
+A practical corollary for readers of code: **you can always expand `.X` by mentally re-inserting
+the type the position already names.** If you cannot say out loud which type the position expects,
+the shorthand is not legal there — and that is precisely the compile error the feature emits.
+
+=== The rule, restated per position
+
+[cols="2,3",options="header"]
+|===
+|Position |What the programmer already told the compiler
+
+|`Color c = .RED` |"I gave the variable's type on the left of the `=`; the right side should not repeat it."
+|Field/property initializer |"I declared the field's type on this very line."
+|`return .RED` |"I declared the method's return type in its signature."
+|Default parameter value |"I declared the parameter's type right there."
+|`case .RED:` |Java's own sentence, generalised: "I told the compiler the subject's type *when I declared the subject*" — which is why this also works in dynamic mode, where the `switch` clause alone tells the compiler nothing.
+|`m(.RED)` |"The method's signature already declared the parameter's type; the call site is the one place that should not have to repeat it." The same bargain a lambda strikes when it takes its shape from the SAM parameter.
+|`@Ann(.RED)` |"The annotation's own declaration gave the attribute's type."
+|`c == .RED` |"The other operand has a type, and the comparison is only meaningful against that type."
+|`List<Color> l = [.RED, .BLUE]` |"I gave the element type once; repeating it per element is the worst ratio of all."
+|`.RED as Color` |"I am giving the type in this very expression."
+|===
+
+=== Where the model stops, and why
+
+The same sentence explains the exclusions, which is the real test of whether a mental model is
+honest rather than decorative. Each excluded position fails it identically — *nothing was ever
+told to the compiler, so there is nothing to elide* (the full position-by-position breakdown is
+in <<context-types>>):
+
+* An argument to a dynamically dispatched call: the compiler does not know which method will be
+  selected, so no parameter type exists to read.
+* `==` where neither operand has a declared type.
+* `def x = .RED`, and GString interpolation.
+
+Note that these are not "dynamic mode is unsupported". Dynamic mode supports the shorthand
+wherever a type was *declared*; it fails only where none was.
 
 == Proposal
 
@@ -149,26 +250,70 @@ position:
 It is valid only where a *context type* is available (below); anywhere else it is a
 compile-time error ("no context type for dot shorthand").
 
+[#context-types]
 === Context types
 
-The context type is determined syntactically (dynamic mode) or from inference (STC), in the
-positions below. This list is the design surface for review; the intent is to match the
-positions where Groovy already applies target typing for SAM coercion or String-to-enum
+The table below is organised by *what supplies the context type*, not by compilation mode. That
+is the distinction that actually matters: a declared type is available to the compiler in every
+mode, so the first column is not "dynamic mode" but "works everywhere". Only the second column
+depends on static type checking. This list is the design surface for review; the intent is to
+match the positions where Groovy already applies target typing for SAM coercion or String-to-enum
 coercion, plus case labels and annotation attributes:
 
 [cols="3,2,2",options="header"]
 |===
-|Position |Dynamic mode |STC modes
+|Position |Context type from a *declaration* (all modes) |Context type from *inference* (STC only)
 
-|Variable declaration with explicit type: `Color c = .RED` |✅ declared type |✅
-|Field/property initializer, return statement from a typed method, default parameter value, ternary/Elvis branches in the above |✅ declared type |✅
-|Switch case label: `case .RED:` / `case .RED ->` |✅ when the subject has a declared enum type |✅ including inferred subjects (flow typing, as GROOVY-8444 today)
-|Method/constructor call argument |❌ no known target (compile error) |✅ from the resolved parameter type
-|Annotation attribute: `@Ann(.RED)` |✅ (attribute types are compile-time-declared) |✅
-|`==`, `!=`, `in` against a typed other operand |❌ |✅
-|Typed collection/array literals: `Color[] a = [.RED]`, `List<Color> l = [.RED]` |✅ arrays (declared component type); ❌ generic lists |✅ both
-|Explicit target: `x as Color`, `(Color) x` applied to a shorthand |✅ |✅
+|Variable declaration with explicit type: `Color c = .RED` |✅ the declared type |n/a
+|Field/property initializer, return statement from a typed method, default parameter value, ternary/Elvis branches in the above |✅ the declared type |n/a
+|Switch case label: `case .RED:` / `case .RED ->` |✅ when the subject has a declared enum type |✅ inferred subjects (`switch(list[0])`, `def` local) via flow typing, as GROOVY-8444 today
+|Method/constructor call argument |❌ the target method is not known until dispatch, so no parameter type exists (compile error) |✅ from the resolved parameter type
+|Annotation attribute: `@Ann(.RED)` |✅ always — attribute types are compile-time-declared |n/a
+|`==`, `!=`, `in` |✅ when the other operand has a syntactically declared type: a typed local, parameter, or field access resolvable at compile time (see <<equality>>) |✅ when the other operand's type comes from flow typing
+|Typed collection/array literals: `Color[] a = [.RED]`, `List<Color> l = [.RED]` |✅ arrays, from the declared component type |✅ generic collections, from the element type
+|Explicit target: `x as Color`, `(Color) x` applied to a shorthand |✅ the cast *is* the declaration |n/a
 |===
+
+The only ❌ in the table is the position where nothing was declared and nothing can be inferred,
+which is the mental model doing its job rather than an arbitrary restriction.
+
+[#equality]
+==== Equality and membership
+
+Version 1 of this GEP marked `==` as unsupported in dynamic mode outright. That was inconsistent
+with its own treatment of declarations, case labels and arrays, all of which resolve from a
+syntactically declared type in every mode. Given
+
+[source,groovy]
+----
+class Palette {
+    Color myColor                                   // declared
+    def anything                                    // not declared
+
+    boolean isRed()   { this.myColor  == .RED }     // ✅ every mode: Color is declared
+    boolean isRed2()  { this.anything == .RED }     // ❌ dynamic; ✅ under STC iff flow typing pinned it
+}
+----
+
+the declared field supplies a context type by exactly the same route `Color c = .RED` does, so
+the shorthand resolves.
+
+This is sound even though dynamic Groovy can subvert the declared type through the MOP. The
+declared type is used only to decide *which constant `.RED` names*; the emitted bytecode is the
+ordinary qualified reference `Color.RED`. If `getProperty` interception or an `ExpandoMetaClass`
+has made the runtime value something other than a `Color`, the comparison simply evaluates to
+`false` — byte-for-byte the same outcome as hand-writing `Color.RED`. The shorthand adds no
+runtime machinery and therefore cannot introduce a runtime discrepancy.
+
+Contrast this with the argument position, where the ❌ is unavoidable rather than conservative:
+in `logPrint('hi', .INFO)` under dynamic dispatch the compiler does not know which `logPrint`
+will be selected, so there is no parameter type to read. The distinction is *declared vs not
+declared*, never *dynamic vs static*.
+
+NOTE: Kotlin encountered a hazard specific to this position: in Kotlin 2.3, context-sensitive
+resolution combined with equality and type operators can become ambiguous when a clashing class
+declaration is imported, and the compiler now emits a warning. Groovy will face the same
+interaction and the resolution rules for this cell should be specified with that case in mind.
 
 === Resolvable members (staged)
 
@@ -182,6 +327,16 @@ coercion, plus case labels and annotation attributes:
 |===
 
 Stage 1 alone closes every gap in the motivation table.
+
+Stage 3 is the stage that draws the most enthusiasm in early feedback, and it is genuinely the
+nicest sugar of the three — but it carries a design cost the constant cases do not. In a
+*declaration* position (`Duration d = .ofSeconds(3)`) it is straightforward, since the context
+type is fixed before the call is resolved. In an *argument* position it is circular: the
+shorthand's context type comes from the candidate parameter type, while candidate selection
+wants the argument's type. Dart resolves this and provides a reference implementation to follow,
+but it is a substantially larger item than looking up a constant on a known enum, which is why
+it is staged last. Splitting Stage 3 so that declaration-position factories can land earlier
+than argument-position ones is an open question for review.
 
 === Semantics
 
@@ -250,7 +405,9 @@ type; Dart restricts more tightly).
   anywhere; only the currently-invalid `.name` form carries the new semantics. Existing
   programs cannot change meaning.
 * *One mechanism, not per-position magic.* Case labels, arguments, annotations and initializers
-  all resolve through the same "context type" definition, so the mental model is a single rule.
+  all resolve through the same "context type" definition, so the mental model is a single rule —
+  stated in <<mental-model,Mental model>>, along with its per-position restatement and the reason each
+  excluded position is excluded.
 * *Stay aligned with the coercion positions.* Wherever `Color c = 'RED'` works today, `.RED`
   works and is preferred; documentation should present the shorthand as the checked successor
   without deprecating the coercion (which remains for genuinely dynamic string values).
@@ -261,8 +418,8 @@ type; Dart restricts more tightly).
 |===
 |Phase |What ships |Notes
 
-|1 |Grammar (lexer + antlr4 rules + continuation-line rule), Stage 1 members (enum constants), declared-type contexts (declarations, fields, returns, defaults, ternaries, case labels, annotation attributes, arrays), all compilation modes |Closes the dynamic-case-label, annotation and typo-safety gaps; no STC dependency beyond what exists
-|2 |STC-inferred contexts: method/constructor arguments with overload interplay, `==`/`in`, generic collection literals |Reuses the SAM target-typing machinery; the hard design item is overload interaction
+|1 |Grammar (lexer + antlr4 rules + continuation-line rule), Stage 1 members (enum constants), *all declared-type contexts* — declarations, fields, returns, defaults, ternaries, case labels, annotation attributes, arrays, and `==`/`!=`/`in` against a declared operand — in all compilation modes |Closes the dynamic-case-label, annotation and typo-safety gaps; no STC dependency beyond what exists
+|2 |STC-inferred contexts: method/constructor arguments with overload interplay, `==`/`in` against inferred operands, generic collection literals |Reuses the SAM target-typing machinery; the hard design item is overload interaction
 |3 |Stage 2 members (`static final` fields of the context type) |Small increment once 1–2 are stable
 |4 (stretch) |Stage 3 members (static factories/constructors, `.of(...)`) |Dart parity; only if 1–3 land early enough for a full release cycle of feedback
 |===
@@ -276,7 +433,7 @@ precede GEP acceptance, since parser feasibility is the main technical risk.
 |===
 |Feature |Status |Rationale
 
-|Shorthands in positions with no context type (dynamic call arguments, dynamic `==`, GString interpolation, `def` targets) |Not planned |Nothing to resolve against; explicit compile error keeps the model crisp
+|Shorthands in positions with no context type: arguments to a dynamically dispatched call, `==` where *neither* operand has a declared or inferred type, GString interpolation, `def` targets |Not planned |Nothing to resolve against; explicit compile error keeps the model crisp. Note this excludes only the untyped cases — `==` against a declared operand ships in Phase 1
 |Bare-name resolution outside switch cases (Kotlin KEEP-379 style) |Not planned |Ambiguous with property access under the MOP in dynamic code; the dot form exists precisely to avoid reinterpreting valid syntax
 |Runtime-resolved shorthands |Not planned |Would reintroduce the deferred-failure problem the feature exists to fix
 |Command-expression argument position |Deferred |Grammar risk outweighs benefit; revisit with usage data
@@ -311,7 +468,10 @@ verified for joint compilation in Phase 1).
 
 The Groovy documentation's enum section should present the full ladder in one place: qualified
 reference → static import → switch-case bare constants → dot shorthands → string coercion
-(dynamic values only), with the mode/position matrix from this GEP's motivation section.
+(dynamic values only), with the mode/position matrix from this GEP's motivation section. The
+one-line rule from <<mental-model,Mental model>> should lead that section: readers who take away only
+"the leading dot means the type this position already declares" can predict every supported
+position and every excluded one without consulting the matrix.
 
 == Alternatives considered
 
@@ -338,7 +498,9 @@ reference → static import → switch-case bare constants → dot shorthands �
   (enum values, static fields/methods, constructors, context-type resolution)
 * https://github.com/dart-lang/language/blob/main/accepted/future-releases/dot-shorthands/proposal.md[Dart dot shorthands feature specification]
 * https://docs.swift.org/swift-book/documentation/the-swift-programming-language/expressions/#Implicit-Member-Expression[Swift implicit member expressions] — the longest-standing precedent, in a language with leading-dot chain continuation
-* https://github.com/Kotlin/KEEP/blob/master/proposals/context-sensitive-resolution.md[Kotlin KEEP-379: context-sensitive resolution] — the bare-name alternative this GEP rejects for dynamic-mode reasons
+* https://github.com/Kotlin/KEEP/blob/main/proposals/KEEP-0379-context-sensitive-resolution.md[Kotlin KEEP-379: context-sensitive resolution] — the bare-name alternative this GEP rejects for dynamic-mode reasons; previewed in Kotlin 2.2
+* https://kotlinlang.org/docs/whatsnew23.html[What's new in Kotlin 2.3] — the ambiguity warning added for context-sensitive resolution under equality and type operators, the hazard noted in <<equality>>
+* https://dart.dev/language/dot-shorthands[Dart dot shorthands (language documentation)] — the shipped user-facing semantics
 * https://issues.apache.org/jira/browse/GROOVY-8444[GROOVY-8444] — unqualified enum constants in switch cases (Groovy 3.0.0)
 * https://issues.apache.org/jira/browse/GROOVY-11614[GROOVY-11614] — switch-expression case constants; its follow-up refactor caused the `@TypeChecked` regression
 * https://issues.apache.org/jira/browse/GROOVY-12190[GROOVY-12190] — the `@TypeChecked` regression fix that restores the baseline this GEP builds on
@@ -350,3 +512,8 @@ reference → static import → switch-case bare constants → dot shorthands �
   `org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport` — the String-to-enum coercion
   whose positions (and value-blindness) motivate the design
 * link:GEP-27.html[GEP-27: Compact Closure and Lambda Compilation] — companion GEP in the same series
+
+== Update history
+
+1 (2026-07-25) Initial draft +
+2 (2026-08-04) Mental model section added; `==`/`!=`/`in` corrected to work in all modes against a declared operand (was dynamic-mode ❌) and moved to Phase 1; context-type table recut by declaration vs inference rather than compilation mode; no-import benefit and checked-literal rationale made explicit; Stage 3 argument-position overload circularity noted
