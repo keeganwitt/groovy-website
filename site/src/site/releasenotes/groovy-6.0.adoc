@@ -4004,6 +4004,23 @@ iteration remain visible to captures made in that iteration; classic
 shared binding, set `-Dgroovy.forin.per.iteration.capture=false` or call
 `CompilerConfiguration.setForInPerIterationCaptureEnabled(false)`
 (https://issues.apache.org/jira/browse/GROOVY-11792[GROOVY-11792]).
+* Enum constants that supply no arguments of their own are now created
+with a direct call to the enum's `(String,int)` constructor -- the
+bytecode shape `javac` emits -- so creating them no longer needs
+reflection over the enum's constructors at class initialization. Such
+enums now initialize in environments where that reflection must be
+declared ahead of time: GraalVM native images without reachability
+metadata for the enum, or shrunken Android applications without keep
+rules for the enum's constructor.
+Consequently the creation of those constants no longer dispatches
+through the enum's meta class: a meta class registered before the enum
+initializes no longer sees the constants being created. Declaring a
+constant with an explicit empty argument list, e.g. `ONE()`, supplies
+the same name and ordinal through the previous meta-class-mediated path
+and restores interceptability for that enum. This is a compile-time
+change: enums compiled by earlier Groovy versions keep their existing
+behaviour whichever Groovy runs them
+(https://issues.apache.org/jira/browse/GROOVY-12240[GROOVY-12240]).
 
 [[g6-system-properties]]
 == System Property Reference
