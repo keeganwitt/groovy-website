@@ -1,0 +1,105 @@
+:source-highlighter: pygments
+:pygments-style: emacs
+:icons: font
+
+Groovy 5.1 is the first minor release in the Groovy 5 line.
+It builds upon Groovy 5.0, retaining its features and JDK requirements,
+and folds in a small number of intentional changes which weren't
+appropriate for a 5.0.x patch release. These include support for
+running the Groovy Console on JDK 26+, and selected hardening
+and bug fixes back-ported from Groovy 6 development which involve
+minor behavioral changes.
+
+== Console support for JDK 26+
+
+The Applet API, deprecated for many years, was removed in JDK 26 (JEP 504).
+The Groovy Console had a long-deprecated, unused `run(javax.swing.JApplet)`
+method. Because that method's signature referenced the removed type,
+even creating a `Console` instance failed on JDK 26+ (as flagged in the
+Groovy 5.0.8 release note addendum). Groovy 5.1 removes the obsolete
+method, so the Groovy Console now runs on JDK 26+
+(link:https://issues.apache.org/jira/browse/GROOVY-12221[GROOVY-12221]).
+If you were somehow making use of the removed method to embed the console
+in an applet, you should rework your code, e.g. using the `run(Map)` variant
+with appropriate delegates.
+
+== Security hardening
+
+=== Safer recursive directory deletion
+
+Recursive deletion no longer follows symbolic links into their targets.
+This affects the `deleteDir()` extension methods for `File` and (in the
+`groovy-nio` module) `Path`, as well as the compiler's internal recursive
+delete used for stub directories. A symbolic link encountered within the
+tree being deleted is now treated as a leaf: the link itself is removed but
+the directory it points at, and that directory's contents, are left untouched.
+Similarly, calling `deleteDir()` directly on a symbolic link now removes just
+the link. Previously, a link pointing outside the tree being deleted could
+cause files elsewhere on the filesystem to be deleted
+(link:https://issues.apache.org/jira/browse/GROOVY-12125[GROOVY-12125]).
+
+NOTE: `Files.isSymbolicLink` does not detect Windows directory junctions
+(reparse points), which are therefore still traversed.
+
+=== Stricter Grape coordinate validation
+
+Grape now rejects dependency coordinates (group, module, version, etc.)
+containing `..` sequences, closing a potential path traversal vector when
+coordinates are derived from untrusted input
+(link:https://issues.apache.org/jira/browse/GROOVY-12073[GROOVY-12073]).
+
+=== Disabling `@ASTTest`
+
+The gapi:groovy.transform.ASTTest[@ASTTest] annotation executes its closure
+during compilation, so merely compiling source carrying the annotation runs
+that code, whether or not the compiled result is ever executed. Embedders
+which compile source they do not control can now disable the annotation by
+setting the `groovy.asttest.enable` system property to `false`, making it
+a no-op. The default (`true`) preserves existing behavior. This mirrors
+the existing `groovy.grape.enable` property for `@Grab`
+(link:https://issues.apache.org/jira/browse/GROOVY-12236[GROOVY-12236]).
+
+== Notable bug fixes
+
+Groovy 5.1 also contains bug fixes not (or not yet) available in 5.0.x
+releases, including:
+
+* Static type checking of property-style access to a record component
+failed for precompiled records
+(link:https://issues.apache.org/jira/browse/GROOVY-12225[GROOVY-12225]).
+* A doubly-nested non-static class in a trait calling an outer method
+compiled but failed at runtime
+(link:https://issues.apache.org/jira/browse/GROOVY-12226[GROOVY-12226]).
+* An interface default method without dynamic calls referenced an unemitted
+call-site helper when compiled with invokedynamic disabled
+(link:https://issues.apache.org/jira/browse/GROOVY-12235[GROOVY-12235]).
+
+Consult the <<Groovy5.1-more-info,changelog>> for the complete list.
+
+[[Groovy5.1-breaking]]
+== Breaking changes
+
+* The deprecated `run(javax.swing.JApplet)` method was removed from the
+Groovy Console so that it can load on JDK 26+, where the Applet API no
+longer exists
+(link:https://issues.apache.org/jira/browse/GROOVY-12221[GROOVY-12221]).
+* The `deleteDir()` extension methods for `File` and `Path` treat symbolic
+links as leaves rather than following them into their targets. If you relied
+on the previous behavior of deleting the contents of linked directories,
+you now need to resolve the links and delete the targets explicitly
+(link:https://issues.apache.org/jira/browse/GROOVY-12125[GROOVY-12125]).
+* Grape coordinates containing `..` sequences are now rejected
+(link:https://issues.apache.org/jira/browse/GROOVY-12073[GROOVY-12073]).
+
+[[Groovy5.1-requirements]]
+== JDK requirements
+
+As for Groovy 5.0, Groovy 5.1 requires JDK17+ to build and JDK11 is the
+minimum version of the JRE that we support.
+Groovy 5.1 has been tested on JDK versions 11 through 25,
+and additionally on early access builds of JDK 26 and 27.
+
+[[Groovy5.1-more-info]]
+== More information
+
+You can browse all the link:../changelogs/changelog-5.1.0-unreleased.html[tickets closed for Groovy 5.1 in JIRA].

@@ -182,6 +182,7 @@ Keeps Groovy a first-class citizen on today's JVM: current JDK support, one-line
 
 - Tested across JDK 17–27; <<Groovy6.0-requirements,JDK 17>> is now the minimum supported runtime. Module import already mentioned.
 - <<joint-compilation-stubs,Joint Compilation Stub Improvements>>: AST-transform-generated members (`@Immutable`, `@Builder`, `@TupleConstructor`, `@Delegate`, ...) are now visible in generated stubs. Java code in mixed-language projects can finally call constructors and methods contributed by transforms.
+- <<native-image,GraalVM native images>>: an AOT link mode lets even _dynamic_ Groovy dispatch run ahead-of-time compiled — including already-published indy-compiled jars, without recompilation.
 
 *_Security & Hardening_*
 
@@ -190,6 +191,7 @@ This is the safest Groovy yet — a broad sweep of security hardening across the
 - <<xml-processing,Secure-by-default XML>> parsing (XXE/DTD protections) across the XML APIs.
 - SQL-injection defence in depth: the <<sql-injection-checker,`SqlInjectionChecker`>> at compile time plus `groovy-sql` rejection at runtime.
 - <<regex-timeout,Regex timeouts>> (`@SafeRegex`) guard against ReDoS, alongside JSON nesting-depth limits and stricter Grape coordinate validation.
+- Sandboxing without gaps: `SecureASTCustomizer` restrictions now also cover constructors, initializer blocks, field initializers and authored code relocated into generated or synthetic members; embedders can disable `@ASTTest` when compiling source they don't control.
 
 [[g6-new-modules]]
 == New Modules
@@ -1352,6 +1354,26 @@ produces a compile-time error.
 The checker also recognises safe navigation, early-exit patterns,
 gapi:groovy.transform.NullCheck[@NullCheck], and `@MonotonicNonNull` for lazy initialisation.
 
+The guard vocabulary covers idiomatic Groovy: Groovy-truth guards
+(`if (x) { x.foo() }`), `instanceof` checks, short-circuit
+conjunctions (`x != null && x.foo()`), `Objects.nonNull`/`isNull`,
+`assert` statements, and guard conditions in `while` loops and
+ternaries are all recognised
+(https://issues.apache.org/jira/browse/GROOVY-12208[GROOVY-12208]).
+Nullness is also tracked through expression _results_, not just
+variables: the result of a safe navigation used as an unguarded
+receiver (`a?.b.c`), a `@Nullable`-returning call passed straight to a
+`@NonNull` parameter, and ternary or Elvis expressions with a nullable
+branch are all flagged
+(https://issues.apache.org/jira/browse/GROOVY-12209[GROOVY-12209]).
+And nullability metadata is honoured wherever it comes from:
+type-use annotations and package-level JSpecify-style `@NullMarked`
+declarations are read from compiled dependencies on the classpath
+(including their `package-info.class`), so precompiled APIs are
+checked just like source
+(https://issues.apache.org/jira/browse/GROOVY-12206[GROOVY-12206],
+https://issues.apache.org/jira/browse/GROOVY-12207[GROOVY-12207]).
+
 === Strict mode: no annotations needed
 
 Passing `strict: true` extends the checker with flow-sensitive analysis
@@ -1483,6 +1505,20 @@ with a `null` branch.
 `@NonNull`, and `result != null` in `@Ensures` marks the return as
 implicit `@NonNull`.
 | https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]
+
+| `NullChecker` guard and flow breadth
+| Broadened guard recognition (Groovy-truth, `instanceof`,
+conjunctions, `Objects.nonNull`, `assert`, `while`/ternary conditions)
+and nullness tracked through `?.`, `?:` and ternary results.
+| https://issues.apache.org/jira/browse/GROOVY-12208[GROOVY-12208],
+https://issues.apache.org/jira/browse/GROOVY-12209[GROOVY-12209]
+
+| `NullChecker` + compiled dependencies
+| Type-use nullability annotations and package-level `@NullMarked`
+(from `package-info.class`) are read from jars on the classpath, so
+precompiled APIs are checked like source.
+| https://issues.apache.org/jira/browse/GROOVY-12206[GROOVY-12206],
+https://issues.apache.org/jira/browse/GROOVY-12207[GROOVY-12207]
 
 | gapi:groovy.typecheckers.ModifiesChecker[ModifiesChecker]
 | Verifies `@Modifies` frame conditions at compile time. Checks that
@@ -2359,6 +2395,12 @@ native JDK `Stream.toList()`.
 variants, keeping element-type inference for the closure parameter under
 static type checking.
 | https://issues.apache.org/jira/browse/GROOVY-12100[GROOVY-12100]
+
+| `findingResults()`
+| No-arg overload of the lazy `findingResults` for `Iterator`: finds
+the non-null elements using the IDENTITY closure, matching the other
+no-arg `-ing` variants.
+| https://issues.apache.org/jira/browse/GROOVY-12224[GROOVY-12224]
 |===
 
 [[g6-extension-disable]]
@@ -3652,6 +3694,53 @@ lambda:
 def r = { println 'hello' } as (Runnable & Serializable)
 ----
 
+[[native-image]]
+== Dynamic Groovy in GraalVM Native Images (incubating)
+
+Dynamic Groovy in a GraalVM native image has historically been a
+non-starter: native image restricts exactly the operations Groovy's
+runtime leans on -- defining classes at runtime and retargeting
+`invokedynamic` call sites -- so only fully statically-compiled code
+stood much chance. Groovy 6 removes those obstacles piece by piece,
+so dynamically dispatched Groovy code can run ahead-of-time compiled:
+
+* *AOT link mode for `invokedynamic` dispatch*: native image supports
+every `java.lang.invoke` building block Groovy's indy runtime
+composes except retargeting an already-linked call site. In AOT link
+mode -- detected automatically inside a native image, or forced on a
+normal JVM with `-Dgroovy.indy.aot.link=true` -- every call site
+links once, permanently: inline-cache lookup, freshness check and
+invocation run as ordinary compiled code, and metaclass changes
+advance a global stamp that triggers re-selection instead of
+`SwitchPoint` invalidation (coarser than the scoped invalidation of
+GROOVY-12191, but never stale). The reflective cold dispatch tier
+(https://issues.apache.org/jira/browse/GROOVY-12137[GROOVY-12137])
+serves as the AOT steady state, since reflective dispatch runs in
+AOT-compiled stubs while runtime-created method handles would fall
+back to the much slower native method-handle interpreter. Because the
+bootstrap method referenced by existing class files is unchanged,
+already-published indy-compiled jars become native-capable without
+recompilation
+(https://issues.apache.org/jira/browse/GROOVY-12234[GROOVY-12234]).
+* *Packed closures without runtime class definition*: the GEP-27
+packed-closure machinery (see <<g6-other-core-api,Other Core API
+Changes>>) now links its dispatchers through compiler-emitted
+`LambdaMetafactory` call sites instead of a runtime reflective lookup
+plus programmatic `LambdaMetafactory` -- the two operations
+ahead-of-time runtimes restrict -- so packed closures run in a native
+image with no extra reachability metadata
+(https://issues.apache.org/jira/browse/GROOVY-12227[GROOVY-12227]).
+* *Argument-less enum constants* are now created with a direct
+constructor call rather than reflection, so such enums initialize in
+native images without reachability metadata for the enum (see
+<<Groovy6.0-breaking,Breaking changes>>;
+https://issues.apache.org/jira/browse/GROOVY-12240[GROOVY-12240]).
+* *Hidden-class definition soft-fails*: where Groovy now prefers
+hidden classes for its runtime-generated helpers (see
+<<g6-other-core-api,Other Core API Changes>>), environments that
+forbid runtime class definition fall back transparently
+(https://issues.apache.org/jira/browse/GROOVY-12223[GROOVY-12223]).
+
 [[g6-other-core-api]]
 == Other Core API Changes
 
@@ -3738,6 +3827,11 @@ rewrites short, local instruction sequences into cheaper equivalents,
 producing smaller and slightly faster bytecode with no behavioural change
 (https://issues.apache.org/jira/browse/GROOVY-12065[GROOVY-12065],
 https://issues.apache.org/jira/browse/GROOVY-12162[GROOVY-12162]).
+* Exception-handling bytecode is slimmer: a `try`/`catch` without a
+`finally` block no longer emits a synthetic identity catch-all
+handler, shrinking exception tables and generated code with no
+behavioural change
+(https://issues.apache.org/jira/browse/GROOVY-12161[GROOVY-12161]).
 * *Experimental (link:../wiki/GEP-27.html[GEP-27])*: statically-compiled
 lambdas and eligible closures can be _hoisted_ to a method on the
 enclosing class instead of generating a per-instance class, reducing
@@ -3779,6 +3873,37 @@ comes from source or from a jar -- in particular, the `NullChecker`
 type checking extension now recognises JSpecify-style nullability
 annotations in compiled dependencies on the classpath
 (https://issues.apache.org/jira/browse/GROOVY-12206[GROOVY-12206]).
+The same applies at package level: `package-info.class` files of
+compiled dependencies are consulted during resolution, so a
+JSpecify-style `@NullMarked` package declaration in a jar takes effect
+(https://issues.apache.org/jira/browse/GROOVY-12207[GROOVY-12207]).
+* Runtime-generated helper classes -- map/interface proxies,
+reflection dispatch helpers and per-class meta-method artifacts -- are
+now defined as https://openjdk.org/jeps/371[JEP 371] _hidden classes_
+where possible, via the new `org.apache.groovy.util.HiddenClassDefiner`.
+Hidden classes are not discoverable by name, can share private access
+with their host class as nestmates (honouring module boundaries), and
+can be unloaded independently of the defining class loader, reducing
+metaspace pressure in long-running applications. Environments that
+restrict runtime class definition fall back transparently to the
+classic `defineClass` path
+(https://issues.apache.org/jira/browse/GROOVY-12223[GROOVY-12223]).
+* Embedders that compile source they do not control can now disable
+`@ASTTest` with `-Dgroovy.asttest.enable=false`. The annotation's
+closure executes during compilation, so merely _compiling_ untrusted
+source would otherwise run it; the switch mirrors `groovy.grape.enable`
+for `@Grab`
+(https://issues.apache.org/jira/browse/GROOVY-12236[GROOVY-12236]).
+* `SecureASTCustomizer` now applies its restrictions beyond the script
+body and method bodies: constructors, static and instance initializer
+blocks, and field initializers are checked
+(https://issues.apache.org/jira/browse/GROOVY-12238[GROOVY-12238]),
+as is authored code that a transformation relocates into a generated
+or synthetic member -- such as `@TupleConstructor(pre=...)` blocks and
+the `@ConditionalInterrupt` condition
+(https://issues.apache.org/jira/browse/GROOVY-12244[GROOVY-12244]).
+Purely generated code (accessors, delegate forwarders, enum machinery,
+trait bridges) remains exempt.
 * *Scoped `invokedynamic` invalidation*: metaclass changes no longer
 deoptimize every `invokedynamic` call site in the JVM. Previously a single
 process-wide `SwitchPoint` guarded all indy call sites, so any metaclass
@@ -4021,6 +4146,25 @@ and restores interceptability for that enum. This is a compile-time
 change: enums compiled by earlier Groovy versions keep their existing
 behaviour whichever Groovy runs them
 (https://issues.apache.org/jira/browse/GROOVY-12240[GROOVY-12240]).
+* The `CompilerConfiguration` copy constructor now copies compilation
+customizers (and type-checking extension configuration), so a
+configuration cloned from a base config behaves like the original.
+Code that worked around the omission by re-adding customizers after
+copying should drop the workaround, or the customizers will be applied
+twice
+(https://issues.apache.org/jira/browse/GROOVY-9585[GROOVY-9585]).
+* The classic (non-`invokedynamic`) call-site caching runtime has
+moved from core into the optional `groovy-callsite` module (see
+<<g6-new-modules,New Modules>>). Applications that run with
+`invokedynamic` disabled must add that module to their classpath;
+the default `invokedynamic` runtime needs nothing extra
+(https://issues.apache.org/jira/browse/GROOVY-12185[GROOVY-12185]).
+* As part of scoped `invokedynamic` invalidation (see
+<<g6-other-core-api,Other Core API Changes>>), the internal
+`IndyInterface.switchPoint` field, which held the former process-wide
+`SwitchPoint`, has been removed. Tooling that reached into that field
+must be updated; dispatch semantics are unchanged
+(https://issues.apache.org/jira/browse/GROOVY-12191[GROOVY-12191]).
 
 [[g6-system-properties]]
 == System Property Reference
@@ -4092,6 +4236,13 @@ category, bulk) at `FINE` level, for diagnosing call-site
 deoptimization.
 | https://issues.apache.org/jira/browse/GROOVY-12191[GROOVY-12191]
 
+| `groovy.indy.aot.link`
+| auto
+| `true` forces AOT link mode: every `invokedynamic` call site links
+once, permanently, with cache freshness via a global stamp. Detected
+automatically inside GraalVM native images (see <<native-image>>).
+| https://issues.apache.org/jira/browse/GROOVY-12234[GROOVY-12234]
+
 | `groovy.target.lambda.hoist`
 | `false`
 | _Experimental (GEP-27)_: hoist eligible statically-compiled lambdas to
@@ -4141,6 +4292,13 @@ defaults to the system's native encoding.
 fallback path used when virtual threads are unavailable).
 | https://issues.apache.org/jira/browse/GROOVY-9381[GROOVY-9381],
 https://issues.apache.org/jira/browse/GROOVY-12181[GROOVY-12181]
+
+| `groovy.asttest.enable`
+| `true`
+| `false` makes `@ASTTest` a no-op, so embedders can compile source
+they do not control without executing its compile-time closures
+(mirrors `groovy.grape.enable` for `@Grab`).
+| https://issues.apache.org/jira/browse/GROOVY-12236[GROOVY-12236]
 
 | `groovy.extension.disable`
 | --
