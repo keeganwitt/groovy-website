@@ -1,6 +1,6 @@
 = Groovy 6 for humans and AI agents
 Paul King <paulk-asert|PMC_Member>
-:revdate: 2026-08-14T08:00:00+00:00
+:revdate: 2026-08-13T08:00:00+00:00
 :keywords: AI, agents, LLM, contracts, type checking extensions, AGENTS.md, skills, threat model, groovydoc, markdown, developer experience
 :description: What makes Groovy 6 legible to AI agents makes it legible to people: verified declarations, checkers that catch generated-code bugs, docs that can't drift.
 
