@@ -2,20 +2,23 @@
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2026-04-02T10:00:00+00:00
 :keywords: null safety, type checking, static analysis, annotations
-:description: This post looks at a proposed type-checking extension for Groovy \
-which catches null-safety violations at compile time.
+:updated: 2026-08-12T10:00:00+00:00
+:description: Groovy's null story, from the dynamic operators you already use to \
+the NullChecker type-checking extension that catches null bugs at compile time.
 
 == Introduction
 
-A proposed enhancement, targeted for Groovy 6,
-adds compile-time null-safety analysis as a type-checking extension
-(https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894],
-https://github.com/apache/groovy/pull/2426[PR \#2426]).
+Groovy 6 ships compile-time null-safety analysis as a type-checking
+extension
+(https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]).
 Inspired by the
 https://checkerframework.org/manual/#nullness-checker[Checker Framework],
 https://jspecify.dev/[JSpecify], and similar tools in Kotlin and C#,
-the proposal catches null dereferences, unsafe assignments, and
+`NullChecker` catches null dereferences, unsafe assignments, and
 missing null checks _before_ your code ever runs.
+
+That is the second half of Groovy's null story, though, and it is
+worth starting with the first.
 
 The extension plugs into Groovy's existing `@TypeChecked`
 infrastructure — no new compiler plugins, no separate build step,
@@ -31,10 +34,48 @@ To make things concrete, the examples follow a running theme:
 building the backend for _The Groovy Shelf_, a fictitious online
 bookshop where customers browse, reserve, and review books.
 
+== First, the dynamic story
+
+Long before any compile-time checking, Groovy gave dynamic code a set
+of tools for dealing with absence. If you write in a dynamic style —
+or you are reading Groovy that does — these are the idioms doing the
+work, and they cost nothing:
+
+* *`null` is an object.* `null.getClass()` returns
+`org.codehaus.groovy.runtime.NullObject`, Groovy's null singleton.
+That is why `null.toString()` yields `'null'` rather than throwing,
+and why `null.equals(null)` is `true`.
+* *Groovy truth.* `null` is falsy, so `if (name)` is both a null check
+and an emptiness check. Empty strings, empty collections and zero are
+falsy too — usually what you meant, occasionally not, so it pays to
+know which you are relying on.
+* *Safe navigation, `?.`* — `user?.address?.city` yields `null` rather
+than throwing the moment any link in the chain is absent. Chains
+short-circuit, so one `?.` protects everything downstream of it.
+* *Elvis, `?:`* — `name ?: 'Anonymous'` supplies a default for a falsy
+value, and the elvis assignment `name ?= 'Anonymous'` does it in
+place.
+* *Safe indexing, `?[]`* — `list?[0]` and `map?[key]` extend the same
+courtesy to subscripting.
+* *Spread-dot on absence.* `list*.name` returns `null` for a null
+list rather than throwing.
+* *GDK methods tolerate null.* `sort` orders nulls first,
+`groupBy` will happily key on `null`, and string interpolation
+renders it as `null` instead of failing.
+* *`@NullCheck`* generates explicit runtime guards on parameters when
+you want fail-fast behaviour at the boundary rather than quiet
+propagation.
+
+Between them these cover a great deal of everyday code, and they are
+the reason Groovy programs tend to bend rather than break around
+missing values. What they cannot tell you is whether a value *can* be
+null in the first place — every one of them is a decision you make at
+the point of use, and forgetting one is invisible until runtime. That
+is the gap the rest of this post is about.
+
 == Two levels of strictness
 
-The proposal provides two checkers. Pick the level that suits
-your code:
+`NullChecker` has two levels. Pick the one that suits your code:
 
 [cols="2,3,3", options="header"]
 |===
@@ -44,7 +85,7 @@ your code:
 | Checks code annotated with `@Nullable` / `@NonNull` (or equivalents). Unannotated code passes without error.
 | Existing projects adopting null safety incrementally.
 
-| `StrictNullChecker`
+| `NullChecker(strict: true)`
 | Everything `NullChecker` does, _plus_ flow-sensitive tracking — even unannotated `def x = null; x.toString()` is flagged.
 | New code or modules where you want full coverage.
 |===
@@ -56,7 +97,7 @@ Both are enabled through `@TypeChecked`:
 @TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
 class RelaxedCode { /* … */ }
 
-@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
 class StrictCode { /* … */ }
 ----
 
@@ -76,8 +117,8 @@ println name.toUpperCase()   // NullPointerException at runtime
 ----
 
 The code compiles, the tests might even pass if they don't hit that
-path, and the exception surfaces in production. The NullChecker
-proposal moves this class of error to compile time.
+path, and the exception surfaces in production. `NullChecker` moves
+this class of error to compile time.
 
 == Example 1: looking up a book — `@Nullable` parameters
 
@@ -176,9 +217,9 @@ String formatTitle(@Nullable String title) {
 
 [source,groovy]
 ----
-@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
 static main(args) {
-    def title = null
+    String title = null
     title ?= 'Untitled'
     title.toUpperCase()                        // ok: elvis cleared nullable state
 }
@@ -187,6 +228,67 @@ static main(args) {
 The checker performs the same kind of narrowing that a human reader
 does: once you've ruled out null — whether by an `if`, an early
 `return`, a `throw`, or an elvis assignment — the variable is safe.
+
+Since the first version of this post, guard recognition has been
+broadened considerably
+(https://issues.apache.org/jira/browse/GROOVY-12208[GROOVY-12208]).
+All of these now narrow:
+
+[source,groovy]
+----
+if (s) { s.length() }                          // Groovy truth
+if (Objects.nonNull(s)) { s.length() }         // Objects.nonNull / isNull
+assert s != null; s.length()                   // assert, plain or comparing
+if (o instanceof String) { o.length() }        // instanceof, and !instanceof
+if (s != null && s.length() > 0) { … }         // short-circuit conjunction
+if (s == null || s.isEmpty()) return -1        // disjunction, as an early exit
+while (s != null && n < 1) { n = s.length() }  // and in while loops, not just if
+----
+
+A companion change
+(https://issues.apache.org/jira/browse/GROOVY-12209[GROOVY-12209])
+taught the checker to reason about the *results* of the nullable
+operators rather than just the variables feeding them. A ternary is
+nullable only if a branch can actually be null once the condition's
+own guard facts are applied, so `s != null ? s : 'default'` is not
+nullable. An elvis expression is nullable only if its fallback is —
+which makes `s ?: 'default'` a recognised way to hand a `@Nullable`
+value to something that demands non-null:
+
+[source,groovy]
+----
+static String needsNonNull(@NonNull String s) { s.toUpperCase() }
+
+static String pass(@Nullable String s) {
+    needsNonNull(s ?: 'fallback')              // ok: elvis cannot yield null
+}
+----
+
+Most recently, the checker learned that some *method calls* are
+guards too
+(https://issues.apache.org/jira/browse/GROOVY-12250[GROOVY-12250]).
+A validator that throws on null — `Objects.requireNonNull`, or a
+Guava-style `checkNotNull` — guarantees its argument is non-null
+whenever it completes normally, so the code after it is safe:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+int titleWidth(@Nullable String title) {
+    Objects.requireNonNull(title, 'title must be supplied')
+    title.length()                             // ok: requireNonNull throws on null
+}
+----
+
+The same reasoning covers test code, which previously collected
+false positives for values it had just asserted were present.
+`assertNotNull(title)` now narrows `title` — with the message
+parameter in either position, so JUnit 4's `(message, actual)` and
+JUnit 5 / TestNG's `(actual, message)` conventions both work — and
+fluent chains such as `assertThat(title).isNotNull()` narrow too,
+even through intermediate calls like `describedAs(...)`. As with
+annotations, matching is by simple name, so any library following
+the standard naming conventions works without configuration.
 
 == Example 4: non-null by default — less annotation noise
 
@@ -298,13 +400,13 @@ always safe and won't trigger null dereference warnings.
 == Example 6: going strict — flow-sensitive analysis
 
 The standard `NullChecker` only flags issues involving annotated
-code — unannotated code passes silently. The `StrictNullChecker`
+code — unannotated code passes silently. The `strict` mode
 goes further, tracking nullability through assignments and control
 flow even without annotations:
 
 [source,groovy]
 ----
-@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
 static main(args) {
     def x = null
     x.toString()                               // compile error
@@ -322,7 +424,7 @@ non-null value clears the nullable state:
 
 [source,groovy]
 ----
-@TypeChecked(extensions = 'groovy.typecheckers.StrictNullChecker')
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
 static main(args) {
     def x = null
     x = 'hello'
@@ -332,6 +434,39 @@ static main(args) {
 
 This is ideal for new modules where you want comprehensive null
 coverage from the start, without annotating every declaration.
+
+=== Strict mode also checks field initialisation
+
+Declaring a field `@NonNull` promises it never holds null — but a
+field that is *never assigned at all* holds null from construction
+onwards, and earlier versions of the checker let that pass silently.
+Strict mode now verifies definite initialisation
+(https://issues.apache.org/jira/browse/GROOVY-12251[GROOVY-12251]):
+every explicitly-annotated `@NonNull` instance field must be
+assigned at its declaration, in an instance initialiser block, or by
+every declared constructor (a constructor delegating via `this(...)`
+relies on its delegate):
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
+class Library {
+    @NonNull String catalog                    // never assigned
+    Library(String catalog) { }                // oops — forgot this.catalog = catalog
+}
+----
+
+[source]
+----
+[Static type checking] - @NonNull field 'catalog' is not initialized by all constructors
+----
+
+The check is deliberately confined to strict mode so that
+named-argument bean construction — `new Book(title: 'Groovy in
+Action')` — keeps working unflagged in relaxed code. Fields annotated
+`@MonotonicNonNull` or `@Lazy` are excluded, since as Example 5
+showed, they are _supposed_ to start out null; so are primitives and
+static fields.
 
 == Annotation compatibility
 
@@ -358,6 +493,89 @@ class name. This means it works with annotations from any library:
 | `@Nullable`, `@NonNull`, `@MonotonicNonNull`
 |===
 
+=== JSpecify on compiled dependencies
+
+Simple-name matching handles annotations in your own source. Two
+Groovy 6 changes extend the same reach to *libraries you did not
+compile yourself*:
+https://issues.apache.org/jira/browse/GROOVY-12206[GROOVY-12206]
+ingests type-use annotations when reading compiled classes, and
+https://issues.apache.org/jira/browse/GROOVY-12207[GROOVY-12207]
+consults a dependency's `package-info.class` during resolution.
+
+Together they mean a JSpecify-annotated jar works out of the box.
+Given this Java library, compiled separately and available only as
+class files:
+
+[source,java]
+----
+// package-info.java
+@org.jspecify.annotations.NullMarked
+package com.acme;
+
+// Repo.java
+public class Repo {
+    public @Nullable String findName(String id) { … }
+    public String greeting() { … }        // @NullMarked ==> implicitly non-null
+}
+----
+
+a Groovy consumer gets both halves of the contract with no annotations
+of its own:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class Consumer {
+    static int bad(Repo r)  { r.findName('u42').length() }   // compile error
+    static int good(Repo r) { r.greeting().length() }        // fine
+}
+----
+
+[source]
+----
+[Static type checking] - Potential null dereference: 'findName()' may return null
+----
+
+That is the producer/consumer split working across a jar boundary: the
+library author declared the contract once, and every downstream Groovy
+file compiled under `NullChecker` collects the benefit. JSpecify is
+bundled with the Groovy 6 distribution, so there is nothing to add.
+
+=== Nullable type arguments
+
+Type-use annotations can also sit _inside_ a generic type:
+`List<@Nullable String>` is a list whose *elements* may be null even
+though the list itself never is. The changes above made those
+annotations visible to the compiler, but the checker never looked
+inside the type arguments. Now it does
+(https://issues.apache.org/jira/browse/GROOVY-12252[GROOVY-12252]):
+element access on such a collection is nullable, however you spell
+it —
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker')
+class Catalog {
+    static int firstTitleLength(List<@Nullable String> titles) {
+        titles.get(0).length()                 // flagged — and so are
+    }                                          // titles[0], titles.head(), …
+}
+----
+
+[source]
+----
+[Static type checking] - Potential null dereference: 'get()' may return null
+----
+
+Subscript access (`xs[0]`), the GDK's `head()` and `first()`, and map
+lookups on a `Map<String, @Nullable Integer>` — both `m.get(key)` and
+`m[key]` — are all recognised. The nullness flows through class- and
+method-level type variables, and, as with the rest of the JSpecify
+support, works for annotations read from compiled dependencies.
+Guarding the element narrows it exactly as for any other nullable
+value.
+
 If you prefer not to add an external dependency, you can define
 your own minimal annotations — the checker only cares about the
 simple name:
@@ -373,41 +591,89 @@ simple name:
 @interface NonNull {}
 ----
 
-== How this compares to Java approaches
+== How this compares
 
-Java developers wanting compile-time null safety currently reach
-for external tools — the
+The three mainstream approaches to null safety differ less in what
+they catch than in *where the information about nullness is kept*:
+
+[cols="1,2,2", options="header"]
+|===
+| Approach | Nullness is… | What you write
+
+| Kotlin
+| part of the *type* — `String` and `String?` are different types
+| a `?` on every type that may be absent
+
+| Java + JSpecify / Checker Framework
+| a *declaration on the element*, read by a tool
+| `@Nullable` / `@NonNull` annotations
+
+| Groovy `NullChecker(strict: true)`
+| *inferred from flow* through the method body
+| nothing
+|===
+
+In strict mode the checker works out that `def x = null` makes `x`
+nullable, that `x = 'hello'` clears it, and that a guard narrows it —
+without a `?` in the type and without an annotation. That is a real
+ergonomic difference: the same analysis a careful reader does, applied
+mechanically, to code you have not modified.
+
+It is emphatically *not* a claim to beat Kotlin's model, and on the
+axis that matters most the trade runs the other way:
+
+* *Kotlin's guarantee is total and always on.* Nullness carried in the
+type survives every call boundary, every generic instantiation and
+every module edge, and the compiler will not let you opt out. Groovy's
+flow analysis is local to the code being checked, and you choose where
+to switch it on.
+* *Past your own code, declarations still carry the information.* Flow
+inference knows about values it can watch being created and narrowed.
+What a library returns is a fact only that library can state — which
+is exactly why the JSpecify support above matters.
+* *Kotlin pays the cost once, at the type.* Groovy pays it per
+analysis scope. Whether that is a saving depends on how much of your
+codebase you turn the checker on for.
+
+Against the *Java* tooling in that middle row — the
 https://checkerframework.org/manual/#nullness-checker[Checker Framework],
-https://errorprone.info/[Error Prone], or IDE-specific inspections
-(IntelliJ, Eclipse). Each brings its own setup, annotation flavour,
-and build integration.
+https://errorprone.info/[Error Prone], or IDE-specific inspections in
+IntelliJ and Eclipse, each with its own setup, annotation flavour and
+build integration — Groovy's checker has some practical advantages:
 
-Groovy's NullChecker offers several advantages:
+* *Zero setup.* It is a type-checking extension: add one annotation,
+or register it once in a compiler configuration script, and you are
+done. No annotation processor configuration, no extra compiler flags,
+no Gradle plugin.
+* *Any annotation library.* Simple-name matching means JSpecify,
+JSR-305, JetBrains, SpotBugs, Checker Framework or your own hand-rolled
+marker all work, interchangeably, including from compiled dependencies.
+* *It understands Groovy idioms.* Safe navigation, elvis assignment,
+`@Lazy` fields and Groovy truth are all recognised as narrowing forms.
+A Java-only tool cannot help you here, because it has never heard of
+them.
+* *Incremental by construction.* Annotation-only checking on existing
+code, flow-sensitive mode on new modules — the two levels mean there
+is no all-or-nothing migration to schedule.
+* *It complements `@NullCheck`.* Catch violations at compile time and
+keep the generated runtime guard as a safety net.
 
-* **Zero setup.** It's a type-checking extension — add one
-  annotation and you're done. No annotation processor configuration,
-  no extra compiler flags, no Gradle plugin.
-* **Works with any annotation library.** Simple-name matching means
-  you can use JSpecify, JSR-305, JetBrains, SpotBugs, Checker
-  Framework, or your own — interchangeably.
-* **Understands Groovy idioms.** Safe navigation (`?.`), elvis
-  assignment (`?=`), `@Lazy` fields, and Groovy truth are all
-  recognised. A Java-only tool can't help here.
-* **Two-tier strictness.** Start with annotation-only checking on
-  existing code, then enable flow-sensitive mode for new modules —
-  no all-or-nothing migration.
-* **Complements `@NullCheck`.** Catch violations at compile time
-  while keeping the runtime guard as a safety net.
+The honest summary is that these are different points on an
+adoption-cost-versus-strength curve rather than better and worse. If
+you are starting fresh and want the guarantee everywhere, a type system
+that encodes nullness is the stronger tool. If you have an existing
+Groovy codebase and want most of the benefit without touching a single
+declaration, inference on the variable gets you a long way for nothing.
 
 == The full picture
 
-The examples above cover the most common scenarios. The complete
-proposal also includes detection of nullable method return value
-dereferences, `@Nullable` values flowing into `@NonNull` parameters
-through variables, nullable propagation in ternary and elvis
-expressions, and integration with JSpecify's `@NullMarked` /
-`@NullUnmarked` scoping. The full spec is available in the
-https://github.com/apache/groovy/pull/2426[PR].
+The examples above cover the most common scenarios. `NullChecker`
+also detects nullable method return value dereferences, `@Nullable`
+values flowing into `@NonNull` parameters through variables, nullable
+propagation in ternary and elvis expressions, and JSpecify's
+`@NullMarked` / `@NullUnmarked` scoping. The reference documentation
+is in the
+dochome6:typecheckers.html[type checkers user guide].
 
 For complementary null-related checks — such as detecting broken
 null-check logic, unnecessary null guards before `instanceof`, or
@@ -417,38 +683,56 @@ these type checkers.
 
 == We'd love your feedback
 
-The NullChecker feature is currently a proposal in
-https://github.com/apache/groovy/pull/2426[PR #2426]
-(tracking issue
-https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]).
-Null safety is a foundational concern, and we want to get the
-design right.
+`NullChecker` shipped in Groovy 6
+(https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894]),
+and has been refined since on the strength of real usage — broader
+guard recognition, nullable-expression tracking, JSpecify support
+reaching into compiled dependencies, narrowing through
+`requireNonNull`-style validators and test assertions,
+definite-initialisation checking for `@NonNull` fields, and
+`@Nullable` type arguments in generics all landed after the first
+version of this post.
 
-* *Comment* on the https://github.com/apache/groovy/pull/2426[PR] or
-  the https://issues.apache.org/jira/browse/GROOVY-11894[JIRA issue]
-  with your thoughts, use cases, or design suggestions.
-* *Vote* on the JIRA issue if you'd like to see this feature land.
-
-Your feedback helps us gauge interest and shape the final design.
+Null safety is a foundational concern and the edges are where the
+design gets tested, so if the checker flags something it shouldn't, or
+stays quiet where you expected a diagnostic, please
+https://issues.apache.org/jira/browse/GROOVY[raise an issue] — a small
+reproducer is worth a great deal.
 
 == Conclusion
 
-Through our _Groovy Shelf_ bookshop examples we've seen how the
-proposed NullChecker catches null dereferences, unsafe assignments,
+Through our _Groovy Shelf_ bookshop examples we've seen how
+`NullChecker` catches null dereferences, unsafe assignments,
 and missing null checks at compile time — from looking up books
 with nullable titles, to enforcing non-null parameters, recognising
 Groovy's safe-navigation idioms, applying class-level defaults with
 `@NonNullByDefault`, handling lazy initialisation with
 `@MonotonicNonNull`, and tracking nullability through control flow
-with the `StrictNullChecker`. The setup is minimal, the annotation
+with `NullChecker(strict: true)`. The setup is minimal, the annotation
 compatibility is broad, and the two-tier strictness model lets you
 adopt null safety at your own pace.
 
 == References
 
-* https://github.com/apache/groovy/pull/2426[PR #2426 — NullChecker type-checking extension]
-* https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894 — Tracking issue]
+* dochome6:typecheckers.html[Groovy type checkers user guide — NullChecker reference]
+* link:../releasenotes/groovy-6.0.html#type-checking-extensions[Groovy 6 release notes — type checking extensions]
+* https://issues.apache.org/jira/browse/GROOVY-11894[GROOVY-11894 — NullChecker]
+  (https://github.com/apache/groovy/pull/2426[PR #2426]), plus the follow-ups:
+  https://issues.apache.org/jira/browse/GROOVY-12206[GROOVY-12206] and
+  https://issues.apache.org/jira/browse/GROOVY-12207[GROOVY-12207] (JSpecify on
+  compiled dependencies),
+  https://issues.apache.org/jira/browse/GROOVY-12208[GROOVY-12208] (broader
+  guards),
+  https://issues.apache.org/jira/browse/GROOVY-12209[GROOVY-12209] (nullable
+  expression tracking),
+  https://issues.apache.org/jira/browse/GROOVY-12250[GROOVY-12250] (validator
+  and assertion narrowing),
+  https://issues.apache.org/jira/browse/GROOVY-12251[GROOVY-12251] (definite
+  initialisation of `@NonNull` fields) and
+  https://issues.apache.org/jira/browse/GROOVY-12252[GROOVY-12252] (nullable
+  type arguments)
 * https://jspecify.dev/[JSpecify — Standard Java annotations for null safety]
 * https://checkerframework.org/manual/#nullness-checker[Checker Framework — Nullness Checker]
 * https://groovy-lang.org/objectorientation.html#_safe_navigation_operator[Groovy safe navigation operator]
+* https://groovy.apache.org/blog/groovy6-ai-friendly[Groovy 6 for humans and AI agents] — where these declarations fit the wider picture
 * https://codenarc.org/[CodeNarc]
