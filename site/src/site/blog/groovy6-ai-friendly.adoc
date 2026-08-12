@@ -7,13 +7,16 @@ Paul King <paulk-asert|PMC_Member>
 [quote]
 ----
 Groovy can be very efficient in terms of lines of code/AI tokens processed ...
-POGO using AST transforms (lines/tokens): Groovy 15/86, Java 126/998
-record with behavior: Groovy 23/190, Java 122/1029
-scalable reading: 288 tokens of source → 83 tokens of verified spec → 0 bodies opened. The reader who needs to know what a class promises no longer pays to read what it does.
+  POGO using AST transforms (lines/tokens): Groovy 15/86, Java 126/998
+  Record with behavior: Groovy 23/190, Java 122/1029
+  Scalable reading: 288 tokens of source → 83 tokens of verified spec → 0 bodies opened.
+  The reader who needs to know what a class promises no longer pays to read what it does.
 
 Groovy can be fast (compared with CPython and Rust-based pydantic-core) ...
-Ready to serve (spawn + handshake + tools): Python ~215 ms, Groovy JVM ~410–470 ms, Groovy Native ~18 ms
-Steady-state (search n=20): Python 5.6 ms, Groovy JVM dynamic 10.5 ms, Groovy native static 5.1 ms
+  Ready to serve (spawn + handshake + tools):
+    Python ~215 ms, Groovy JVM ~410–470 ms, Groovy Native ~18 ms
+  Steady-state (search n=20):
+    Python 5.6 ms, Groovy JVM dynamic 10.5 ms, Groovy native static 5.1 ms
 ----
 
 == Introduction
