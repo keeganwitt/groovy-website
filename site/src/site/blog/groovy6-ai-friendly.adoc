@@ -1,6 +1,6 @@
 = Groovy 6 for humans and AI agents
 Paul King <paulk-asert|PMC_Member>
-:revdate: 2026-09-12T08:00:00+00:00
+:revdate: 2026-08-14T08:00:00+00:00
 :keywords: AI, agents, LLM, contracts, type checking extensions, AGENTS.md, skills, threat model, groovydoc, markdown, developer experience
 :description: What makes Groovy 6 legible to AI agents makes it legible to people: verified declarations, checkers that catch generated-code bugs, docs that can't drift.
 
@@ -152,6 +152,37 @@ bodies were opened.
 | Compare `@Modifies` sets and `@Requires`
 | Analyse all pairs for interference
 |===
+
+=== The saving is a subtree, not a percentage
+
+The table understates the deal, because "read the body" was never the
+true price. `deposit` is three lines, but one of them calls
+`log.add(...)`, and proving that call can't touch `balance` — the
+question `@Modifies` answers outright — means proving it for
+everything beneath it. In JDK 25's sources the traversal runs
+
+[source]
+----
+deposit → ArrayList.add(E) → add(E, Object[], int) → grow(int)
+        → grow() → ArraysSupport.newLength → hugeLength
+----
+
+— six levels and about 460 CL100K tokens down *one branch of one
+line*, and still unfinished: `Arrays.copyOf` bottoms out in native
+code, the `modCount` semantics live in a superclass, and the
+`GString.toString()` on the same line opens a second subtree of its
+own. The `@Modifies({ [this.balance, this.log] })` that settles the
+question is about a dozen tokens.
+
+That is the real shape of the trade. Without declarations, reading
+cost compounds: a method with _k_ callees, chased _d_ levels deep, is
+_k^d_ bodies. A verified declaration truncates the recursion — every
+annotated signature is a leaf the traversal stops at. It also answers
+the obvious objection that the annotations make the class *bigger*,
+which they do: annotating `Account` roughly triples it (74 CL100K
+tokens to 229). The extra tokens buy a constant-size wall in place of
+an unbounded subtree, on every path that would otherwise descend —
+a constant, traded for an exponential.
 
 === The part that makes it work
 
