@@ -1374,6 +1374,34 @@ checked just like source
 (https://issues.apache.org/jira/browse/GROOVY-12206[GROOVY-12206],
 https://issues.apache.org/jira/browse/GROOVY-12207[GROOVY-12207]).
 
+Calls that _guarantee_ an argument is non-null when they complete
+normally narrow that argument afterwards: validator methods such as
+`Objects.requireNonNull(x)` (the natural "cast to non-null" escape
+hatch) and Guava-style `checkNotNull(x)`; test assertions such as
+`assertNotNull(x)`, with JUnit 4's `(message, actual)` and
+JUnit 5 / TestNG's `(actual, message)` argument orders both recognised
+by parameter types rather than position; and fluent assertion chains
+like `assertThat(x).isNotNull()` (AssertJ, Truth, or similar), looking
+through intermediate chained calls such as `describedAs(...)`.
+Consistent with the checker's design, these methods are matched by
+simple name, so any library following the common naming conventions is
+recognised without configuration
+(https://issues.apache.org/jira/browse/GROOVY-12250[GROOVY-12250]).
+
+Nullness annotations are also honoured _inside_ type arguments --
+JSpecify's headline generics capability. Wherever the static type
+checker's generics inference carries a `@Nullable` type argument
+through a class or method level type variable, the result is treated
+as nullable: `get(0)` on a `List<@Nullable String>`, the idiomatic
+subscript `xs[0]`, GDK calls such as `head()` and `first()`, and
+`get(key)` or `m[key]` on a `Map<String, @Nullable Integer>`. The
+nullable result participates in all the existing analyses -- unguarded
+dereference is flagged, the recognised guards and safe navigation are
+accepted, and passing it to a `@NonNull` parameter is an error --
+whether the annotated type appears in source or is read from a
+compiled dependency
+(https://issues.apache.org/jira/browse/GROOVY-12252[GROOVY-12252]).
+
 === Strict mode: no annotations needed
 
 Passing `strict: true` extends the checker with flow-sensitive analysis
@@ -1397,6 +1425,28 @@ The checker tracks nullability through assignments and control flow,
 catching potential dereferences that would otherwise surface only at runtime.
 This is also an example of parameterized type checking extensions in action --
 the `strict: true` argument is passed directly in the extension string.
+
+Strict mode also checks that every explicitly-annotated `@NonNull`
+instance field is _definitely initialized_ -- at its declaration, in
+an instance initializer block, or by every declared constructor (a
+constructor delegating via `this(...)` relies on its delegate). A
+`@NonNull` field nothing ever assigns is otherwise exactly the field
+the checker would wrongly trust at every dereference:
+
+[source,groovy]
+----
+@TypeChecked(extensions = 'groovy.typecheckers.NullChecker(strict: true)')
+class Library {
+    @NonNull String catalog                  // never assigned
+    Library(String catalog) { }              // forgot: this.catalog = catalog
+}
+----
+
+reports `@NonNull field 'catalog' is not initialized by all
+constructors`. Fields that are non-null merely by default (under
+`@NullMarked` and friends) are not subject to the check, keeping it
+noise-free for idiomatic Groovy such as named-argument construction
+(https://issues.apache.org/jira/browse/GROOVY-12251[GROOVY-12251]).
 
 See also the https://groovy.apache.org/blog/groovy-null-checker[NullChecker blog post]
 for a detailed walkthrough.
@@ -1519,6 +1569,26 @@ https://issues.apache.org/jira/browse/GROOVY-12209[GROOVY-12209]
 precompiled APIs are checked like source.
 | https://issues.apache.org/jira/browse/GROOVY-12206[GROOVY-12206],
 https://issues.apache.org/jira/browse/GROOVY-12207[GROOVY-12207]
+
+| `NullChecker` validator and assertion narrowing
+| `Objects.requireNonNull`, `checkNotNull`, `assertNotNull` (JUnit 4/5
+and TestNG argument orders), and fluent `assertThat(x).isNotNull()`
+chains narrow their argument to non-null afterwards; matched by
+simple name across libraries.
+| https://issues.apache.org/jira/browse/GROOVY-12250[GROOVY-12250]
+
+| `NullChecker(strict: true)` field initialization
+| Every explicitly-annotated `@NonNull` instance field must be
+definitely initialized: at declaration, in an instance initializer
+block, or by every declared constructor.
+| https://issues.apache.org/jira/browse/GROOVY-12251[GROOVY-12251]
+
+| `NullChecker` generics nullness
+| `@Nullable` type arguments are honoured through generics inference:
+`get(0)`, `xs[0]`, `head()` on a `List<@Nullable String>` and map
+lookups yield a checked nullable result, from source or compiled
+dependencies.
+| https://issues.apache.org/jira/browse/GROOVY-12252[GROOVY-12252]
 
 | gapi:groovy.typecheckers.ModifiesChecker[ModifiesChecker]
 | Verifies `@Modifies` frame conditions at compile time. Checks that
@@ -3656,6 +3726,43 @@ block to re-execute
 (https://issues.apache.org/jira/browse/GROOVY-6844[GROOVY-6844],
 https://issues.apache.org/jira/browse/GROOVY-7463[GROOVY-7463]).
 
+[[instanceof-flow-scoping]]
+=== `instanceof` pattern variable flow scoping (JEP 394)
+
+Pattern variables introduced by `instanceof` (and Groovy's native
+`!instanceof`) now follow Java's flow scoping rules
+(https://openjdk.org/jeps/394[JEP 394]): the variable is in scope
+exactly where the compiler can prove the test succeeded
+(https://issues.apache.org/jira/browse/GROOVY-12242[GROOVY-12242]).
+In particular, the Java-idiomatic early-return form now works:
+
+[source,groovy]
+----
+def describe(o) {
+    if (!(o instanceof String s)) {
+        return 'not a string'
+    }
+    s.toUpperCase()        // ok: the test must have succeeded to get here
+}
+----
+
+Flow scoping composes through `!`, `&&` and `||` in the condition:
+`o instanceof String s && s.length() > 4` binds `s` for the right-hand
+side of the `&&` and for the if-block, a negated test binds the
+else-block, and the variable remains bound after the whole statement
+when the branch it is not bound in cannot complete normally (as
+above). Where flow scoping says the variable is *not* bound -- the
+else-block of a plain `instanceof` test, or anywhere after
+`o instanceof String s || other` -- a same-named declaration is now
+permitted and introduces an ordinary new local. Reads outside the
+flow scope are compile-time errors under `@TypeChecked` /
+`@CompileStatic` and dynamic property lookups in dynamic code; this
+is a behaviour change for code that relied on the previous leaking
+scope (see <<Groovy6.0-breaking,Breaking changes>>). `while`
+conditions support the short-circuit and loop-body bindings; Java's
+introduction of the variable *after* a loop whose body cannot
+complete normally is not currently applied.
+
 [[intersection-cast]]
 === Intersection-type casts for lambdas, method references and closures
 
@@ -4146,6 +4253,17 @@ and restores interceptability for that enum. This is a compile-time
 change: enums compiled by earlier Groovy versions keep their existing
 behaviour whichever Groovy runs them
 (https://issues.apache.org/jira/browse/GROOVY-12240[GROOVY-12240]).
+* `instanceof` (and `!instanceof`) pattern variables now follow Java's
+flow scoping rules (see <<instanceof-flow-scoping>>). In dynamic code,
+reading a pattern variable where flow scoping says it is not bound --
+for example in the else-block of a plain `instanceof` test, after the
+if-statement, or on the right of `||` -- is now a dynamic property
+lookup, typically failing at runtime with `MissingPropertyException`,
+where it previously read the leaked variable. Under `@TypeChecked` /
+`@CompileStatic` such reads are compile-time errors. Declaring a new
+variable with the pattern variable's name where it is not bound is now
+allowed
+(https://issues.apache.org/jira/browse/GROOVY-12242[GROOVY-12242]).
 * The `CompilerConfiguration` copy constructor now copies compilation
 customizers (and type-checking extension configuration), so a
 configuration cloned from a base config behaves like the original.
