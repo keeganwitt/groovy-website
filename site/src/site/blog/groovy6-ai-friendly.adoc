@@ -646,6 +646,8 @@ non-deterministic wrong answer under load:
     will be non-deterministic. Use an associative combiner.
 ----
 
+image:img/combiner_checker.png["a sequential fold that passes its tests gives four different wrong answers at four pool sizes once made parallel; CombinerChecker refuses it at compile time",width=800]
+
 Alongside these, Groovy 6 tightened
 link:../releasenotes/groovy-6.0.html#annotation-validation[annotation
 target validation] (link:https://issues.apache.org/jira/browse/GROOVY-11884[GROOVY-11884], link:https://issues.apache.org/jira/browse/GROOVY-11838[GROOVY-11838]) so misplaced
