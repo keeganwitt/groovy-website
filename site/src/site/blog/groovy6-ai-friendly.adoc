@@ -6,6 +6,8 @@ Paul King <paulk-asert|PMC_Member>
 
 [quote]
 ----
+Groovy 6 - supporting more flexible or stricter efficient code - your choice.
+
 Groovy can be very efficient in terms of lines of code/AI tokens processed ...
   POGO using AST transforms (lines/tokens): Groovy 15/86, Java 126/998
   Record with behavior: Groovy 23/190, Java 122/1029
