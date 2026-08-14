@@ -89,12 +89,7 @@ downloads {
         }
         version('6.0.0-beta-1') {
             stable false
-//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-beta-1/'
-        }
-        version('6.0.0-alpha-1') {
-            stable false
-            archive true
-            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-alpha-1/'
+            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-beta-1/'
         }
     }
     distribution('Groovy 5.0') {
@@ -106,12 +101,7 @@ downloads {
         }
         version('5.0.8') {
             stable true
-//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.0.8/'
-        }
-        version('5.0.6') {
-            stable true
-            archive true
-            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.0.6/'
+            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.0.8/'
         }
     }
     distribution('Groovy 4.0') {
@@ -123,12 +113,7 @@ downloads {
         }
         version('4.0.33') {
             stable true
-//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-4.0.33/'
-        }
-        version('4.0.32') {
-            stable true
-            archive true
-            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-4.0.32/'
+            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-4.0.33/'
         }
     }
     distribution('Groovy 3.0') {
