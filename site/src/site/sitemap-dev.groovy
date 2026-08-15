@@ -92,15 +92,26 @@ downloads {
             windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-beta-1/'
         }
     }
-    distribution('Groovy 5.0') {
+    distribution('Groovy 5.1') {
         description {
-            a(href: "${userSiteBase}releasenotes/groovy-5.0.html", 'Groovy 5.0')
+            a(href: "${userSiteBase}releasenotes/groovy-5.1.html", 'Groovy 5.1')
             yield ' is the latest stable '
             a(href: 'versioning.html', 'version')
             yield ' of Groovy designed for JDK11+.'
         }
+        version('5.1.0') {
+            stable true
+//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.1.0/'
+        }
+    }
+    distribution('Groovy 5.0') {
+        description {
+            a(href: "${userSiteBase}releasenotes/groovy-5.0.html", 'Groovy 5.0')
+            yield ' is superseded by 5.1.'
+        }
         version('5.0.8') {
             stable true
+            archive true
             windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.0.8/'
         }
     }
