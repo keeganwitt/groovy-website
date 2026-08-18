@@ -3075,6 +3075,13 @@ bad JAR with a warning while the remaining artifacts continue to register.
 POM-only stubs and corrupt artifacts so a poisoned cache entry is
 re-fetched rather than silently used; a relaxed configuration is
 available for environments that need the previous lenient behaviour.
+* A checksum mismatch now fails resolution in the Maven engine rather
+than logging a warning and using the artifact anyway, matching the Ivy
+engine's long-standing behaviour
+(https://issues.apache.org/jira/browse/GROOVY-12265[GROOVY-12265]).
+Artifacts published without any checksum continue to resolve, as they do
+with the Ivy engine, and `@GrabConfig(disableChecksums=true)` (or
+`-Dgroovy.grape.disableChecksums`) still skips verification entirely.
 
 [[platform-logging]]
 == Platform Logging
