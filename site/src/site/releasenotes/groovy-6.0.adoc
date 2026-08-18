@@ -3082,6 +3082,15 @@ engine's long-standing behaviour
 Artifacts published without any checksum continue to resolve, as they do
 with the Ivy engine, and `@GrabConfig(disableChecksums=true)` (or
 `-Dgroovy.grape.disableChecksums`) still skips verification entirely.
+* A resolver root using a plaintext protocol, such as a `@GrabResolver`
+naming an `http://` repository, is now reported since artifacts fetched
+from it can be read or modified in transit
+(https://issues.apache.org/jira/browse/GROOVY-12266[GROOVY-12266]).
+`-Dgroovy.grape.insecureProtocolPolicy` selects `fail` to reject such a
+resolver, `warn` (the default) to log it and add the resolver anyway, or
+`ignore` to skip the check; roots naming a loopback host are exempt under
+every policy. The check applies to both engines, since every route to
+adding a resolver passes through the same facade.
 
 [[platform-logging]]
 == Platform Logging
