@@ -25,7 +25,8 @@ data warehouse acceleration. It was previously open-sourced under the name
 _TuGraph Analytics_, as part of the same TuGraph family as the TuGraph
 graph database we looked at in our earlier
 https://groovy.apache.org/blog/groovy-graph-databases[Using Graph Databases with Groovy]
-post. GeaFlow entered the Apache Incubator in June 2025, and its
+post. GeaFlow entered the https://incubator.apache.org/[Apache Incubator]
+in June 2025, and its
 first Apache releases are now available from Maven Central under the
 `org.apache.geaflow` group id.
 
@@ -34,8 +35,9 @@ a graph _computing engine_ like GeaFlow focuses on running computations
 over graphs: iterative algorithms like PageRank and shortest paths,
 multi-hop traversals, and — GeaFlow's speciality — doing this
 _incrementally over streaming data_, so that answers stay up-to-date
-as new vertices and edges arrive. If you know Apache Flink or
-Spark's GraphX, GeaFlow sits in a similar space, but with graphs
+as new vertices and edges arrive. If you know
+https://flink.apache.org/[Apache Flink] or
+https://spark.apache.org/[Spark]'s GraphX, GeaFlow sits in a similar space, but with graphs
 as first-class citizens.
 
 GeaFlow offers two programming interfaces:
@@ -335,8 +337,11 @@ FROM (
   RETURN a.id as a_id, b.id as b_id, c.id as c_id, d.id as d_id, a.id as a1_id
 );
 ----
-* *Connectors* for the DSL covering files, sockets, Kafka, Pulsar, Hive,
-  JDBC, HBase, Elasticsearch, Hudi, Paimon, and even Neo4j.
+* *Connectors* for the DSL covering files, sockets,
+  https://kafka.apache.org/[Kafka], https://pulsar.apache.org/[Pulsar],
+  https://hive.apache.org/[Hive], JDBC, https://hbase.apache.org/[HBase],
+  Elasticsearch, https://hudi.apache.org/[Hudi],
+  https://paimon.apache.org/[Paimon], and even Neo4j.
 * *Dynamic graph computation*: the same vertex-centric algorithms can
   run incrementally against a graph view that is continuously updated
   from streaming vertex and edge sources — GeaFlow's headline feature,
@@ -362,7 +367,8 @@ https://github.com/paulk-asert/groovy-geaflow
 [NOTE]
 ====
 Apache GeaFlow is an effort undergoing incubation at The Apache Software
-Foundation (ASF), sponsored by the Apache Incubator. Incubation is
+Foundation (ASF), sponsored by the Apache Incubator.
+https://incubator.apache.org/[Incubation] is
 required of all newly accepted projects until a further review indicates
 that the infrastructure, communications, and decision making process have
 stabilized in a manner consistent with other successful ASF projects.
