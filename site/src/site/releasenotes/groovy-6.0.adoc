@@ -3864,6 +3864,16 @@ hidden classes for its runtime-generated helpers (see
 forbid runtime class definition fall back transparently
 (https://issues.apache.org/jira/browse/GROOVY-12223[GROOVY-12223]).
 
+A note on class-initialization policy: recipes written for earlier Groovy
+versions often passed a blanket `--initialize-at-build-time` (with no
+argument, meaning every package) to coax a statically compiled script
+through. Don't carry that over. Run-time initialization is already the
+default for application classes in current `native-image` releases, and it is
+what the AOT link mode expects; forcing Groovy's runtime to initialize at
+build time instead pulls its internal state into the image heap, where
+`native-image` rejects live objects such as running threads and seeded
+`Random` instances. Leaving the flag off is both shorter and correct.
+
 [[g6-other-core-api]]
 == Other Core API Changes
 
