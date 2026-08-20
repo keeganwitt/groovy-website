@@ -358,8 +358,13 @@ That command is considerably shorter than the one this post used to show. Along 
 `--no-fallback` (now explicitly deprecated: "No effect, no replacement available"), and the two
 `--initialize-at-run-time` entries for `GrapeIvy` and `RandomWeights` (run-time initialization is
 the default for application classes these days). The blanket `--initialize-at-build-time` has to go
-too, and not merely for tidiness -- it now *fails the build*, because build-initializing Groovy's
-call-site cache would place its `PIC-Cleaner` thread into the image heap.
+too, and not merely for tidiness: forcing Groovy's runtime to initialize at build time pulls its
+internal state into the image heap, which `native-image` rejects. On 6.0.0-beta-2 specifically it
+fails on the call-site cache's `PIC-Cleaner` thread -- a thread that
+https://issues.apache.org/jira/browse/GROOVY-12142[GROOVY-12142] has since removed entirely -- but
+the general point outlives that particular symptom, since a seeded `Random` in the image heap is
+rejected just the same. Run-time initialization is what the AOT link mode expects; just leave the
+flag off.
 
 Now we are ready to run our application:
 
