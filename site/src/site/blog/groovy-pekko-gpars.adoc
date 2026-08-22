@@ -1,7 +1,7 @@
 = Using Apache Pekko actors and Groovy&trade; 6 actors
 Paul King
 :revdate: 2023-07-17T23:24:56+00:00
-:updated: 2026-07-12T00:00:00+00:00
+:updated: 2026-08-22T00:00:00+00:00
 :keywords: concurrency, groovy, actors, pekko, groovy.concurrent, gpars
 :description: This post looks at using Apache Pekko Actors and Groovy 6's built-in groovy.concurrent Actors.
 
@@ -30,6 +30,8 @@ threads] post shows the equivalent GPars examples. The companion repository
 includes a legacy GPars version of this example too.
 ====
 
+image:img/pekko_groovy6_actors.png["The three-actor hello world system, and the whole bot actor in Groovy 6",width=800]
+
 == The example
 
 A common first example involving actors involves creating two actors where one actor
@@ -54,7 +56,7 @@ to tell it the maximum number of times to echo the message before stopping.
 
 == A Pekko implementation in Groovy
 
-This example uses Groovy 6.0.0-alpha-2 and Pekko 1.6.0.
+This example uses Groovy 6.0.0-beta-2 and Pekko 1.7.0.
 It was tested with JDK 21 and 25.
 
 The Pekko documentation gives Java and Scala implementations.
@@ -298,6 +300,97 @@ Hello World!
 Greeting 3 for World
 ----
 
+== An @ActiveObject implementation
+
+The Pekko version is class-based: each actor is a class, its state lives in
+fields, and incoming messages arrive in a receive method. If you like that
+shape but not the ceremony, Groovy 6 offers another option. Annotate an
+ordinary class with `@ActiveObject` and its methods with `@ActiveMethod`,
+and the compiler routes those calls through an internal actor. Callers just
+see normal method calls, but all `@ActiveMethod` calls on an instance are
+processed one at a time, so the object's state needs no locks and no
+concurrent collections.
+
+Because our objects call back into one another, we mark the methods
+`blocking = false`, so a call returns immediately instead of waiting for the
+method to run. There are also no message classes to write: the method
+parameters _are_ the message.
+
+Our greeter becomes a class with a single method:
+
+[source,groovy]
+----
+import groovy.transform.ActiveMethod
+import groovy.transform.ActiveObject
+
+@ActiveObject
+class HelloWorld {
+    @ActiveMethod(blocking = false)
+    void greet(String whom, HelloWorldBot replyTo) {
+        println "Hello $whom!"
+        replyTo.greeted(whom, this)
+    }
+}
+----
+
+The bot keeps its counter in a plain private field. Since every call is
+serialized through its own actor, incrementing it is safe:
+
+[source,groovy]
+----
+@ActiveObject
+class HelloWorldBot {
+    private final int max
+    private int greetingCounter
+
+    HelloWorldBot(int max) { this.max = max }
+
+    @ActiveMethod(blocking = false)
+    void greeted(String whom, HelloWorld from) {
+        greetingCounter++
+        println "Greeting $greetingCounter for $whom"
+        if (greetingCounter < max) from.greet(whom, this)
+    }
+}
+----
+
+And the main class creates the greeter and a bot per request, just like before:
+
+[source,groovy]
+----
+@ActiveObject
+class HelloWorldMain {
+    private final HelloWorld greeter = new HelloWorld()
+
+    @ActiveMethod(blocking = false)
+    void sayHello(String name) {
+        greeter.greet(name, new HelloWorldBot(3))
+    }
+}
+----
+
+Kicking off the system now looks like ordinary object-oriented code:
+
+[source,groovy]
+----
+var main = new HelloWorldMain()
+
+main.sayHello('World')
+main.sayHello('Groovy 6')
+
+sleep 2000
+----
+
+The output is the same as before, and there is nothing to shut down --
+when the script ends, so does the JVM. Compare the `HelloWorldBot` here with
+the Pekko one earlier: same two fields and the same logic, but no `Behavior`
+types, no `createReceive` builder, and no message records.
+
+For request/reply, leave `blocking` at its default of `true` and the call
+returns the method's result once the actor has processed it. If you want the
+reply but not the wait, `blocking = false` on a method with a return value
+hands back an `Awaitable` you can `await` later.
+
 == Discussion
 
 The `groovy.concurrent` implementation is less verbose than the Pekko
@@ -335,13 +428,14 @@ for the bigger picture.
 == Conclusion
 
 We have had a quick glimpse at using actors with Apache Pekko and with Groovy 6's
-built-in `groovy.concurrent` package (with GPars noted as the pre-Groovy-6 option).
+built-in `groovy.concurrent` package -- both with explicit actors and with
+`@ActiveObject` classes (with GPars noted as the pre-Groovy-6 option).
 
 The sample code can be found here:
 
 https://github.com/paulk-asert/groovy-pekko-gpars
 
-It contains `pekko`, `groovy6`, and legacy `gpars` versions of the example.
+It contains `pekko`, `groovy6`, `activeobject`, and legacy `gpars` versions of the example.
 
 .Update history
 ****
@@ -350,5 +444,6 @@ It contains `pekko`, `groovy6`, and legacy `gpars` versions of the example.
 *26/Jul/2023*: Update to Pekko 1.0.1. +
 *25/Jun/2024*: Update to Pekko 1.0.3. +
 *28/Sep/2024*: Update to Pekko 1.1.1. +
-*12/Jul/2026*: Update to Pekko 1.6.0 and Groovy 6; replace the GPars example with the built-in `groovy.concurrent` actors (GPars retained as a legacy reference).
+*12/Jul/2026*: Update to Pekko 1.6.0 and Groovy 6; replace the GPars example with the built-in `groovy.concurrent` actors (GPars retained as a legacy reference). +
+*22/Aug/2026*: Update to Pekko 1.7.0 and Groovy 6.0.0-beta-2; add an `@ActiveObject` version of the example.
 ****
