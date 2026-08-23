@@ -374,6 +374,11 @@ async {
 }   // reader.close() runs here
 ----
 
+`defer` is a contextual keyword: it is parsed as a keyword only inside
+`async` closures, so existing code that uses `defer` as an ordinary
+identifier elsewhere is unaffected
+(https://issues.apache.org/jira/browse/GROOVY-12254[GROOVY-12254]).
+
 === Feature summary
 
 [cols="1,3", options="header"]
@@ -2342,6 +2347,10 @@ twins (https://issues.apache.org/jira/browse/GROOVY-12218[GROOVY-12218]),
 including `any`/`every`/`count` overloads on `int[]`, `long[]` and
 `double[]` accepting `IntPredicate`/`LongPredicate`/`DoublePredicate` --
 giving primitive arrays a predicate form of `count` for the first time.
+Under `@TypeChecked` / `@CompileStatic`, a method reference or lambda
+argument now selects the functional-interface overload when a `Closure`
+overload also applies, so these calls type-check and compile statically
+(https://issues.apache.org/jira/browse/GROOVY-12214[GROOVY-12214]).
 
 [source,groovy]
 ----
@@ -4037,6 +4046,13 @@ the `@ConditionalInterrupt` condition
 (https://issues.apache.org/jira/browse/GROOVY-12244[GROOVY-12244]).
 Purely generated code (accessors, delegate forwarders, enum machinery,
 trait bridges) remains exempt.
+Import rules now also cover a method pointer or method reference's
+target type (`ProcessBuilder.&new`, `ProcessBuilder::new`), casts and
+coercions that construct an instance from a list, map or closure
+literal (`(Foo) [..]`, `[..] as Foo`, `(Runnable) { }`), and
+named-argument subscript construction (`Foo[a: 1]`)
+(https://issues.apache.org/jira/browse/GROOVY-12279[GROOVY-12279],
+https://issues.apache.org/jira/browse/GROOVY-12283[GROOVY-12283]).
 * *Scoped `invokedynamic` invalidation*: metaclass changes no longer
 deoptimize every `invokedynamic` call site in the JVM. Previously a single
 process-wide `SwitchPoint` guarded all indy call sites, so any metaclass
@@ -4056,6 +4072,18 @@ counts (exact-class, category, and bulk) at `FINE` level for diagnosis. The
 internal `IndyInterface.switchPoint` field, which held the old shared
 `SwitchPoint`, has been removed
 (https://issues.apache.org/jira/browse/GROOVY-12191[GROOVY-12191]).
+A follow-up makes category enter/leave and other bulk invalidation
+proportional to the number of live call-site domains rather than to
+all loaded classes
+(https://issues.apache.org/jira/browse/GROOVY-12259[GROOVY-12259]).
+* Further dynamic-dispatch tuning: cached `Closure` `doCall` targets
+are now invoked through `MethodHandle`s, with high-arity targets
+cached as argument-spreading handles
+(https://issues.apache.org/jira/browse/GROOVY-12263[GROOVY-12263]),
+and the argument-class guards on `invokedynamic` call sites gain
+fixed-arity forms for arities 1-4, avoiding the argument-array
+collection previously done on every guard check
+(https://issues.apache.org/jira/browse/GROOVY-12284[GROOVY-12284]).
 
 == Other Module Changes
 
@@ -4113,6 +4141,17 @@ different encoding
 through to the JMX connector server/client rather than discarding it, so
 connector-specific options are honoured
 (https://issues.apache.org/jira/browse/GROOVY-12119[GROOVY-12119]).
+* *groovy-jmx*: `JmxBuilder`'s documented connector authentication
+properties (`authenticate`, `passwordFile`, `accessFile`, and the new
+`loginConfig` for JAAS) are now mapped onto the standard
+`jmx.remote.x.*` keys that connectors actually consume, so
+authentication configured through `JmxBuilder` is enforced rather than
+silently ignored. Requesting `authenticate: true` without any source of
+credentials is now rejected rather than starting an open connector. The
+legacy `com.sun.management.jmxremote.*` spellings remain accepted as
+input but are no longer copied into the connector environment, where
+they had no effect
+(https://issues.apache.org/jira/browse/GROOVY-12270[GROOVY-12270]).
 * *groovy-datetime*: `TimeCategory` gains two modern flavours -- a
 `java.time`-based category producing `Duration`/`Period` values for the
 modern date/time API, and a "dequirked" `java.util.Date` category that
@@ -4290,6 +4329,23 @@ where it previously read the leaked variable. Under `@TypeChecked` /
 variable with the pattern variable's name where it is not bound is now
 allowed
 (https://issues.apache.org/jira/browse/GROOVY-12242[GROOVY-12242]).
+* Switch expressions are now compiled as first-class AST
+(`SwitchExpression` and `YieldStatement` nodes) instead of being
+desugared into an immediately-called closure wrapping a switch
+statement, eliminating the per-evaluation closure allocation and the
+synthetic closure class. Two behavioural consequences: a dynamic
+switch expression whose selector matches no arm now throws
+`IllegalStateException`, where the desugared form silently evaluated
+to `null`; and under `@TypeChecked` / `@CompileStatic` a
+non-exhaustive switch expression (no `default` arm and not covering a
+complete enum) is now a compile-time error. Matching semantics are
+unchanged -- arms still use Groovy's `isCase` (class, regex,
+collection, closure) -- and `tableswitch`/`lookupswitch` dispatch is
+emitted when the selector and labels are constants Java could switch
+on. AST transforms and visitors that assumed the old closure-call
+shape need to handle the new nodes; `GroovyCodeVisitor` supplies
+default methods so existing visitors keep compiling
+(https://issues.apache.org/jira/browse/GROOVY-12255[GROOVY-12255]).
 * The `CompilerConfiguration` copy constructor now copies compilation
 customizers (and type-checking extension configuration), so a
 configuration cloned from a base config behaves like the original.
