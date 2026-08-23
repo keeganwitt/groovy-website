@@ -2,7 +2,7 @@
 Paul King <paulk-asert|PMC_Member>
 :revdate: 2026-04-02T10:00:00+00:00
 :keywords: null safety, type checking, static analysis, annotations
-:updated: 2026-08-12T10:00:00+00:00
+:updated: 2026-08-24T10:00:00+00:00
 :description: Groovy's null story, from the dynamic operators you already use to \
 the NullChecker type-checking extension that catches null bugs at compile time.
 
@@ -468,6 +468,86 @@ Action')` — keeps working unflagged in relaxed code. Fields annotated
 showed, they are _supposed_ to start out null; so are primitives and
 static fields.
 
+== Example 7: Kotlin-style non-null by default, codebase-wide
+
+Examples 4 and 6 are more useful together than apart, and a
+https://docs.groovy-lang.org/latest/html/documentation/#_configscript_example_static_compilation_by_default[compiler configuration script]
+applies both to every class you compile without touching a single
+source file. Pass it with `groovy`/`groovyc --configscript`, or set
+Gradle's `groovyOptions.configurationScript`:
+
+[source,groovy]
+.config.groovy
+----
+import groovy.transform.TypeChecked
+import org.codehaus.groovy.ast.AnnotationNode
+import org.codehaus.groovy.ast.ClassHelper
+import org.jspecify.annotations.NullMarked
+
+withConfig(configuration) {
+    // 1. statically type-check everything, with flow-sensitive null checking
+    ast(extensions: 'groovy.typecheckers.NullChecker(strict: true)', TypeChecked)
+
+    // 2. non-null by default — a class can still opt out with @NullUnmarked
+    inline(phase: 'CONVERSION') { source, context, classNode ->
+        def optOuts = ['NullMarked', 'NonNullByDefault', 'NullUnmarked']
+        if (classNode.annotations.every { it.classNode.nameWithoutPackage !in optOuts }) {
+            classNode.addAnnotation(new AnnotationNode(ClassHelper.make(NullMarked)))
+        }
+    }
+}
+----
+
+The two customizers map onto the two halves of Kotlin's model. The
+`inline` one runs at conversion — before type checking, so the
+annotation is in place by the time the checker looks — and stamps
+`@NullMarked` on every class that hasn't already opted in or out, so
+an unannotated type means non-null (Kotlin's `String`) while
+`@Nullable` becomes the equivalent of `String?`. The `ast` one turns
+the checker on everywhere, making a violation a compile error rather
+than a lint warning you can scroll past. Only `groovy-typecheckers`
+and the small JSpecify jar need to be on the compile classpath.
+
+With that config in place, the offending code needs no annotations
+beyond the one that states the fact:
+
+[source,groovy]
+----
+@Nullable String findBlurb() { null }     // Kotlin: fun findBlurb(): String? = null
+String shelve(String title) { ... }       // Kotlin: fun shelve(title: String): String
+
+String blurb = findBlurb()                // Kotlin: val blurb: String = findBlurb()
+println blurb.length()                    // compile error
+println shelve(findBlurb())               // compile error
+----
+
+[source]
+----
+[Static type checking] - Potential null dereference: 'blurb' may be null
+[Static type checking] - Cannot pass @Nullable value to @NonNull parameter 'title' of 'shelve'
+----
+
+The idiomatic fixes are spelled exactly as they are in Kotlin —
+`findBlurb() ?: 'no description'` and `findBlurb()?.length()` — and
+both compile and run clean. Returning a nullable value from a
+now-implicitly-non-null method is caught too.
+
+Stamping `@NullMarked` on everything sounds like it should flood
+idiomatic property classes with field-initialisation errors, but the
+definite-initialisation check from Example 6 deliberately only looks
+at fields you annotated `@NonNull` yourself. Fields that are merely
+non-null *by default* are left alone, so `new Book(title: 'Groovy in
+Action')` keeps working unflagged.
+
+One honest difference from Kotlin is worth calling out. Kotlin rejects
+the declaration `val blurb: String = findBlurb()` itself, because
+locals carry non-null types. Under JSpecify semantics `@NullMarked`
+deliberately does not apply to local variables, so the strict-mode
+flow analysis instead tracks the nullable value into `blurb` and flags
+the first *unsafe use* of it — a dereference, a non-null argument, or
+a non-null return. The same bugs are caught; the error arrives a line
+later.
+
 == Annotation compatibility
 
 The checker matches annotations by _simple name_, not by fully-qualified
@@ -626,7 +706,8 @@ axis that matters most the trade runs the other way:
 type survives every call boundary, every generic instantiation and
 every module edge, and the compiler will not let you opt out. Groovy's
 flow analysis is local to the code being checked, and you choose where
-to switch it on.
+to switch it on — though as Example 7 showed, "everywhere" is a
+legitimate choice, made once in a configuration script.
 * *Past your own code, declarations still carry the information.* Flow
 inference knows about values it can watch being created and narrowed.
 What a library returns is a fact only that library can state — which
@@ -675,6 +756,17 @@ propagation in ternary and elvis expressions, and JSpecify's
 is in the
 dochome6:typecheckers.html[type checkers user guide].
 
+There is a ceiling worth knowing about. Annotations state nullness one
+declaration at a time, so a fact that _relates_ two declarations —
+"at least one of `a` and `b` is non-null" — has no spelling in
+JSpecify's vocabulary, and neither does a property that isn't about
+null at all, such as a stock count that must never go negative. Those
+want contracts rather than annotations: the companion post on
+https://groovy.apache.org/blog/groovy6-formal-methods[Groovy 6 features for formal method advocates]
+shows `@Requires`/`@Ensures` obligations discharged by an SMT solver at
+compile time, composing with `NullChecker` in the same `@TypeChecked`
+declaration.
+
 For complementary null-related checks — such as detecting broken
 null-check logic, unnecessary null guards before `instanceof`, or
 `Boolean` methods returning `null` — consider using
@@ -707,9 +799,10 @@ and missing null checks at compile time — from looking up books
 with nullable titles, to enforcing non-null parameters, recognising
 Groovy's safe-navigation idioms, applying class-level defaults with
 `@NonNullByDefault`, handling lazy initialisation with
-`@MonotonicNonNull`, and tracking nullability through control flow
-with `NullChecker(strict: true)`. The setup is minimal, the annotation
-compatibility is broad, and the two-tier strictness model lets you
+`@MonotonicNonNull`, tracking nullability through control flow
+with `NullChecker(strict: true)`, and turning the whole lot on
+codebase-wide from a compiler configuration script. The setup is
+minimal, the annotation compatibility is broad, and the two-tier strictness model lets you
 adopt null safety at your own pace.
 
 == References
@@ -735,4 +828,5 @@ adopt null safety at your own pace.
 * https://checkerframework.org/manual/#nullness-checker[Checker Framework — Nullness Checker]
 * https://groovy-lang.org/objectorientation.html#_safe_navigation_operator[Groovy safe navigation operator]
 * https://groovy.apache.org/blog/groovy6-ai-friendly[Groovy 6 for humans and AI agents] — where these declarations fit the wider picture
+* https://groovy.apache.org/blog/groovy6-formal-methods[Groovy 6 features for formal method advocates] — contracts for the properties annotations can't express
 * https://codenarc.org/[CodeNarc]
