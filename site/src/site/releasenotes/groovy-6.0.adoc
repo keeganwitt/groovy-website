@@ -3904,15 +3904,15 @@ Groovy 5 existence-aware semantics
 compares equal to any `List` with the same elements (element-wise, using
 Groovy equality), rather than requiring another `Tuple`
 (https://issues.apache.org/jira/browse/GROOVY-12017[GROOVY-12017]).
-* The `invokedynamic` polymorphic inline cache uses a single background
-daemon thread (named `PIC-Cleaner`) to evict GC-cleared entries. Setting
-`-Dgroovy.indy.callsite.cleaner.inline=true` prevents that thread from
-starting and performs the (otherwise identical) cleanup inline on the
-calling thread instead. The default (`false`) keeps the background thread.
-This is primarily useful for tests and tools such as deterministic
-concurrency checkers, which can mistake the perpetually parked daemon for a
-deadlocked thread
-(https://issues.apache.org/jira/browse/GROOVY-12092[GROOVY-12092]).
+* The `invokedynamic` polymorphic inline cache evicts GC-cleared entries
+inline on the calling thread, under the (bounded) cache's existing lock.
+During development this release briefly used a background `PIC-Cleaner`
+daemon thread with a `groovy.indy.callsite.cleaner.inline` opt-out
+(https://issues.apache.org/jira/browse/GROOVY-12092[GROOVY-12092]);
+the thread and its flag were removed again because a never-terminating
+daemon started from a static initializer pins the defining class loader
+in redeploy scenarios — inline sweeping is now the only mode
+(https://issues.apache.org/jira/browse/GROOVY-12142[GROOVY-12142]).
 * Subscript increment/decrement and elvis-assignment no longer evaluate
 the receiver (and index) more than once: `a[i]++` / `a[i]--` evaluate
 the receiver a single time
@@ -4098,6 +4098,23 @@ stack-map frames are cached per generated class
 (https://issues.apache.org/jira/browse/GROOVY-12288[GROOVY-12288]).
 These reduce compilation time and have no effect on the bytecode the
 compiler emits.
+* Opt-in soft `GroovyClassValue` mode: running with
+`-Dgroovy.use.classvalue=soft` keeps the `java.lang.ClassValue`
+per-`Class` fast path for dynamic dispatch but stores each association
+through a `SoftReference`, cutting the only strong chain from immortal
+platform classes to Groovy's class loader (JDK-8136353) -- the
+mechanism behind metaspace growth on repeated redeploys
+(https://issues.apache.org/jira/browse/GROOVY-12142[GROOVY-12142]).
+Class metadata carrying non-reconstructible state -- an installed or
+per-instance metaclass, registry-written MOP state -- is strong-rooted
+so nothing observable is lost when memory pressure clears an entry;
+cleared entries are rebuilt on next use with call-site guard soundness
+preserved for both `invokedynamic` and legacy classic call sites. The
+default behaviour is unchanged, and the fully `ClassValue`-free
+fallback (`groovy.use.classvalue=false`) — an escape hatch Groovy 5.0
+had dropped, restored in this release — is again available, now with
+its dispatch cost quantified in the integration guide
+(https://issues.apache.org/jira/browse/GROOVY-12281[GROOVY-12281]).
 
 == Other Module Changes
 
@@ -4454,13 +4471,6 @@ compilation: calls keep binding their token-less overloads (e.g.
 instead of `invokedynamic` property writes.
 | https://issues.apache.org/jira/browse/GROOVY-12138[GROOVY-12138]
 
-| `groovy.indy.callsite.cleaner.inline`
-| `false`
-| `true` performs inline-cache cleanup on the calling thread instead of
-the background `PIC-Cleaner` daemon (useful for tests and deterministic
-concurrency checkers).
-| https://issues.apache.org/jira/browse/GROOVY-12092[GROOVY-12092]
-
 | `groovy.indy.invalidation.stats`
 | `false`
 | `true` logs scoped `SwitchPoint` invalidation counts (exact-class,
@@ -4474,6 +4484,17 @@ deoptimization.
 once, permanently, with cache freshness via a global stamp. Detected
 automatically inside GraalVM native images (see <<native-image>>).
 | https://issues.apache.org/jira/browse/GROOVY-12234[GROOVY-12234]
+
+| `groovy.use.classvalue`
+| `true`
+| Selects the class-metadata store: `true` uses `java.lang.ClassValue`
+(per-`Class` fast path); `false` uses a weak-key map instead — an
+escape hatch dating back to Groovy 2.4 that Groovy 5.0 ignored,
+restored in this release; the new `soft` keeps the `ClassValue` fast
+path while holding metadata via `SoftReference` (redeploy/metaspace
+aid).
+| https://issues.apache.org/jira/browse/GROOVY-12142[GROOVY-12142],
+https://issues.apache.org/jira/browse/GROOVY-12281[GROOVY-12281]
 
 | `groovy.target.lambda.hoist`
 | `false`
