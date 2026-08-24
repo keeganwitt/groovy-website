@@ -4084,6 +4084,20 @@ and the argument-class guards on `invokedynamic` call sites gain
 fixed-arity forms for arities 1-4, avoiding the argument-array
 collection previously done on every guard check
 (https://issues.apache.org/jira/browse/GROOVY-12284[GROOVY-12284]).
+* Compiler performance: several hot spots in the compiler itself were
+tuned -- the static type checker indexes extension methods by name and
+no longer clones non-generic method parameters
+(https://issues.apache.org/jira/browse/GROOVY-12285[GROOVY-12285]),
+class generation avoids a full bytecode re-parse when completing
+`NestMembers` attributes
+(https://issues.apache.org/jira/browse/GROOVY-12211[GROOVY-12211])
+and streamlines its scan for unrelated default methods
+(https://issues.apache.org/jira/browse/GROOVY-12264[GROOVY-12264]),
+and the supertype lookups `ClassWriter` performs when computing
+stack-map frames are cached per generated class
+(https://issues.apache.org/jira/browse/GROOVY-12288[GROOVY-12288]).
+These reduce compilation time and have no effect on the bytecode the
+compiler emits.
 
 == Other Module Changes
 
@@ -4346,6 +4360,24 @@ on. AST transforms and visitors that assumed the old closure-call
 shape need to handle the new nodes; `GroovyCodeVisitor` supplies
 default methods so existing visitors keep compiling
 (https://issues.apache.org/jira/browse/GROOVY-12255[GROOVY-12255]).
+* Method-level type-checking annotations now override a class-level
+`SKIP`: a method (or constructor) whose own `@TypeChecked` or
+`@CompileStatic` annotation has the default non-`SKIP` mode is type
+checked -- and for `@CompileStatic`, statically compiled -- even when
+its declaring class is annotated with `@CompileDynamic`,
+`@CompileStatic(TypeCheckingMode.SKIP)` or
+`@TypeChecked(TypeCheckingMode.SKIP)`. Previously the class-level
+`SKIP` silently won and the method-level annotation was ignored; such
+methods may now raise type-checking errors that previously went
+unreported, and their bodies are statically compiled where they were
+previously dynamic. Remove the method-level annotation (or give it
+`SKIP` mode) to restore the old behaviour. Nested classes already
+behaved this way: the most specific annotation wins, and a class-level
+`SKIP` is the default only for members without their own annotation.
+Unchanged: method-level `@CompileStatic(TypeCheckingMode.SKIP)` /
+`@CompileDynamic` still disables static compilation only, without
+exempting the method from an enclosing class's `@TypeChecked` checking
+(https://issues.apache.org/jira/browse/GROOVY-12292[GROOVY-12292]).
 * The `CompilerConfiguration` copy constructor now copies compilation
 customizers (and type-checking extension configuration), so a
 configuration cloned from a base config behaves like the original.
