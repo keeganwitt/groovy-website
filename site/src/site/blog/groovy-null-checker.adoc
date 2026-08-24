@@ -17,9 +17,6 @@ https://jspecify.dev/[JSpecify], and similar tools in Kotlin and C#,
 `NullChecker` catches null dereferences, unsafe assignments, and
 missing null checks _before_ your code ever runs.
 
-That is the second half of Groovy's null story, though, and it is
-worth starting with the first.
-
 The extension plugs into Groovy's existing `@TypeChecked`
 infrastructure — no new compiler plugins, no separate build step,
 just an annotation on the classes or methods you want checked.
@@ -33,6 +30,9 @@ what the day-to-day experience would feel like.
 To make things concrete, the examples follow a running theme:
 building the backend for _The Groovy Shelf_, a fictitious online
 bookshop where customers browse, reserve, and review books.
+
+That is the second half of Groovy's null story, though, and it is
+worth starting with the first.
 
 == First, the dynamic story
 
@@ -221,7 +221,7 @@ String formatTitle(@Nullable String title) {
 static main(args) {
     String title = null
     title ?= 'Untitled'
-    title.toUpperCase()                        // ok: elvis cleared nullable state
+    title.toUpperCase()                        // ok: elvis assignment cleared nullable state
 }
 ----
 
