@@ -1,9 +1,11 @@
 = Reading and Writing CSV files with Groovy&trade;
 Paul King
 :revdate: 2022-07-25T14:26:20+00:00
-:updated: 2026-08-25T10:00:00+00:00
+:updated: 2026-08-26T10:00:00+00:00
 :keywords: csv, data, deserialization, files, groovy, reading, records, data science, serialization, writing, groovy-csv, csvslurper, csvbuilder, opencsv, commons csv, jackson databind, cycling
 :description: This post looks at processing CSV files using Groovy's groovy-csv module, along with the OpenCSV, Apache Commons CSV, and Jackson Databind libraries.
+
+image:img/csv_typed.png["Reading a CSV file by hand with split versus reading it into records with Groovy's CsvSlurper",width=800]
 
 == Introduction
 
@@ -278,10 +280,71 @@ assert sales*.amount.sum() == 1750.50
 assert sales[0].date.monthValue == 3
 ----
 
-Writing typed objects back out is `CsvBuilder.toCsv(data, type)`. One
-thing to watch there: the column order comes from Jackson's view of the
-type rather than the declaration order, so if the exact ordering
-matters, supply a schema yourself.
+Writing typed objects back out is `CsvBuilder.toCsv(data, type)`.
+Records are written in component declaration order and other classes
+alphabetically. If the order matters, `@JsonPropertyOrder` on the type
+pins it explicitly; records came out alphabetically too in Groovy 6 beta versions,
+and the annotation gives the same result either way.
+
+=== Revisiting the summary
+
+Now that our rows are records, we can revisit the multiple wins summary
+from earlier. The grouping key becomes the interesting part of the line
+rather than a column index, and `countBy` does in one step what
+`groupBy` followed by a size mapping did before, so the `bySize` helper
+has no equivalent here:
+
+[source,groovy]
+----
+def multipleWins = { Closure select -> cyclists
+    .countBy(select)
+    .findAll { it.value > 1 }
+    .sort { -it.value }
+    .entrySet()
+    .join(', ')
+}
+println 'Multiple wins by country:\n' + multipleWins{ it.country }
+println 'Multiple wins by rider:\n' + multipleWins{ it.full() }
+println 'Multiple wins by team:\n' + multipleWins{ it.team }
+----
+
+The output is identical to the earlier version, but nothing in the
+processing depends any more on which position a column happens to
+occupy in the file.
+
+image:img/csv_summary.png["The multiple wins summary rewritten with records and countBy, alongside its output",width=800]
+
+Groovy's `groovy-ginq` module is worth a mention here too. GINQ can
+group by several keys at once, so the team and country travel along
+with the rider, and a second aggregate comes with them in the same
+pass:
+
+[source,groovy]
+----
+def repeatWinners = GQ {
+    from c in cyclists
+    groupby c.full() as rider, c.team as team, c.country as country
+    having count() > 1
+    orderby count() in desc, rider
+    select rider, team, country, count() as wins, max(c.stage) as lastWin
+}
+repeatWinners.each {
+    println "$it.wins wins  $it.rider ($it.team, $it.country), last on stage $it.lastWin"
+}
+----
+
+which gives us:
+
+[source]
+----
+3 wins  Tadej Pogačar (UAE Team Emirates, 🇸🇮), last on stage 17
+3 wins  Wout van Aert (Jumbo-Visma, 🇧🇪), last on stage 20
+2 wins  Jasper Philipsen (Alpecin-Deceuninck, 🇧🇪), last on stage 21
+2 wins  Jonas Vingegaard (Jumbo-Visma, 🇩🇰), last on stage 18
+----
+
+Doing that with closures means holding on to a representative element
+for each group and re-extracting the other columns from it.
 
 The module is incubating in Groovy 6, so we'd love your feedback. The
 dochome6:csv-userguide.html[Processing CSV user guide] has the full API.
@@ -544,3 +607,9 @@ https://github.com/paulk-asert/CsvGroovy
 
 Code for other examples of using Groovy for Data Science: +
 https://github.com/paulk-asert/groovy-data-science
+
+.Update history
+****
+*25/Jul/2022*: Initial version. +
+*26/Aug/2026*: Version 2: added a section on Groovy 6's `groovy-csv` module — `CsvSlurper`, `CsvBuilder`, RFC 4180 quoting, and typed `parseAs` reading straight into records; revisited the multiple wins summary using records with `countBy`, and with a `groovy-ginq` query grouping by several keys at once.
+****
