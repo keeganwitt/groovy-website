@@ -1,8 +1,9 @@
 = Reading and Writing CSV files with Groovy&trade;
 Paul King
 :revdate: 2022-07-25T14:26:20+00:00
-:keywords: csv, data, deserialization, files, groovy, reading, records, data science, serialization, writing, opencsv, commons csv, jackson databind, cycling
-:description: This post looks at processing CSV files using OpenCSV, Apache Commons CSV, and Jackson Databind libraries.
+:updated: 2026-08-25T10:00:00+00:00
+:keywords: csv, data, deserialization, files, groovy, reading, records, data science, serialization, writing, groovy-csv, csvslurper, csvbuilder, opencsv, commons csv, jackson databind, cycling
+:description: This post looks at processing CSV files using Groovy's groovy-csv module, along with the OpenCSV, Apache Commons CSV, and Jackson Databind libraries.
 
 == Introduction
 
@@ -92,7 +93,7 @@ themselves contain commas or newlines? Perhaps we can surround in
 double quotes but then what if the value contains a double quote?
 And so forth. For this reason, CSV libraries are recommended.
 
-We'll look at three shortly, but first let's summarise some of
+We'll look at four shortly, but first let's summarise some of
 the highlights of the tour by looking at multiple winners.
 Here is some code which summarises our CSV data:
 
@@ -120,7 +121,170 @@ Here's the output:
 
 image:img/HommesMultipleWins.png[MultipleWins]
 
-Okay, now let's look at our three CSV libraries.
+Okay, now let's look at our four CSV options, starting with the
+one which comes with Groovy itself.
+
+== Groovy's CSV module
+
+Groovy 6 added an optional `groovy-csv` module
+(https://issues.apache.org/jira/browse/GROOVY-11923[GROOVY-11923])
+containing `CsvSlurper` and `CsvBuilder` classes in the `groovy.csv`
+package. If you have used `JsonSlurper`/`JsonBuilder` or
+`XmlSlurper`/`XmlBuilder`, the naming and the style will look familiar.
+Being an optional module, we need to add it to our build, or for a
+script:
+
+[source,groovy]
+----
+@Grab('org.apache.groovy:groovy-csv:6.0.0-beta-3')
+----
+
+This module is row-oriented rather than line-oriented: `CsvBuilder`
+writes a collection of maps, and `CsvSlurper` reads back a list of maps
+keyed by the header names. So, we'll express our podium data like this:
+
+[source,groovy]
+----
+def data = [
+    [place: 1, firstname: 'Lorena',   lastname: 'Wiebes',  team: 'Team DSM'],
+    [place: 2, firstname: 'Marianne', lastname: 'Vos',     team: 'Team Jumbo Visma'],
+    [place: 3, firstname: 'Lotte',    lastname: 'Kopecky', team: 'Team SD Worx']
+]
+----
+
+Writing it is a one-liner, with the keys of the first map becoming the
+header row:
+
+[source,groovy]
+----
+file.text = CsvBuilder.toCsv(data)
+----
+
+That gives us:
+
+[source]
+----
+place,firstname,lastname,team
+1,Lorena,Wiebes,"Team DSM"
+2,Marianne,Vos,"Team Jumbo Visma"
+3,Lotte,Kopecky,"Team SD Worx"
+----
+
+Reading it back needs no configuration, since treating the first row as
+a header is the default:
+
+[source,groovy]
+----
+def podium = new CsvSlurper().parse(file)
+assert podium[0].firstname == 'Lorena'
+assert podium*.team.toSet().size() == 3
+----
+
+As well as `parseText` for a String, there are `parse` overloads taking
+a `Reader`, `InputStream`, `File` or `Path`, each with an optional
+`Charset`.
+
+Our more elaborate example needs no extra work to skip or interpret the
+header row, and like the other libraries, we can process using column
+names:
+
+[source,groovy]
+----
+def rows = new CsvSlurper().parse(new File('HommesStageWinners.csv'))
+assert rows.size() == 21
+assert rows.collect { it.firstname + ' ' + it.lastname }.toSet().size() == 15
+assert rows*.team.toSet().size() == 10
+assert rows*.country.toSet().size() == 9
+----
+
+The messy details we worried about earlier are handled for us. Fields
+containing the separator, newlines or quotes are quoted on the way out
+and unquoted on the way in, with embedded quotes doubled, as per
+RFC 4180:
+
+[source,groovy]
+----
+def csv = '''\
+name,quote
+"Vos, Marianne","She said ""go"""
+'''
+def row = new CsvSlurper().parseText(csv)[0]
+assert row.name == 'Vos, Marianne'
+assert row.quote == 'She said "go"'
+----
+
+If your data doesn't use commas and double quotes, fluent setters
+change that:
+
+[source,groovy]
+----
+assert new CsvSlurper().setSeparator('\t' as char)
+        .parseText('a\tb\n1\t2') == [[a: '1', b: '2']]
+----
+
+`CsvBuilder` has matching `setSeparator` and `setQuoteChar` setters and
+implements `Writable`, so it can be handed straight to a writer:
+
+[source,groovy]
+----
+file.withWriter { w -> new CsvBuilder()(data).writeTo(w) }
+----
+
+=== Typed parsing
+
+CSV has no types of its own, every cell is just text, so the `parse`
+methods hand back `String` values. That is often what we want, but when
+it isn't, the `parseAs` method converts rows into typed objects. We
+describe the shape we want with a record:
+
+[source,groovy]
+----
+record Cyclist(int stage,
+               @JsonProperty('firstname') String first,
+               @JsonProperty('lastname') String last,
+               String team, String country) {
+    String full() { "$first $last" }
+}
+----
+
+And then read our file directly into records:
+
+[source,groovy]
+----
+List<Cyclist> cyclists = new CsvSlurper().parseAs(Cyclist, new File('HommesStageWinners.csv'))
+assert cyclists.size() == 21
+assert cyclists*.full().toSet().size() == 15
+assert cyclists*.team.toSet().size() == 10
+assert cyclists*.country.toSet().size() == 9
+assert cyclists[0].stage == 1    // an int, not a String
+----
+
+Jackson Databind performs the databinding here, which is why that is a
+Jackson annotation. We only need it for the two components whose names
+don't match their column, and `stage` arrives as an `int` without any
+help. We'll meet the same annotations again in the Jackson Databind
+section later, but here we don't assemble a `CsvMapper` and a
+`CsvSchema` ourselves. Conversion isn't limited to numbers, `java.time`
+types work too, with `@JsonFormat` where the pattern isn't the default:
+
+[source,groovy]
+----
+record Sale(String customer, BigDecimal amount,
+            @JsonFormat(pattern = 'yyyy-MM-dd') LocalDate date) { }
+
+def sales = new CsvSlurper().parseAs(Sale,
+        'customer,amount,date\nAcme,1500.00,2026-03-01\nGlobex,250.50,2026-03-02')
+assert sales*.amount.sum() == 1750.50
+assert sales[0].date.monthValue == 3
+----
+
+Writing typed objects back out is `CsvBuilder.toCsv(data, type)`. One
+thing to watch there: the column order comes from Jackson's view of the
+type rather than the declaration order, so if the exact ordering
+matters, supply a schema yourself.
+
+The module is incubating in Groovy 6, so we'd love your feedback. The
+dochome6:csv-userguide.html[Processing CSV user guide] has the full API.
 
 == Commons CSV
 
@@ -370,8 +534,10 @@ file.withReader { r ->
 
 We have looked at writing and reading CSV files to Strings and
 domain classes and records. We had a look at handling simple
-cases by hand and also looked at the OpenCSV, Commons CSV and
-Jackson Databind CSV libraries.
+cases by hand, at Groovy 6's own `groovy-csv` module, and at the
+OpenCSV, Commons CSV and Jackson Databind CSV libraries.
+
+The `groovy-csv` examples were tested with Groovy 6.0.0-beta-3.
 
 Code for these examples: +
 https://github.com/paulk-asert/CsvGroovy
