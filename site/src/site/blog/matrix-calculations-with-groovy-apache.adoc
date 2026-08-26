@@ -1,8 +1,11 @@
 = Matrix calculations with Groovy&trade;, Apache Commons Math, ojAlgo, Nd4j and EJML
 Paul King
 :revdate: 2022-08-18T13:41:03+00:00
-:keywords: data science, groovy, matrices, ojalgo, commons math, nd4j, ejml, vector api, eclipse deeplearning4j
-:description: This post looks at using Groovy to write a number of applications involving matrices. It uses a number of open source matrix libraries.
+:updated: 2026-08-26T12:00:00+00:00
+:keywords: data science, groovy, matrices, ojalgo, commons math, nd4j, ejml, vector api, eclipse deeplearning4j, gpu, cuda, jcuda, cublas
+:description: This post looks at using Groovy to write applications involving matrices. It uses some open source matrix libraries, the Vector API, and cuBLAS on a GPU.
+
+image:img/matrix_crossover.png["cuBLAS on a GPU overtakes the Vector API on the CPU at around a 110x110 matrix",width=800]
 
 This blogs looks at performing matrix calculations with Groovy
 using various libraries:
@@ -14,10 +17,9 @@ https://web.archive.org/web/20260417034825/https://deeplearning4j.konduit.ai/nd4
 (part of Eclipse https://deeplearning4j.konduit.ai/[Deeplearning4j]).
 We'll also take a quick
 look at using the incubating Vector API for matrix calculations
-(JEPs https://openjdk.org/jeps/338[338],
-https://openjdk.org/jeps/414[414],
-https://openjdk.org/jeps/417[417],
-and https://openjdk.org/jeps/426[426]).
+(first proposed in https://openjdk.org/jeps/338[JEP 338] and
+re-incubated ever since, most recently as
+https://openjdk.org/jeps/537[JEP 537]).
 
 == Fibonacci
 
@@ -181,22 +183,24 @@ Here is the code for our Fibonacci example:
 
 [source,groovy]
 ----
-def factory = Primitive64Matrix.FACTORY
+def factory = MatrixR064.FACTORY
 def m = factory.rows([[1d, 1d], [1d, 0d]] as double[][])
 println m * m * m
 println m**15
 ----
 
 We can see it supports the same operator overloading features we
-saw for Commons Math.
+saw for Commons Math. (This class used to be called
+`Primitive64Matrix`; the `MatrixR064` name arrived in ojAlgo 53,
+which offers both, and the old name was removed in 54.)
 
 When we run the script, it has the following output:
 
 ----
-org.ojalgo.matrix.Primitive64Matrix < 2 x 2 >
+org.ojalgo.matrix.MatrixR064 < 2 x 2 >
 { { 3.0,	2.0 },
 { 2.0,	1.0 } }
-org.ojalgo.matrix.Primitive64Matrix < 2 x 2 >
+org.ojalgo.matrix.MatrixR064 < 2 x 2 >
 { { 987.0,	610.0 },
 { 610.0,	377.0 } }
 ----
@@ -206,12 +210,12 @@ second reveals the next three numbers in the sequence.
 
 === Exploring the Vector API and EJML
 
-From JDK16, various versions (JEPs
-https://openjdk.org/jeps/338[338],
-https://openjdk.org/jeps/414[414],
-https://openjdk.org/jeps/417[417],
-https://openjdk.org/jeps/426[426]) of the Vector API
-have been available as an incubating preview feature.
+The Vector API arrived in JDK16 as an incubator module
+(https://openjdk.org/jeps/338[JEP 338]) and has been re-incubated in
+every release since — twelve times as of JDK27
+(https://openjdk.org/jeps/537[JEP 537]). Note that an *incubator
+module* is not the same thing as a *preview feature*: it needs
+`--add-modules`, but not `--enable-preview`.
 The HotSpot compiler has previously already had some minimal
 optimisations that can leverage vector hardware instructions
 but the Vector API expands the scope of possible optimisations
@@ -282,8 +286,12 @@ printf "Optimized: %6.2f ms\n", (t2 - t1)/1000_000
 printf "Vector:    %6.2f ms\n", (t3 - t2)/1000_000
 ----
 
-This example was run on JDK16 with the following VM options:
-`–enable-preview –add-modules jdk.incubator.vector`.
+This example was originally run on JDK16 with the VM options
+`--enable-preview --add-modules jdk.incubator.vector`. Only the second
+of those is actually required, and the first is worth avoiding: classes
+compiled with `--enable-preview` carry a version marker that ties them
+to the exact JDK which produced them, so such a build stops loading on
+any later JDK.
 
 The output looks like this:
 
@@ -308,6 +316,168 @@ https://github.com/lessthanoptimal/VectorPerformance[repo].
 And you may wish to wait until the Vector API is out of preview
 before relying on it for any production code - but by all means,
 consider trying it out now.
+
+== Matrix multiplication on a GPU
+
+The previous section asked what wider hardware buys us: the Vector API
+processes several doubles per instruction instead of one. A GPU takes
+that idea to its logical extreme — thousands of lanes instead of four —
+so it is a natural next question, and one with a less obvious answer
+than you might expect.
+
+We'll use https://github.com/jcuda/jcuda[JCuda], which wraps the CUDA
+APIs for the JVM, and specifically its cuBLAS binding. cuBLAS is
+NVIDIA's tuned linear algebra library, which makes it the fair
+comparison against EJML: both are libraries written by people who care
+a great deal about matrix multiplication, rather than code we wrote
+ourselves.
+
+=== Talking to cuBLAS from Groovy
+
+JCuda publishes platform-specific native artifacts, so the dependencies
+need the classifier for your platform, and the classifier-less
+transitive dependency turned off:
+
+[source,groovy]
+----
+@Grab('org.jcuda:jcuda:12.6.0;transitive=false')
+@Grab('org.jcuda:jcublas:12.6.0;transitive=false')
+@Grab('org.jcuda:jcuda-natives:12.6.0:linux-x86_64;transitive=false')
+@Grab('org.jcuda:jcublas-natives:12.6.0:linux-x86_64;transitive=false')
+----
+
+With that in place, we can raise our Fibonacci matrix to the third
+power on the GPU. It is two `cublasDgemm` calls, wrapped in the
+allocate/copy/compute/copy-back/free sequence that CUDA requires:
+
+[source,groovy]
+----
+final int N = 2
+double[] q = [1, 1, 1, 0]                        // [[1, 1], [1, 0]]
+
+def handle = new cublasHandle()
+JCublas2.cublasCreate(handle)
+
+long bytes = (long) (N * N * Sizeof.DOUBLE)
+def dQ = new Pointer(), dS = new Pointer(), dR = new Pointer()
+JCuda.cudaMalloc(dQ, bytes); JCuda.cudaMalloc(dS, bytes); JCuda.cudaMalloc(dR, bytes)
+JCuda.cudaMemcpy(dQ, Pointer.to(q), bytes, cudaMemcpyHostToDevice)
+
+Pointer alpha = Pointer.to([1.0d] as double[])
+Pointer beta = Pointer.to([0.0d] as double[])
+
+JCublas2.cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N, alpha, dQ, N, dQ, N, beta, dS, N)
+JCublas2.cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N, alpha, dS, N, dQ, N, beta, dR, N)
+
+double[] result = new double[N * N]
+JCuda.cudaMemcpy(Pointer.to(result), dR, bytes, cudaMemcpyDeviceToHost)
+
+JCuda.cudaFree(dQ); JCuda.cudaFree(dS); JCuda.cudaFree(dR)
+JCublas2.cublasDestroy(handle)
+
+assert result == [3, 2, 2, 1] as double[]
+----
+
+The same `[3, 2, 2, 1]` we saw from every other library. Two details
+are worth pointing out. Everything here is a `Pointer` into device
+memory rather than a Java array, which is why the boilerplate exists at
+all. And cuBLAS is **column-major**, following the Fortran BLAS
+tradition — our matrix and its powers happen to be symmetric so the
+flat array reads identically either way, but that will not be true in
+general, and it is the easiest thing to get quietly wrong.
+
+=== When is it worth it?
+
+Here is the awkward part. Our Fibonacci matrix is 2x2, which is about
+24,000 floating-point operations for the whole calculation — roughly
+two nanoseconds of work for a GPU, against a kernel launch cost
+measured in microseconds. So rather than a single number, it is more
+useful to vary the matrix size and watch what happens.
+
+All the figures below were measured in one session on the same machine
+— a freely available https://colab.research.google.com/[Google Colab]
+notebook with an NVIDIA T4 — because comparing a GPU on one machine
+against a CPU on another tells you nothing. The notebook is in the
+https://github.com/paulk-asert/MatrixGroovy/blob/main/notebooks/groovy_jcuda_colab.ipynb[example code repo]
+if you'd like to run it yourself; it installs everything it needs.
+Throughput in GFLOPS, so bigger is better:
+
+[cols="7*",options="header"]
+|===
+| N | `mult_ikj_simple` | `mult_ikj` | `mult_ikj_vector` | cuBLAS (compute) | cuBLAS (with transfer) | Winner
+
+| 2    | -    | -    | -    | -     | -     | CPU, by 42x
+| 64   | 1.11 | 1.21 | 2.56 | 1.6   | 0.87  | CPU, by 3x
+| 256  | 2.63 | 3.06 | 5.18 | 60.1  | 26.4  | GPU, by 5x
+| 512  | 2.81 | 2.83 | 5.52 | 69.1  | 45.2  | GPU, by 8x
+| 1024 | 2.57 | 2.54 | 5.23 | 69.1  | 51.1  | GPU, by 10x
+| 2048 | -    | -    | -    | 232.9 | 173.5 | GPU
+| 4096 | -    | -    | -    | 252.3 | 216.8 | GPU
+|===
+
+The crossover sits somewhere between 64 and 256. Below that, the CPU
+wins outright: at our actual Fibonacci size the CPU is some forty times
+quicker, because the GPU spends all its time being handed work rather
+than doing it. Above it the GPU pulls ahead, but by roughly one order
+of magnitude — not the hundreds-fold difference GPU marketing might
+lead you to expect, once you are comparing against a properly measured
+CPU rather than a naive loop.
+
+Two things temper the GPU column. The first is that a T4 performs
+double-precision arithmetic at one thirty-second of its single-precision
+rate — about 254 GFLOPS — so these numbers show the card at its worst.
+We used doubles throughout to match the rest of this post; in floats
+the picture would look very different and the crossover would arrive
+sooner. The second is the transfer column: moving the matrices to the
+card and back costs real time, and it is what erodes a 13x advantage in
+raw computation down to 10x once you account for it.
+
+The card only reaches its stride past N=1024, where throughput jumps
+from about 70 GFLOPS to over 230 and then settles near 250 — around
+98% of what the hardware can do in double precision. Below that it is
+largely idle, waiting.
+
+=== What has changed since this post was written
+
+Re-running the EJML comparison years later turned up something we did
+not expect. When this post first appeared, `mult_ikj` — the
+carefully-optimised version, and what EJML actually uses — was around
+three times faster than `mult_ikj_simple`, written straight from the
+mathematical definition. That gap has closed entirely: on a current JDK
+the two are within measurement noise of one another at every size we
+tried. The JIT compiler now does for free what previously had to be
+done by hand.
+
+The Vector API lane is still ahead, consistently by about a factor of
+two. That machine's hardware offers four doubles per vector, so a
+perfect result would have been 4x, and 2x for a straightforward
+implementation is a respectable outcome. On hardware with narrower
+vectors the advantage is correspondingly smaller.
+
+And the Vector API itself? This post originally suggested waiting until
+it left preview. It is still an incubator module, on its twelfth
+incubation, so that advice stands — though it works perfectly well if
+you are willing to pass `--add-modules jdk.incubator.vector`.
+
+=== Health warnings
+
+The usual microbenchmark disclaimer applies with extra force here. Colab
+hands out shared, virtualised hardware, so absolute timings vary between
+sessions: across runs we saw the largest matrices repeat to within a
+percent or so, while the smallest varied by nearly half. Treat the small-N
+figures as indicative and the shape of the curve as the real result.
+
+Two measurement traps are worth passing on, since both produced
+confidently wrong numbers before being caught. A single warm-up call is
+not enough: at small sizes it leaves the vectorised method interpreted,
+where it measures about seven times *slower* than scalar code. And
+timing several matrix sizes inside one JVM pollutes the JIT profile —
+the same method compiled against many different loop trip counts
+degrades to generic code, and the scalar lanes then read some three
+times slower than they truly are. Each size needs its own JVM, which is
+precisely the discipline
+https://github.com/openjdk/jmh[jmh] enforces, and which we should
+probably have used from the outset.
 
 == Leslie Matrices
 
@@ -513,7 +683,7 @@ class CustomPaintComponent extends Component {
         fill ? g.fillPolygon(poly) : g.drawPolygon(poly)
     }
 
-    static List<Primitive64Matrix> vectors(List<Integer>... pts) {
+    static List<MatrixR064> vectors(List<Integer>... pts) {
         pts.collect{ factory.column(*it) }
     }
 
@@ -735,3 +905,9 @@ using matrices on the JVM isn't hard, and you have numerous
 options. We also saw a brief glimpse at the Vector API which
 looks like an exciting addition to the JVM (hopefully arriving
 soon in non-preview mode).
+
+.Update history
+****
+*18/Aug/2022*: Initial version. +
+*26/Aug/2026*: Version 2: added a section on matrix multiplication on a GPU, calling NVIDIA's cuBLAS through JCuda and measuring where offloading starts to pay off; re-ran the EJML comparison on a current JDK, where `mult_ikj` and `mult_ikj_simple` now perform alike and only the Vector API lane remains ahead.
+****
