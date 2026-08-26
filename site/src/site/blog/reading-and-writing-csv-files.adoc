@@ -141,6 +141,16 @@ script:
 @Grab('org.apache.groovy:groovy-csv:6.0.0-beta-3')
 ----
 
+Under the covers, `groovy-csv` currently builds on the CSV support in
+https://github.com/FasterXML/jackson-databind[Jackson Databind], which
+we'll be looking at directly later in this post. That is an
+implementation detail rather than part of the module's API, and it
+stays mostly out of sight, but a few hints reveal it here and there —
+most visibly in the annotations recognised when reading and writing
+typed objects. In theory the underlying library could change, though
+that happens only rarely, and never without considering the porting
+options for existing users.
+
 This module is row-oriented rather than line-oriented: `CsvBuilder`
 writes a collection of maps, and `CsvSlurper` reads back a list of maps
 keyed by the header names. So, we'll express our podium data like this:
@@ -261,13 +271,14 @@ assert cyclists*.country.toSet().size() == 9
 assert cyclists[0].stage == 1    // an int, not a String
 ----
 
-Jackson Databind performs the databinding here, which is why that is a
-Jackson annotation. We only need it for the two components whose names
-don't match their column, and `stage` arrives as an `int` without any
-help. We'll meet the same annotations again in the Jackson Databind
-section later, but here we don't assemble a `CsvMapper` and a
-`CsvSchema` ourselves. Conversion isn't limited to numbers, `java.time`
-types work too, with `@JsonFormat` where the pattern isn't the default:
+This is one of those places where the Jackson underpinnings show
+through: `@JsonProperty` is a Jackson annotation. We only need it for
+the two components whose names don't match their column, and `stage`
+arrives as an `int` without any help. We'll meet the same annotations
+again in the Jackson Databind section later, but here we don't
+assemble a `CsvMapper` and a `CsvSchema` ourselves. Conversion isn't
+limited to numbers, `java.time` types work too, with `@JsonFormat`
+where the pattern isn't the default:
 
 [source,groovy]
 ----
@@ -280,11 +291,14 @@ assert sales*.amount.sum() == 1750.50
 assert sales[0].date.monthValue == 3
 ----
 
-Writing typed objects back out is `CsvBuilder.toCsv(data, type)`.
-Records are written in component declaration order and other classes
-alphabetically. If the order matters, `@JsonPropertyOrder` on the type
-pins it explicitly; records came out alphabetically too in Groovy 6 beta versions,
-and the annotation gives the same result either way.
+Writing typed objects back out is `CsvBuilder.toCsv(data, type)`. If
+the column order matters, `@JsonPropertyOrder` on the type pins it
+explicitly. Without it, columns follow Jackson's own ordering, which is
+alphabetical; from 6.0.0-beta-4 onwards records instead keep their
+component declaration order
+(https://issues.apache.org/jira/browse/GROOVY-12296[GROOVY-12296]),
+while other classes stay alphabetical. The annotation gives the same
+result either way.
 
 === Revisiting the summary
 
