@@ -87,14 +87,13 @@ downloads {
             a(href: 'versioning.html', 'version')
             yield ' of Groovy designed for JDK17+. Alpha releases are not recommended for production use.'
         }
+        version('6.0.0-beta-3') {
+            stable false
+//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-beta-3/'
+        }
         version('6.0.0-beta-2') {
             stable false
-//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-beta-2/'
-        }
-        version('6.0.0-beta-1') {
-            stable false
-            archive true
-            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-beta-1/'
+            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-6.0.0-beta-2/'
         }
     }
     distribution('Groovy 5.1') {
@@ -104,9 +103,13 @@ downloads {
             a(href: 'versioning.html', 'version')
             yield ' of Groovy designed for JDK11+.'
         }
+        version('5.1.1') {
+            stable true
+//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.1.1/'
+        }
         version('5.1.0') {
             stable true
-//            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.1.0/'
+            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-5.1.0/'
         }
     }
     distribution('Groovy 5.0') {
@@ -142,19 +145,6 @@ downloads {
         version('3.0.25') {
             stable true
             windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-3.0.25/'
-        }
-    }
-    distribution('Groovy 2.5') {
-        description {
-            a(href: "${userSiteBase}releasenotes/groovy-2.5.html", 'Groovy 2.5')
-            yield ' is an earlier '
-            a(href: 'versioning.html', 'version')
-            yield ' of Groovy still in widespread use.'
-            yield ' We encourage users to upgrade from this version as we no longer support this version actively.'
-        }
-        version('2.5.23') {
-            stable true
-            windowsInstaller 'https://groovy.jfrog.io/artifactory/dist-release-local/groovy-windows-installer/groovy-2.5.23/'
         }
     }
 }
